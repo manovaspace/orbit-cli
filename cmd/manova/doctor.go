@@ -1,0 +1,108 @@
+package main
+
+import (
+	"fmt"
+
+	"git.dev.manova.space/manova/orbit-cli/pkg/doctor"
+	"github.com/spf13/cobra"
+)
+
+func newDoctorCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Run pre-flight system diagnostics and environment health checks",
+		Long:  "Executes comprehensive diagnostics across OS, Go compiler, Node/pnpm, Docker, SSH keys, dev ports, and optional tools.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			fmt.Fprintln(out, titleStyle.Render("Manova System Doctor — Pre-flight Diagnostics"))
+
+			report := doctor.RunDiagnostics()
+
+			// Count outcomes
+			passed := 0
+			warnings := 0
+			errors := 0
+
+			for _, res := range report.Results {
+				switch res.Status {
+				case doctor.StatusOK:
+					passed++
+				case doctor.StatusWarning:
+					warnings++
+				case doctor.StatusError:
+					errors++
+				}
+			}
+
+			// Render results grouped by category
+			currentCategory := ""
+			var fixes []doctor.DiagnosticResult
+
+			for _, res := range report.Results {
+				if res.Category != currentCategory {
+					currentCategory = res.Category
+					fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── "+currentCategory+" ──────────────────────────────────"))
+				}
+
+				var statusIcon string
+				switch res.Status {
+				case doctor.StatusOK:
+					statusIcon = iconOK
+				case doctor.StatusWarning:
+					statusIcon = iconWarn
+				case doctor.StatusError:
+					statusIcon = iconError
+				default:
+					statusIcon = iconInfo
+				}
+
+				nameCol := padRight(res.Name, 26)
+				fmt.Fprintf(out, "  %s  %s  %s\n", statusIcon, nameCol, res.Message)
+
+				if res.FixSuggestion != "" && res.Status != doctor.StatusOK {
+					fixes = append(fixes, res)
+				}
+			}
+
+			// Render remediation section if any warnings/errors have suggestions
+			if len(fixes) > 0 {
+				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Remediation & Fix Suggestions ──────────────────────────"))
+				for _, fix := range fixes {
+					var badge string
+					if fix.Status == doctor.StatusError {
+						badge = errorStyle.Render("[ERROR]")
+					} else {
+						badge = warningStyle.Render("[WARN]")
+					}
+					fmt.Fprintf(out, "  %s %s: %s\n     %s %s\n",
+						badge,
+						boldStyle.Render(fix.Name),
+						fix.Message,
+						iconArrow,
+						codeStyle.Render(fix.FixSuggestion),
+					)
+				}
+			}
+
+			// Summary footer
+			summary := fmt.Sprintf("\n%s  %s  %s",
+				successStyle.Render(fmt.Sprintf("✔ %d passed", passed)),
+				warningStyle.Render(fmt.Sprintf("⚠ %d warnings", warnings)),
+				errorStyle.Render(fmt.Sprintf("✖ %d errors", errors)),
+			)
+			fmt.Fprintln(out, summary)
+
+			if report.HasErrors() {
+				return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errors)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output diagnostic report in JSON format")
+
+	return cmd
+}
