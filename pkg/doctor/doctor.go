@@ -30,7 +30,7 @@ func RunDiagnostics() *DoctorReport {
 
 	report.Add(CheckOS())
 	report.Add(CheckGo())
-	report.AddAll(CheckNodeAndPnpm())
+	report.AddAll(CheckNodeAndBun())
 	report.AddAll(CheckDocker())
 	report.AddAll(CheckSSHAuth())
 	report.Add(CheckPorts())
@@ -194,17 +194,17 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckNodeAndPnpm checks Node.js (>= 20/22) and pnpm (>= 9).
-func CheckNodeAndPnpm() []DiagnosticResult {
+// CheckNodeAndBun checks Node.js (>= 20/22) and Bun (>= 1.1).
+func CheckNodeAndBun() []DiagnosticResult {
 	var results []DiagnosticResult
 
 	// Node check
 	nodeOut, nodeErr := runCommand(defaultCommandTimeout, "node", "-v")
 	results = append(results, EvaluateNodeVersion(nodeOut, nodeErr))
 
-	// pnpm check with non-interactive env
-	pnpmOut, pnpmErr := runCommandWithEnv(defaultCommandTimeout, []string{"COREPACK_ENABLE_DOWNLOAD_PROMPT=0"}, "pnpm", "-v")
-	results = append(results, EvaluatePnpmVersion(pnpmOut, pnpmErr))
+	// Bun check
+	bunOut, bunErr := runCommand(defaultCommandTimeout, "bun", "-v")
+	results = append(results, EvaluateBunVersion(bunOut, bunErr))
 
 	return results
 }
@@ -262,39 +262,39 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// EvaluatePnpmVersion evaluates the output of `pnpm -v`.
-func EvaluatePnpmVersion(rawOutput string, execErr error) DiagnosticResult {
+// EvaluateBunVersion evaluates the output of `bun -v`.
+func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 	category := "Runtime"
-	name := "pnpm"
+	name := "Bun"
 
 	if execErr != nil {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       "pnpm package manager not found in PATH",
-			FixSuggestion: "Install pnpm: corepack enable or npm install -g pnpm@latest.",
+			Message:       "Bun JavaScript runtime not found in PATH",
+			FixSuggestion: "Install Bun: curl -fsSL https://bun.sh/install | bash",
 		}
 	}
 
-	v, err := ParseSemver(rawOutput, "pnpm")
+	v, err := ParseSemver(rawOutput, "bun")
 	if err != nil {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusWarning,
-			Message:       fmt.Sprintf("Unable to parse pnpm version: %s", strings.TrimSpace(rawOutput)),
-			FixSuggestion: "Verify pnpm installation with 'pnpm -v'.",
+			Message:       fmt.Sprintf("Unable to parse Bun version: %s", strings.TrimSpace(rawOutput)),
+			FixSuggestion: "Verify Bun installation with 'bun -v'.",
 		}
 	}
 
-	if CompareVersions(v, "9.0.0") < 0 {
+	if CompareVersions(v, "1.1.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("pnpm v%s is below required version (>= 9)", v),
-			FixSuggestion: "Upgrade pnpm: corepack use pnpm@latest or npm install -g pnpm@latest.",
+			Message:       fmt.Sprintf("Bun v%s is below required version (>= 1.1)", v),
+			FixSuggestion: "Upgrade Bun: bun upgrade",
 		}
 	}
 
@@ -302,7 +302,7 @@ func EvaluatePnpmVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("pnpm v%s installed (>= 9 required)", v),
+		Message:  fmt.Sprintf("Bun v%s installed (>= 1.1 required)", v),
 	}
 }
 

@@ -47,17 +47,17 @@ func TestParseVersionString(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "pnpm 9.10.0",
-			raw:      "9.10.0\n",
-			tool:     "pnpm",
-			expected: "9.10.0",
+			name:     "Bun 1.3.14",
+			raw:      "1.3.14\n",
+			tool:     "bun",
+			expected: "1.3.14",
 			wantErr:  false,
 		},
 		{
-			name:     "pnpm 11.22.0",
-			raw:      "11.22.0",
-			tool:     "pnpm",
-			expected: "11.22.0",
+			name:     "Bun 1.1.0",
+			raw:      "1.1.0",
+			tool:     "bun",
+			expected: "1.1.0",
 			wantErr:  false,
 		},
 		{
@@ -131,10 +131,10 @@ func TestCompareVersions(t *testing.T) {
 		{"22.0.0", "20.0.0", 1},
 		{"20.0.0", "20.0.0", 0},
 		{"18.19.0", "20.0.0", -1},
-		{"9.10.0", "9.0.0", 1},
-		{"9.0.0", "9.0.0", 0},
-		{"8.15.0", "9.0.0", -1},
-		{"10.0.0", "9.0.0", 1},
+		{"1.3.14", "1.1.0", 1},
+		{"1.1.0", "1.1.0", 0},
+		{"1.0.0", "1.1.0", -1},
+		{"1.2.0", "1.1.0", 1},
 	}
 
 	for _, tc := range tests {
@@ -293,7 +293,7 @@ func TestEvaluateGoVersion(t *testing.T) {
 	}
 }
 
-func TestEvaluateNodeAndPnpmVersions(t *testing.T) {
+func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	// Node tests
 	nodeOk := EvaluateNodeVersion("v24.18.0\n", nil)
 	if nodeOk.Status != StatusOK {
@@ -315,25 +315,25 @@ func TestEvaluateNodeAndPnpmVersions(t *testing.T) {
 		t.Errorf("expected StatusError for missing node, got %v", nodeMissing.Status)
 	}
 
-	// pnpm tests
-	pnpmOk := EvaluatePnpmVersion("11.22.0\n", nil)
-	if pnpmOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for pnpm 11.22.0, got %v", pnpmOk.Status)
+	// Bun tests
+	bunOk := EvaluateBunVersion("1.3.14\n", nil)
+	if bunOk.Status != StatusOK {
+		t.Errorf("expected StatusOK for Bun 1.3.14, got %v", bunOk.Status)
 	}
 
-	pnpm9 := EvaluatePnpmVersion("9.10.0\n", nil)
-	if pnpm9.Status != StatusOK {
-		t.Errorf("expected StatusOK for pnpm 9.10.0, got %v", pnpm9.Status)
+	bun11 := EvaluateBunVersion("1.1.0\n", nil)
+	if bun11.Status != StatusOK {
+		t.Errorf("expected StatusOK for Bun 1.1.0, got %v", bun11.Status)
 	}
 
-	pnpmOld := EvaluatePnpmVersion("8.15.0\n", nil)
-	if pnpmOld.Status != StatusError {
-		t.Errorf("expected StatusError for pnpm 8.15.0, got %v", pnpmOld.Status)
+	bunOld := EvaluateBunVersion("0.8.0\n", nil)
+	if bunOld.Status != StatusError {
+		t.Errorf("expected StatusError for Bun 0.8.0, got %v", bunOld.Status)
 	}
 
-	pnpmMissing := EvaluatePnpmVersion("", errors.New("not found"))
-	if pnpmMissing.Status != StatusError {
-		t.Errorf("expected StatusError for missing pnpm, got %v", pnpmMissing.Status)
+	bunMissing := EvaluateBunVersion("", errors.New("not found"))
+	if bunMissing.Status != StatusError {
+		t.Errorf("expected StatusError for missing Bun, got %v", bunMissing.Status)
 	}
 }
 
