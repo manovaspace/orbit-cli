@@ -10,6 +10,7 @@ var (
 	ErrTokenExpired     = errors.New("invite token has expired")
 	ErrInvalidSignature = errors.New("invalid token signature")
 	ErrMalformedToken   = errors.New("malformed invite token")
+	ErrInviteNotFound   = errors.New("invitation not found")
 )
 
 type InviteRequest struct {
@@ -37,4 +38,28 @@ func (c *InviteClaims) IsExpired() bool {
 		return false
 	}
 	return time.Now().UTC().After(c.ExpiresAt)
+}
+
+type InviteRecord struct {
+	ID          string            `json:"id"`
+	Email       string            `json:"email"`
+	DisplayName string            `json:"display_name,omitempty"`
+	Scope       string            `json:"scope"`
+	Token       string            `json:"token"`
+	Revoked     bool              `json:"revoked"`
+	RevokedAt   *time.Time        `json:"revoked_at,omitempty"`
+	IssuedAt    time.Time         `json:"issued_at"`
+	ExpiresAt   time.Time         `json:"expires_at"`
+	CreatedBy   string            `json:"created_by,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+func (r *InviteRecord) Status() string {
+	if r.Revoked {
+		return "revoked"
+	}
+	if !r.ExpiresAt.IsZero() && time.Now().UTC().After(r.ExpiresAt) {
+		return "expired"
+	}
+	return "active"
 }
