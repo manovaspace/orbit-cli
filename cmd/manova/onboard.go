@@ -62,24 +62,25 @@ func (e *progressEmitter) Emit(stage session.Stage, status, message string, deta
 }
 
 type onboardOptions struct {
-	token          string
-	name           string
-	email          string
-	uid            string
-	edgeURL        string
-	workspace      string
-	manifest       string
-	sessionFile    string
-	sshDir         string
-	diagBundle     string
-	dryRun         bool
-	resume         bool
-	reset          bool
-	rollback       bool
-	nonInteractive bool
-	json           bool
-	skipStack      bool
-	startStack     bool
+	token                     string
+	name                      string
+	email                     string
+	uid                       string
+	edgeURL                   string
+	workspace                 string
+	manifest                  string
+	sessionFile               string
+	sshDir                    string
+	diagBundle                string
+	dryRun                    bool
+	resume                    bool
+	ignoreAndRemoveCheckpoint bool
+	reset                     bool
+	rollback                  bool
+	nonInteractive            bool
+	json                      bool
+	skipStack                 bool
+	startStack                bool
 }
 
 var stageOrder = map[session.Stage]int{
@@ -108,11 +109,11 @@ func newOnboardCmd() *cobra.Command {
 repository clones, Cursor MCP integrations, and local development infrastructure.
 
 Pro capabilities:
-  --resume       Resume an interrupted onboarding session
-  --reset        Clear saved pending session
-  --rollback     Revert cloned repositories and provisioned credentials
-  --diag-bundle  Generate a sanitized diagnostic bundle for troubleshooting
-  --dry-run      Run pre-flight diagnostics and preview onboarding actions`,
+  --resume                          Resume an interrupted onboarding session
+  --ignore-and-remove-checkpoint    Discard saved incomplete session checkpoint and start fresh
+  --rollback                        Revert cloned repositories and provisioned credentials
+  --diag-bundle                     Generate a sanitized diagnostic bundle for troubleshooting
+  --dry-run                         Run pre-flight diagnostics and preview onboarding actions`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOnboard(cmd, args, opts)
 		},
@@ -132,7 +133,9 @@ Pro capabilities:
 
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Run pre-flight check and preview onboarding actions without making changes")
 	cmd.Flags().BoolVar(&opts.resume, "resume", false, "Resume interrupted onboarding session from saved checkpoint")
-	cmd.Flags().BoolVar(&opts.reset, "reset", false, "Clear saved incomplete onboarding session")
+	cmd.Flags().BoolVar(&opts.ignoreAndRemoveCheckpoint, "ignore-and-remove-checkpoint", false, "Discard saved incomplete session checkpoint and start fresh")
+	cmd.Flags().BoolVar(&opts.reset, "reset", false, "Alias for --ignore-and-remove-checkpoint")
+	cmd.Flags().Lookup("reset").Hidden = true
 	cmd.Flags().BoolVar(&opts.rollback, "rollback", false, "Rollback provisioned resources and clear session")
 	cmd.Flags().BoolVarP(&opts.nonInteractive, "non-interactive", "y", false, "Run in non-interactive mode without prompting")
 	cmd.Flags().BoolVar(&opts.nonInteractive, "yes", false, "Alias for --non-interactive")
@@ -156,8 +159,8 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 
 	workspaceRoot := findWorkspaceRoot(opts.workspace)
 
-	// 2. Handle Reset Flag
-	if opts.reset {
+	// 2. Handle Reset / Ignore Flag
+	if opts.ignoreAndRemoveCheckpoint || opts.reset {
 		emitter.Emit(session.StageInit, "completed", "Clearing session state", nil)
 		return executeReset(sm, out)
 	}
@@ -225,7 +228,7 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 					codeStyle.Render(loaded.ID),
 					warningStyle.Render(string(loaded.CurrentStage)),
 				)
-				if promptYesNo(in, out, "Would you like to resume this session?", true) {
+				if promptYesNo(in, out, "Would you like to resume this session? (Enter 'n' to discard checkpoint)", true) {
 					s = loaded
 					opts.resume = true
 					emitter.Emit(s.CurrentStage, "resumed", fmt.Sprintf("Resuming session %s", s.ID), s)
@@ -233,10 +236,17 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 					_ = sm.ClearSession()
 					s = sm.CreateSession(opts.email, opts.name)
 					_ = sm.SaveSession(s)
+					fmt.Fprintf(out, "  %s  Session checkpoint discarded. To automate starting fresh next time, use:\n     %s\n\n",
+						iconOK,
+						codeStyle.Render("manova onboard --ignore-and-remove-checkpoint"),
+					)
 					emitter.Emit(session.StageInit, "started", "Starting fresh onboarding session", s)
 				}
 			} else {
-				// Non-interactive or JSON mode without --resume -> restart clean
+				// In non-interactive mode without explicit flags
+				if !opts.dryRun && opts.token != "" && !opts.resume && !opts.ignoreAndRemoveCheckpoint && !opts.reset {
+					return fmt.Errorf("ongoing onboarding session (%s) detected; pass '--resume' to continue or '--ignore-and-remove-checkpoint' to discard checkpoint", loaded.ID)
+				}
 				_ = sm.ClearSession()
 				s = sm.CreateSession(opts.email, opts.name)
 				_ = sm.SaveSession(s)

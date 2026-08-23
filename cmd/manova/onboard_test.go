@@ -212,7 +212,7 @@ func TestOnboardSessionCheckpointAndResume(t *testing.T) {
 	}
 }
 
-func TestOnboardResetFlag(t *testing.T) {
+func TestOnboardIgnoreAndRemoveCheckpointFlag(t *testing.T) {
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 
@@ -231,12 +231,12 @@ func TestOnboardResetFlag(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
-		"--reset",
+		"--ignore-and-remove-checkpoint",
 		"--session-file", sessionPath,
 	})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard --reset failed: %v", err)
+		t.Fatalf("onboard --ignore-and-remove-checkpoint failed: %v", err)
 	}
 
 	out := buf.String()

@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"git.dev.manova.space/manova/orbit-cli/pkg/session"
 	"git.dev.manova.space/manova/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
 )
@@ -23,8 +24,27 @@ func newRootCmd() *cobra.Command {
 Supports workspace initialization, system diagnostics, branch synchronization,
 schema-driven environment management, 50-port block allocations, and container orchestration.`,
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			// Skip passive update check for version and self-update commands
 			cmdName := cmd.Name()
+
+			// Check for pending onboarding session and notify user (only in human-readable output)
+			if cmdName != "onboard" && cmdName != "version" && cmdName != "self-update" && cmdName != "selfupdate" && cmdName != "help" {
+				jsonFlag, _ := cmd.Flags().GetBool("json")
+				formatFlag, _ := cmd.Flags().GetString("format")
+				if !jsonFlag && formatFlag != "json" {
+					if sm, err := session.NewSessionManager(""); err == nil && sm.HasPendingSession() {
+						if sess, err := sm.LoadSession(); err == nil && sess != nil {
+							fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup.\n",
+								iconInfo,
+								infoStyle.Render("Ongoing onboarding session detected"),
+								warningStyle.Render(string(sess.CurrentStage)),
+								boldStyle.Render("manova onboard --resume"),
+							)
+						}
+					}
+				}
+			}
+
+			// Skip passive update check for version and self-update commands
 			if cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" {
 				return
 			}
