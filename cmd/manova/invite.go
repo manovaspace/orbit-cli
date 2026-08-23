@@ -60,9 +60,15 @@ func newInviteCreateCmd() *cobra.Command {
 				return err
 			}
 
-			secret := resolveSecret(secretFlag, secretEnvFlag)
+			secret, isFallback := resolveSecret(secretFlag, secretEnvFlag)
 			if len(secret) == 0 {
 				return errors.New("signing secret cannot be empty")
+			}
+			if isFallback {
+				fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n\n",
+					iconWarn,
+					warningStyle.Render("Using default dev signing secret. For production tokens, set $MANOVA_INVITE_SECRET or pass --secret."),
+				)
 			}
 
 			req := invite.InviteRequest{
@@ -308,9 +314,9 @@ func newInviteRevokeCmd() *cobra.Command {
 	return cmd
 }
 
-func resolveSecret(secretFlag, secretEnvFlag string) []byte {
+func resolveSecret(secretFlag, secretEnvFlag string) ([]byte, bool) {
 	if secretFlag != "" {
-		return []byte(secretFlag)
+		return []byte(secretFlag), false
 	}
 
 	envVar := secretEnvFlag
@@ -319,14 +325,14 @@ func resolveSecret(secretFlag, secretEnvFlag string) []byte {
 	}
 
 	if val := os.Getenv(envVar); val != "" {
-		return []byte(val)
+		return []byte(val), false
 	}
 
 	if jwtVal := os.Getenv("MANOVA_JWT_SECRET"); jwtVal != "" {
-		return []byte(jwtVal)
+		return []byte(jwtVal), false
 	}
 
-	return []byte(DefaultFallbackSecret)
+	return []byte(DefaultFallbackSecret), true
 }
 
 func parseDuration(s string) (time.Duration, error) {

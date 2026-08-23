@@ -21,7 +21,7 @@ func TestPortListCmd(t *testing.T) {
 	if !strings.Contains(output, "50-Port Block Allocations") {
 		t.Errorf("expected header '50-Port Block Allocations', got: %s", output)
 	}
-	if !strings.Contains(output, "orbit-platform") || !strings.Contains(output, "fryto") {
+	if !strings.Contains(output, "platform") || !strings.Contains(output, "app") {
 		t.Errorf("expected project names in output, got: %s", output)
 	}
 	if !strings.Contains(output, "Deterministic Slots") {
@@ -34,7 +34,7 @@ func TestPortAllocateCmd(t *testing.T) {
 	rootCmd := newRootCmd()
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
-	rootCmd.SetArgs([]string{"port", "allocate", "fryto", "preview-worker"})
+	rootCmd.SetArgs([]string{"port", "allocate", "app", "preview-worker"})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("port allocate failed: %v", err)
@@ -47,8 +47,8 @@ func TestPortAllocateCmd(t *testing.T) {
 	if !strings.Contains(output, "preview-worker") {
 		t.Errorf("expected service name in output, got: %s", output)
 	}
-	if !strings.Contains(output, "101") { // Fryto base is 10100, dynamic slots start at 10110
-		t.Errorf("expected fryto port range (101xx), got: %s", output)
+	if !strings.Contains(output, "101") { // App base is 10100, dynamic slots start at 10110
+		t.Errorf("expected app port range (101xx), got: %s", output)
 	}
 }
 

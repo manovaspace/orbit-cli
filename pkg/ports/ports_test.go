@@ -245,11 +245,9 @@ func TestResolveProjectID(t *testing.T) {
 		expectedID  int
 		expectedOK  bool
 	}{
-		{"orbit-platform", 0, true},
-		{"orbit-services", 1, true},
-		{"fryto", 2, true},
-		{"kaazhe", 3, true},
-		{"jtash", 4, true},
+		{"platform", 0, true},
+		{"services", 1, true},
+		{"app", 2, true},
 		{"unknown-project", 0, false},
 	}
 
