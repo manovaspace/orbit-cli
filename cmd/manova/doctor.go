@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/doctor"
+	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/spf13/cobra"
 )
 

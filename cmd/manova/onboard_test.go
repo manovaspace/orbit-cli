@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/invite"
-	"git.dev.manova.space/manova/orbit-cli/pkg/onboard"
-	"git.dev.manova.space/manova/orbit-cli/pkg/provisioner"
-	"git.dev.manova.space/manova/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/onboard"
+	"github.com/manovaspace/orbit-cli/pkg/provisioner"
+	"github.com/manovaspace/orbit-cli/pkg/session"
 )
 
 func testSigningSecret() []byte {

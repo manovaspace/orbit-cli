@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
 )
 
 func runGitCmd(t *testing.T, dir string, args ...string) string {

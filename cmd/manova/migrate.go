@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/migrate"
+	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/spf13/cobra"
 )
 

@@ -1,4 +1,4 @@
-module git.dev.manova.space/manova/orbit-cli
+module github.com/manovaspace/orbit-cli
 
 go 1.25.0
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/session"
 )
 
 func TestVersionOutput(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/spf13/cobra"
 )
 

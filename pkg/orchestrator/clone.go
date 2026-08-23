@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
 )
 
 const defaultCloneConcurrency = 4

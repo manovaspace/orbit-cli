@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/ports"
+	"github.com/manovaspace/orbit-cli/pkg/ports"
 	"github.com/spf13/cobra"
 )
 

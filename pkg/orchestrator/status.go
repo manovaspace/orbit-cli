@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
 )
 
 // InspectRepo inspects a single local Git repository and returns its status.

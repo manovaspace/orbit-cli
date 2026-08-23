@@ -184,7 +184,7 @@ func TestCheckUpdate_ForgejoMock(t *testing.T) {
 		TagName:     "v1.5.0",
 		Name:        "Release 1.5.0",
 		Body:        "## Changelog\n- Added multi-repo sync\n- Added doctor diagnostics",
-		HTMLURL:     "https://git.dev.manova.space/manova/orbit-cli/releases/tag/v1.5.0",
+		HTMLURL:     "https://github.com/manovaspace/orbit-cli/releases/tag/v1.5.0",
 		CreatedAt:   time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC),
 		PublishedAt: time.Date(2026, 8, 20, 10, 30, 0, 0, time.UTC),
 		Assets: []apiAsset{

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/invite"
-	"git.dev.manova.space/manova/orbit-cli/pkg/provisioner"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 )
 
 func testSecret() []byte {

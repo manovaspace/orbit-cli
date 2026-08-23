@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/session"
-	"git.dev.manova.space/manova/orbit-cli/pkg/updater"
+	"github.com/manovaspace/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
 )
 

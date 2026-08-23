@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/manifest"
-	"git.dev.manova.space/manova/orbit-cli/pkg/migrate"
-	"git.dev.manova.space/manova/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/migrate"
+	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 

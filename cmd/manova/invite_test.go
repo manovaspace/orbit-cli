@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
 )
 
 func TestInviteCreateCmd(t *testing.T) {

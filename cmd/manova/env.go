@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"git.dev.manova.space/manova/orbit-cli/pkg/env"
-	"git.dev.manova.space/manova/orbit-cli/pkg/migrate"
+	"github.com/manovaspace/orbit-cli/pkg/env"
+	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/spf13/cobra"
 )
 
