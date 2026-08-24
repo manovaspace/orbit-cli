@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
+	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/spf13/cobra"
 )
 
@@ -96,6 +98,23 @@ func newDoctorCmd() *cobra.Command {
 				errorStyle.Render(fmt.Sprintf("✖ %d errors", errors)),
 			)
 			fmt.Fprintln(out, summary)
+
+			if fixOutput {
+				execPath, _ := os.Executable()
+				postCtx := &migrate.PostUpdateContext{
+					Interactive: true,
+					In:          cmd.InOrStdin(),
+					Out:         out,
+					ExecPath:    execPath,
+				}
+				if migResults, err := migrate.RunPostUpdateMigrations(postCtx); err == nil {
+					for _, r := range migResults {
+						if r.Success && !r.Skipped {
+							fmt.Fprintf(out, "  %s  %s\n", iconOK, subtleStyle.Render(r.Description))
+						}
+					}
+				}
+			}
 
 			if report.HasErrors() {
 				if fixOutput {

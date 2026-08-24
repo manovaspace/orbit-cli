@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,7 @@ func newSelfUpdateCmd() *cobra.Command {
 		Long:    "Checks Forgejo/GitHub releases for the latest manova CLI binary, downloads matching OS/arch archive, and replaces the running binary.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			in := cmd.InOrStdin()
 			fmt.Fprintln(out, titleStyle.Render("Manova CLI Self-Update"))
 			fmt.Fprintf(out, "  Current Version: %s\n\n", codeStyle.Render(updater.FormatVersion(version)))
 
@@ -73,6 +75,25 @@ func newSelfUpdateCmd() *cobra.Command {
 			_ = os.Remove(updater.ExpandCachePath(""))
 
 			fmt.Fprintf(out, "  %s  %s\n", iconOK, successStyle.Render(fmt.Sprintf("Successfully updated manova to %s!", updater.FormatVersion(res.LatestVersion))))
+
+			// Run Post-Update Environment Migrations (systemd worker, completions, m alias prompt)
+			execPath, _ := os.Executable()
+			postCtx := &migrate.PostUpdateContext{
+				Interactive: true,
+				In:          in,
+				Out:         out,
+				ExecPath:    execPath,
+				PrevVersion: version,
+				NewVersion:  res.LatestVersion,
+			}
+			if migResults, err := migrate.RunPostUpdateMigrations(postCtx); err == nil {
+				for _, r := range migResults {
+					if r.Success && !r.Skipped {
+						fmt.Fprintf(out, "  %s  %s\n", iconOK, subtleStyle.Render(r.Description))
+					}
+				}
+			}
+
 			return nil
 		},
 	}

@@ -16,9 +16,6 @@ mkdir -p dist
 
 GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/manova-linux-amd64 ./cmd/manova
 GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/manova-linux-arm64 ./cmd/manova
-GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/manova-darwin-amd64 ./cmd/manova
-GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/manova-darwin-arm64 ./cmd/manova
-GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/manova-windows-amd64.exe ./cmd/manova
 
 echo "Build complete. Artifacts in dist/:"
 ls -lh dist/
