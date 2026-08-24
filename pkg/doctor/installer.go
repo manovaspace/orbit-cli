@@ -67,6 +67,10 @@ func AutoInstallDependencies(ctx context.Context, report *DoctorReport, out io.W
 			if err := InstallOhMyZsh(ctx, out); err != nil {
 				fmt.Fprintf(out, "  ✖ Failed to auto-install Oh My Zsh: %v\n", err)
 			}
+		case "Default Login Shell":
+			if err := SetDefaultShellZsh(ctx, out); err != nil {
+				fmt.Fprintf(out, "  ✖ Failed to set default shell to Zsh: %v\n", err)
+			}
 		case "Go Compiler":
 			if err := InstallGo(ctx, pm, out); err != nil {
 				fmt.Fprintf(out, "  ✖ Failed to auto-install Go: %v\n", err)
@@ -290,5 +294,38 @@ func InstallOhMyZsh(ctx context.Context, out io.Writer) error {
 	}
 
 	fmt.Fprintln(out, "  ✔ Oh My Zsh framework installed successfully.")
+	return nil
+}
+
+// SetDefaultShellZsh sets Zsh as the user's default login shell.
+func SetDefaultShellZsh(ctx context.Context, out io.Writer) error {
+	fmt.Fprintln(out, "  ⠋ Setting default login shell to Zsh...")
+
+	zshPath, err := exec.LookPath("zsh")
+	if err != nil {
+		zshPath = "/usr/bin/zsh"
+	}
+
+	user := os.Getenv("USER")
+	if user == "" {
+		userCmd := exec.CommandContext(ctx, "whoami")
+		if uOut, err := userCmd.Output(); err == nil {
+			user = strings.TrimSpace(string(uOut))
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, "chsh", "-s", zshPath)
+	if err := cmd.Run(); err != nil {
+		if user != "" {
+			sudoCmd := exec.CommandContext(ctx, "sudo", "chsh", "-s", zshPath, user)
+			sudoCmd.Stdout = out
+			sudoCmd.Stderr = out
+			if err := sudoCmd.Run(); err != nil {
+				return fmt.Errorf("failed to change default shell: %w", err)
+			}
+		}
+	}
+
+	fmt.Fprintln(out, "  ✔ Default login shell set to Zsh.")
 	return nil
 }

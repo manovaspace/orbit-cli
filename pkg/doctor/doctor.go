@@ -153,6 +153,7 @@ func CheckShellEnvironment() []DiagnosticResult {
 	return []DiagnosticResult{
 		CheckZsh(),
 		CheckOhMyZsh(),
+		CheckDefaultShell(),
 	}
 }
 
@@ -214,6 +215,51 @@ func EvaluateOhMyZsh(exists bool) DiagnosticResult {
 		Name:     name,
 		Status:   StatusOK,
 		Message:  "Oh My Zsh framework installed (~/.oh-my-zsh)",
+	}
+}
+
+// CheckDefaultShell checks if the configured login shell is Zsh.
+func CheckDefaultShell() DiagnosticResult {
+	user := os.Getenv("USER")
+	if user == "" {
+		if u, err := runCommand(shortCommandTimeout, "whoami"); err == nil {
+			user = strings.TrimSpace(u)
+		}
+	}
+
+	shellPath := os.Getenv("SHELL")
+	if user != "" {
+		if out, err := runCommand(shortCommandTimeout, "getent", "passwd", user); err == nil {
+			parts := strings.Split(strings.TrimSpace(out), ":")
+			if len(parts) >= 7 {
+				shellPath = parts[6]
+			}
+		}
+	}
+
+	return EvaluateDefaultShell(shellPath)
+}
+
+// EvaluateDefaultShell evaluates whether the detected login shell is Zsh.
+func EvaluateDefaultShell(shellPath string) DiagnosticResult {
+	category := "Shell"
+	name := "Default Login Shell"
+
+	if strings.Contains(shellPath, "zsh") {
+		return DiagnosticResult{
+			Category: category,
+			Name:     name,
+			Status:   StatusOK,
+			Message:  fmt.Sprintf("Zsh is configured as default shell (%s)", shellPath),
+		}
+	}
+
+	return DiagnosticResult{
+		Category:      category,
+		Name:          name,
+		Status:        StatusError,
+		Message:       fmt.Sprintf("Default login shell is %s (Zsh required for Manova workspaces)", shellPath),
+		FixSuggestion: "Change default shell to Zsh: sudo chsh -s $(which zsh) $(whoami) (or run 'manova doctor --fix').",
 	}
 }
 

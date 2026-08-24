@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/manovaspace/orbit-cli/pkg/alias"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
@@ -38,11 +39,12 @@ Scopes:
 				scope = args[0]
 			}
 
-			// Pre-flight: verify mandatory Zsh and Oh My Zsh shell environment
+			// Pre-flight: verify mandatory Zsh, Oh My Zsh and default login shell environment
 			zshRes := doctor.CheckZsh()
 			omzRes := doctor.CheckOhMyZsh()
-			if zshRes.Status != doctor.StatusOK || omzRes.Status != doctor.StatusOK {
-				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Zsh and Oh My Zsh are required for Manova developer workspaces."))
+			shellRes := doctor.CheckDefaultShell()
+			if zshRes.Status != doctor.StatusOK || omzRes.Status != doctor.StatusOK || shellRes.Status != doctor.StatusOK {
+				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Zsh, Oh My Zsh, and Zsh default shell are required for Manova developer workspaces."))
 				if promptYesNo(in, out, "Would you like to install and configure Zsh + Oh My Zsh now?", true) {
 					pm := doctor.DetectPackageManager()
 					if zshRes.Status != doctor.StatusOK {
@@ -55,6 +57,14 @@ Scopes:
 							return fmt.Errorf("failed to install Oh My Zsh: %w", err)
 						}
 					}
+					if shellRes.Status != doctor.StatusOK {
+						if err := doctor.SetDefaultShellZsh(cmd.Context(), out); err != nil {
+							return fmt.Errorf("failed to set default shell: %w", err)
+						}
+					}
+					// Ensure completions and shortcut alias are in .zshrc
+					_, _ = alias.InstallShellCompletion(true)
+					_, _ = alias.AddShellAlias("m", "manova")
 				} else {
 					return fmt.Errorf("zsh and oh-my-zsh are mandatory for Manova workspace development; setup aborted")
 				}

@@ -505,6 +505,18 @@ func TestEvaluateZshAndOhMyZsh(t *testing.T) {
 	if omzResMissing.Status != StatusError {
 		t.Errorf("expected StatusError for missing OMZ, got %s", omzResMissing.Status)
 	}
+
+	// Default shell is zsh
+	shellRes := EvaluateDefaultShell("/usr/bin/zsh")
+	if shellRes.Status != StatusOK {
+		t.Errorf("expected StatusOK for zsh default shell, got %s", shellRes.Status)
+	}
+
+	// Default shell is bash
+	shellResBash := EvaluateDefaultShell("/bin/bash")
+	if shellResBash.Status != StatusError {
+		t.Errorf("expected StatusError for bash default shell, got %s", shellResBash.Status)
+	}
 }
 
 func TestRunDiagnostics(t *testing.T) {
