@@ -44,10 +44,8 @@ func init() {
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "manova",
-		Short: "Manova Workspace Orchestrator & Developer Tooling",
-		Long: `Manova CLI (manova) orchestrates multi-repo operations across the Manova workspace.
-Supports workspace initialization, system diagnostics, branch synchronization,
-schema-driven environment management, 50-port block allocations, and container orchestration.`,
+		Short: "Zero-leak developer onboarding and workspace orchestrator",
+		Long:  "Fast, zero-leak developer onboarding, multi-repo synchronization, and dev stack orchestrator.",
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			cmdName := cmd.Name()
 
@@ -69,19 +67,19 @@ schema-driven environment management, 50-port block allocations, and container o
 				}
 			}
 
-			// Skip passive update check for dev builds, disabled env, and update commands
+			// Skip passive update check for dev builds, disabled env, and update/help commands
 			if version == "dev" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" {
 				return
 			}
 
 			// Non-blocking passive check with 24-hour TTL cache
 			if cached, err := updater.CheckUpdateCached(version, "", 24*time.Hour, "", ""); err == nil && cached != nil && cached.HasUpdate {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (v%s %s v%s). Run '%s' to upgrade.\n",
+				fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (%s %s %s). Run '%s' to upgrade.\n",
 					iconInfo,
 					warningStyle.Render("A newer version of manova CLI is available"),
-					version,
+					updater.FormatVersion(version),
 					iconArrow,
-					cached.LatestVersion,
+					updater.FormatVersion(cached.LatestVersion),
 					boldStyle.Render("manova self-update"),
 				)
 			}

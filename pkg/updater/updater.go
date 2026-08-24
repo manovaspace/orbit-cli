@@ -48,11 +48,30 @@ type apiRelease struct {
 	Assets      []apiAsset `json:"assets"`
 }
 
+// FormatVersion normalizes a version string for display (e.g. "0.1.5" -> "v0.1.5", "dev" -> "dev").
+func FormatVersion(v string) string {
+	clean := strings.TrimSpace(v)
+	if clean == "" || strings.EqualFold(clean, "dev") {
+		return "dev"
+	}
+	for strings.HasPrefix(clean, "v") || strings.HasPrefix(clean, "V") {
+		clean = clean[1:]
+	}
+	return "v" + clean
+}
+
 // IsNewerVersion returns true if target represents a newer semver version than current.
 // Handles "v" prefixes and "dev" versions gracefully.
 func IsNewerVersion(current, target string) bool {
 	cur := strings.TrimSpace(current)
 	tgt := strings.TrimSpace(target)
+
+	for strings.HasPrefix(cur, "v") || strings.HasPrefix(cur, "V") {
+		cur = cur[1:]
+	}
+	for strings.HasPrefix(tgt, "v") || strings.HasPrefix(tgt, "V") {
+		tgt = tgt[1:]
+	}
 
 	isCurDev := cur == "" || strings.EqualFold(cur, "dev") || strings.HasPrefix(strings.ToLower(cur), "dev")
 	isTgtDev := tgt == "" || strings.EqualFold(tgt, "dev") || strings.HasPrefix(strings.ToLower(tgt), "dev")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
@@ -18,7 +19,7 @@ func newSelfUpdateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			fmt.Fprintln(out, titleStyle.Render("Manova CLI Self-Update"))
-			fmt.Fprintf(out, "  Current Version: %s\n\n", codeStyle.Render("v"+version))
+			fmt.Fprintf(out, "  Current Version: %s\n\n", codeStyle.Render(updater.FormatVersion(version)))
 
 			res, err := updater.CheckUpdate(version, "", "")
 			if err != nil {
@@ -29,16 +30,16 @@ func newSelfUpdateCmd() *cobra.Command {
 				fmt.Fprintf(out, "  %s  %s (Latest: %s)\n",
 					iconOK,
 					successStyle.Render("manova CLI is already up to date!"),
-					codeStyle.Render("v"+res.LatestVersion),
+					codeStyle.Render(updater.FormatVersion(res.LatestVersion)),
 				)
 				return nil
 			}
 
 			fmt.Fprintf(out, "  %s  New release available: %s %s %s\n",
 				iconInfo,
-				codeStyle.Render("v"+version),
+				codeStyle.Render(updater.FormatVersion(version)),
 				iconArrow,
-				successStyle.Render("v"+res.LatestVersion),
+				successStyle.Render(updater.FormatVersion(res.LatestVersion)),
 			)
 
 			if checkOnly {
@@ -52,7 +53,10 @@ func newSelfUpdateCmd() *cobra.Command {
 				return fmt.Errorf("self-update failed: %w", err)
 			}
 
-			fmt.Fprintf(out, "  %s  %s\n", iconOK, successStyle.Render(fmt.Sprintf("Successfully updated manova to v%s!", res.LatestVersion)))
+			// Clean cached update check so next command runs against latest state
+			_ = os.Remove(updater.ExpandCachePath(""))
+
+			fmt.Fprintf(out, "  %s  %s\n", iconOK, successStyle.Render(fmt.Sprintf("Successfully updated manova to %s!", updater.FormatVersion(res.LatestVersion))))
 			return nil
 		},
 	}
