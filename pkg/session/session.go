@@ -17,7 +17,7 @@ type SessionManager struct {
 }
 
 // NewSessionManager creates a SessionManager instance with either a custom path
-// or the default path ~/.config/manova/session.json.
+// or the default canonical path ~/.manova/session.json (with fallback to ~/.config/manova/session.json).
 func NewSessionManager(customPath string) (*SessionManager, error) {
 	p := customPath
 	if p == "" {
@@ -25,7 +25,14 @@ func NewSessionManager(customPath string) (*SessionManager, error) {
 		if err != nil {
 			return nil, err
 		}
-		p = filepath.Join(home, ".config", "manova", "session.json")
+		p = filepath.Join(home, ".manova", "session.json")
+		// Check legacy path ~/.config/manova/session.json if canonical file does not exist
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			legacyPath := filepath.Join(home, ".config", "manova", "session.json")
+			if _, err := os.Stat(legacyPath); err == nil {
+				p = legacyPath
+			}
+		}
 	}
 	return &SessionManager{filePath: p}, nil
 }
@@ -104,8 +111,15 @@ func (sm *SessionManager) SaveSession(s *Session) error {
 
 // ClearSession removes the session file if it exists.
 func (sm *SessionManager) ClearSession() error {
+	var firstErr error
 	if err := os.Remove(sm.filePath); err != nil && !os.IsNotExist(err) {
-		return err
+		firstErr = err
 	}
-	return nil
+	if home, err := os.UserHomeDir(); err == nil {
+		legacyPath := filepath.Join(home, ".config", "manova", "session.json")
+		if legacyPath != sm.filePath {
+			_ = os.Remove(legacyPath)
+		}
+	}
+	return firstErr
 }

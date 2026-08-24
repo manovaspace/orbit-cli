@@ -44,10 +44,11 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 			_ = worker.RemoveSystemdUnits()
 			fmt.Fprintf(out, "  %s  Stopped background worker and cleaned systemd units\n", iconOK)
 
-			// 2. Remove Configuration & Cache Directory (~/.manova)
+			// 2. Remove Configuration, Session & Cache Directories (~/.manova & ~/.config/manova)
 			home, _ := os.UserHomeDir()
 			if home != "" {
 				configDir := filepath.Join(home, ".manova")
+				legacyConfigDir := filepath.Join(home, ".config", "manova")
 				if !opts.keepConfig {
 					if _, err := os.Stat(configDir); err == nil {
 						if err := os.RemoveAll(configDir); err != nil {
@@ -56,12 +57,17 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 							fmt.Fprintf(out, "  %s  Removed configuration directory: %s\n", iconOK, subtleStyle.Render(configDir))
 						}
 					}
+					if _, err := os.Stat(legacyConfigDir); err == nil {
+						_ = os.RemoveAll(legacyConfigDir)
+					}
 					// Clean shell alias and autocompletion entries from RC files
 					alias.RemoveShellConfiguration()
 				} else {
-					// Remove worker state and PID files when keeping user config
+					// Remove worker state, PID files, and active session even when keeping general user config
 					_ = os.Remove(filepath.Join(configDir, "edge-version.json"))
 					_ = os.Remove(filepath.Join(configDir, "worker.pid"))
+					_ = os.Remove(filepath.Join(configDir, "session.json"))
+					_ = os.Remove(filepath.Join(legacyConfigDir, "session.json"))
 				}
 			}
 

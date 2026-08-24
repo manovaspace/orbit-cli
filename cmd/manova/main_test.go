@@ -169,4 +169,37 @@ func TestPersistentPostRun_UpdateBanner(t *testing.T) {
 	}
 }
 
+func TestNoPostRunNoticesOnUninstall(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("MANOVA_FORCE_DETACHED", "1")
+
+	sm, err := session.NewSessionManager("")
+	if err != nil {
+		t.Fatalf("NewSessionManager failed: %v", err)
+	}
+
+	s := sm.CreateSession("test-uninst@manova.space", "Test Uninstall")
+	s.CurrentStage = session.StageKeypairReady
+	if err := sm.SaveSession(s); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"uninstall", "--yes"})
+
+	_ = rootCmd.Execute()
+	out := buf.String()
+
+	if strings.Contains(out, "Ongoing onboarding session detected") {
+		t.Errorf("unexpected onboarding session detected notice after uninstall:\n%s", out)
+	}
+	if strings.Contains(out, "manova onboard --resume") {
+		t.Errorf("unexpected resume suggestion after uninstall:\n%s", out)
+	}
+}
+
 

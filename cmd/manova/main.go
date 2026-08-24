@@ -47,45 +47,24 @@ func newRootCmd() *cobra.Command {
 		Short: "Zero-leak developer onboarding and workspace orchestrator",
 		Long:  "Fast, zero-leak developer onboarding, multi-repo synchronization, and dev stack orchestrator.",
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			cmdName := cmd.Name()
+			if shouldSuppressPostRunNotices(cmd) {
+				return
+			}
 
 			// Check for pending onboarding session and notify user (only in human-readable output)
-			if cmdName != "onboard" && cmdName != "version" && cmdName != "self-update" && cmdName != "selfupdate" && cmdName != "help" {
-				jsonFlag, _ := cmd.Flags().GetBool("json")
-				formatFlag, _ := cmd.Flags().GetString("format")
-				if !jsonFlag && formatFlag != "json" {
-					if sm, err := session.NewSessionManager(""); err == nil && sm.HasPendingSession() {
-						if sess, err := sm.LoadSession(); err == nil && sess != nil {
-							fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup.\n",
-								iconInfo,
-								infoStyle.Render("Ongoing onboarding session detected"),
-								warningStyle.Render(string(sess.CurrentStage)),
-								boldStyle.Render("manova onboard --resume"),
-							)
-						}
-					}
+			if sm, err := session.NewSessionManager(""); err == nil && sm.HasPendingSession() {
+				if sess, err := sm.LoadSession(); err == nil && sess != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup.\n",
+						iconInfo,
+						infoStyle.Render("Ongoing onboarding session detected"),
+						warningStyle.Render(string(sess.CurrentStage)),
+						boldStyle.Render("manova onboard --resume"),
+					)
 				}
 			}
 
-			// Skip passive update check if disabled by env or if running skip commands
+			// Skip passive update check if disabled by env
 			if os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "1" {
-				return
-			}
-			if cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "uninstall" || cmdName == "help" || cmdName == "worker" {
-				return
-			}
-
-			// Check parent commands if any (e.g. worker subcommands)
-			for p := cmd.Parent(); p != nil; p = p.Parent() {
-				if p.Name() == "worker" {
-					return
-				}
-			}
-
-			// Skip banner in JSON mode
-			jsonFlag, _ := cmd.Flags().GetBool("json")
-			formatFlag, _ := cmd.Flags().GetString("format")
-			if jsonFlag || formatFlag == "json" {
 				return
 			}
 
@@ -129,6 +108,40 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(versionCmd)
 
 	return cmd
+}
+
+func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return true
+	}
+	names := []string{cmd.Name()}
+	for p := cmd.Parent(); p != nil; p = p.Parent() {
+		names = append(names, p.Name())
+	}
+	suppressList := map[string]bool{
+		"uninstall":   true,
+		"remove":      true,
+		"purge":       true,
+		"onboard":     true,
+		"version":     true,
+		"self-update": true,
+		"selfupdate":  true,
+		"help":        true,
+		"worker":      true,
+	}
+	for _, n := range names {
+		if suppressList[n] {
+			return true
+		}
+	}
+
+	jsonFlag, _ := cmd.Flags().GetBool("json")
+	formatFlag, _ := cmd.Flags().GetString("format")
+	if jsonFlag || formatFlag == "json" {
+		return true
+	}
+
+	return false
 }
 
 func main() {
