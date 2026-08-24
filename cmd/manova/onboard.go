@@ -402,12 +402,21 @@ Actions that will be executed during onboarding:
 				}
 			}
 
+			// Strict non-bypassable requirement: Zsh, Oh My Zsh, and default Zsh shell
+			zshRes := doctor.CheckZsh()
+			omzRes := doctor.CheckOhMyZsh()
+			shellRes := doctor.CheckDefaultShell()
+			if zshRes.Status == doctor.StatusError || omzRes.Status == doctor.StatusError || shellRes.Status == doctor.StatusError {
+				emitter.Emit(session.StageInit, "failed", "Zsh, Oh My Zsh, and default Zsh shell are mandatory", nil)
+				return errors.New("zsh, oh-my-zsh, and default zsh login shell are mandatory requirements for Manova developer workspaces; setup cannot proceed without them")
+			}
+
 			if report.HasErrors() {
 				emitter.Emit(session.StageInit, "failed", fmt.Sprintf("Pre-flight check failed with %d errors", errorsCount), nil)
 				if opts.nonInteractive {
 					return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errorsCount)
 				}
-				if !promptYesNo(in, out, "Critical checks still failing. Proceed anyway?", false) {
+				if !promptYesNo(in, out, "Other diagnostic checks still failing. Proceed anyway?", false) {
 					return errors.New("onboarding cancelled due to pre-flight diagnostic errors")
 				}
 			}

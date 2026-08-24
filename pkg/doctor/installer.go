@@ -326,6 +326,50 @@ func SetDefaultShellZsh(ctx context.Context, out io.Writer) error {
 		}
 	}
 
+	if home, err := os.UserHomeDir(); err == nil {
+		_ = EnsureZshConfigured(home)
+	}
+
 	fmt.Fprintln(out, "  ✔ Default login shell set to Zsh.")
+	return nil
+}
+
+// EnsureZshConfigured configures ~/.zshrc with Oh My Zsh defaults and Manova alias/completion.
+func EnsureZshConfigured(home string) error {
+	zshrcPath := filepath.Join(home, ".zshrc")
+	omzTemplate := filepath.Join(home, ".oh-my-zsh", "templates", "zshrc.zsh-template")
+
+	if _, err := os.Stat(zshrcPath); os.IsNotExist(err) {
+		if data, err := os.ReadFile(omzTemplate); err == nil {
+			_ = os.WriteFile(zshrcPath, data, 0644)
+		}
+	}
+
+	data, err := os.ReadFile(zshrcPath)
+	content := string(data)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	var additions []string
+	if !strings.Contains(content, "alias m=") {
+		additions = append(additions, "\n# Manova CLI shortcut\nalias m=\"manova\"")
+	}
+	if !strings.Contains(content, "# Manova CLI Autocompletion") {
+		additions = append(additions, "\n# Manova CLI Autocompletion\nif command -v manova >/dev/null 2>&1; then\n  source <(manova completion zsh)\n  compdef m=manova 2>/dev/null || true\nfi")
+	}
+
+	if len(additions) > 0 {
+		f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		for _, a := range additions {
+			if _, err := f.WriteString(a + "\n"); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
