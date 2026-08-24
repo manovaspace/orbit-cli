@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/manovaspace/orbit-cli/pkg/alias"
+	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 )
 
@@ -38,11 +39,16 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 				}
 			}
 
-			// 1. Remove Configuration & Cache Directory (~/.manova)
-			if !opts.keepConfig {
-				home, err := os.UserHomeDir()
-				if err == nil {
-					configDir := filepath.Join(home, ".manova")
+			// 1. Stop Background Worker & Clean Systemd User Units
+			_ = worker.StopDaemon()
+			_ = worker.RemoveSystemdUnits()
+			fmt.Fprintf(out, "  %s  Stopped background worker and cleaned systemd units\n", iconOK)
+
+			// 2. Remove Configuration & Cache Directory (~/.manova)
+			home, _ := os.UserHomeDir()
+			if home != "" {
+				configDir := filepath.Join(home, ".manova")
+				if !opts.keepConfig {
 					if _, err := os.Stat(configDir); err == nil {
 						if err := os.RemoveAll(configDir); err != nil {
 							fmt.Fprintf(out, "  %s  Failed to remove %s: %v\n", iconWarn, configDir, err)
@@ -50,14 +56,17 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 							fmt.Fprintf(out, "  %s  Removed configuration directory: %s\n", iconOK, subtleStyle.Render(configDir))
 						}
 					}
+					// Clean shell alias and autocompletion entries from RC files
+					alias.RemoveShellConfiguration()
+				} else {
+					// Remove worker state and PID files when keeping user config
+					_ = os.Remove(filepath.Join(configDir, "edge-version.json"))
+					_ = os.Remove(filepath.Join(configDir, "worker.pid"))
 				}
-				// Clean shell alias and autocompletion entries from RC files
-				alias.RemoveShellConfiguration()
 			}
 
-			// 2. Optional: Purge Cloned Workspace
-			if opts.purgeWorkspace {
-				home, _ := os.UserHomeDir()
+			// 3. Optional: Purge Cloned Workspace
+			if opts.purgeWorkspace && home != "" {
 				workspaceDir := filepath.Join(home, "Dev", "Manova")
 				if _, err := os.Stat(workspaceDir); err == nil {
 					if err := os.RemoveAll(workspaceDir); err != nil {
@@ -68,7 +77,7 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 				}
 			}
 
-			// 3. Remove Binary Executable
+			// 4. Remove Binary Executable
 			execPath, err := os.Executable()
 			if err == nil {
 				execPath, _ = filepath.EvalSymlinks(execPath)
@@ -81,17 +90,18 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 			}
 
 			// Check and clean known standard install paths
-			home, _ := os.UserHomeDir()
-			commonPaths := []string{
-				filepath.Join(home, ".local", "bin", "manova"),
-				"/usr/local/bin/manova",
-				filepath.Join(home, "go", "bin", "manova"),
-			}
-			for _, p := range commonPaths {
-				if p != execPath {
-					if _, err := os.Stat(p); err == nil {
-						if err := os.Remove(p); err == nil {
-							fmt.Fprintf(out, "  %s  Removed binary: %s\n", iconOK, subtleStyle.Render(p))
+			if home != "" {
+				commonPaths := []string{
+					filepath.Join(home, ".local", "bin", "manova"),
+					"/usr/local/bin/manova",
+					filepath.Join(home, "go", "bin", "manova"),
+				}
+				for _, p := range commonPaths {
+					if p != execPath {
+						if _, err := os.Stat(p); err == nil {
+							if err := os.Remove(p); err == nil {
+								fmt.Fprintf(out, "  %s  Removed binary: %s\n", iconOK, subtleStyle.Render(p))
+							}
 						}
 					}
 				}

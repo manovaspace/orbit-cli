@@ -30,6 +30,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
@@ -677,6 +678,12 @@ Actions that will be executed during onboarding:
 		// Configure Shell Autocompletion
 		if rcFile, err := alias.InstallShellCompletion(hasMAlias); err == nil {
 			fmt.Fprintf(out, "  %s  Configured shell autocompletion in %s\n", iconOK, subtleStyle.Render(rcFile))
+		}
+
+		// Start background edge update worker
+		execPath, _ := os.Executable()
+		if _, err := worker.StartDaemon(execPath); err == nil {
+			fmt.Fprintf(out, "  %s  Started background edge update worker\n", iconOK)
 		}
 	}
 
