@@ -31,6 +31,7 @@ func RunDiagnostics() *DoctorReport {
 	}
 
 	report.Add(CheckOS())
+	report.AddAll(CheckShellEnvironment())
 	report.Add(CheckGo())
 	report.AddAll(CheckNodeAndBun())
 	report.AddAll(CheckDocker())
@@ -144,6 +145,75 @@ func EvaluateOS(osInfo map[string]string, goos string) DiagnosticResult {
 		Status:        StatusWarning,
 		Message:       fmt.Sprintf("Non-Ubuntu Linux distribution detected (%s); Manova officially supports Ubuntu 22.04/24.04/26.04 LTS", prettyName),
 		FixSuggestion: "Verify required dependencies manually or use Ubuntu in WSL2/Docker.",
+	}
+}
+
+// CheckShellEnvironment checks mandatory developer shell environment (Zsh & Oh My Zsh).
+func CheckShellEnvironment() []DiagnosticResult {
+	return []DiagnosticResult{
+		CheckZsh(),
+		CheckOhMyZsh(),
+	}
+}
+
+// CheckZsh checks if Zsh shell is installed.
+func CheckZsh() DiagnosticResult {
+	out, err := runCommand(defaultCommandTimeout, "zsh", "--version")
+	return EvaluateZsh(out, err)
+}
+
+// EvaluateZsh evaluates output from `zsh --version`.
+func EvaluateZsh(rawOutput string, execErr error) DiagnosticResult {
+	category := "Shell"
+	name := "Zsh Shell"
+
+	if execErr != nil {
+		return DiagnosticResult{
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       "Zsh shell not found in PATH (required for Manova workspaces)",
+			FixSuggestion: "Install Zsh: sudo apt install -y zsh (or run 'manova doctor --fix').",
+		}
+	}
+
+	trimmed := strings.TrimSpace(rawOutput)
+	return DiagnosticResult{
+		Category: category,
+		Name:     name,
+		Status:   StatusOK,
+		Message:  fmt.Sprintf("%s installed", trimmed),
+	}
+}
+
+// CheckOhMyZsh checks if Oh My Zsh framework is installed in ~/.oh-my-zsh.
+func CheckOhMyZsh() DiagnosticResult {
+	home, _ := os.UserHomeDir()
+	omzPath := filepath.Join(home, ".oh-my-zsh", "oh-my-zsh.sh")
+	_, err := os.Stat(omzPath)
+	return EvaluateOhMyZsh(err == nil)
+}
+
+// EvaluateOhMyZsh evaluates whether Oh My Zsh exists.
+func EvaluateOhMyZsh(exists bool) DiagnosticResult {
+	category := "Shell"
+	name := "Oh My Zsh"
+
+	if !exists {
+		return DiagnosticResult{
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       "Oh My Zsh framework not found in ~/.oh-my-zsh (required for Manova workspaces)",
+			FixSuggestion: "Install Oh My Zsh: sh -c \"$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\" \"\" --unattended (or run 'manova doctor --fix').",
+		}
+	}
+
+	return DiagnosticResult{
+		Category: category,
+		Name:     name,
+		Status:   StatusOK,
+		Message:  "Oh My Zsh framework installed (~/.oh-my-zsh)",
 	}
 }
 

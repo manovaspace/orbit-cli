@@ -59,6 +59,14 @@ func AutoInstallDependencies(ctx context.Context, report *DoctorReport, out io.W
 		}
 
 		switch res.Name {
+		case "Zsh Shell":
+			if err := InstallZsh(ctx, pm, out); err != nil {
+				fmt.Fprintf(out, "  ✖ Failed to auto-install Zsh: %v\n", err)
+			}
+		case "Oh My Zsh":
+			if err := InstallOhMyZsh(ctx, out); err != nil {
+				fmt.Fprintf(out, "  ✖ Failed to auto-install Oh My Zsh: %v\n", err)
+			}
 		case "Go Compiler":
 			if err := InstallGo(ctx, pm, out); err != nil {
 				fmt.Fprintf(out, "  ✖ Failed to auto-install Go: %v\n", err)
@@ -240,4 +248,47 @@ func StartSSHAgent(ctx context.Context, out io.Writer) error {
 	}
 
 	return fmt.Errorf("unable to determine SSH_AUTH_SOCK from agent output: %s", output)
+}
+
+// InstallZsh installs Zsh using the detected package manager.
+func InstallZsh(ctx context.Context, pm PackageManager, out io.Writer) error {
+	fmt.Fprintln(out, "  ⠋ Installing Zsh shell...")
+
+	var cmd *exec.Cmd
+	switch pm {
+	case PkgApt:
+		cmd = exec.CommandContext(ctx, "sudo", "apt-get", "install", "-y", "zsh")
+	case PkgBrew:
+		cmd = exec.CommandContext(ctx, "brew", "install", "zsh")
+	case PkgDnf:
+		cmd = exec.CommandContext(ctx, "sudo", "dnf", "install", "-y", "zsh")
+	case PkgPacman:
+		cmd = exec.CommandContext(ctx, "sudo", "pacman", "-S", "--noconfirm", "zsh")
+	default:
+		return fmt.Errorf("unsupported package manager (%s) for automatic Zsh install", pm)
+	}
+
+	cmd.Stdout = out
+	cmd.Stderr = out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Zsh: %w", err)
+	}
+
+	fmt.Fprintln(out, "  ✔ Zsh installed successfully.")
+	return nil
+}
+
+// InstallOhMyZsh installs Oh My Zsh framework in unattended mode.
+func InstallOhMyZsh(ctx context.Context, out io.Writer) error {
+	fmt.Fprintln(out, "  ⠋ Installing Oh My Zsh framework...")
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", "RUNZSH=no CHSH=no sh -c \"$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\" \"\" --unattended")
+	cmd.Stdout = out
+	cmd.Stderr = out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Oh My Zsh: %w", err)
+	}
+
+	fmt.Fprintln(out, "  ✔ Oh My Zsh framework installed successfully.")
+	return nil
 }

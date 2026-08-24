@@ -481,6 +481,32 @@ func TestDoctorReportAggregation(t *testing.T) {
 	}
 }
 
+func TestEvaluateZshAndOhMyZsh(t *testing.T) {
+	// Zsh success
+	res := EvaluateZsh("zsh 5.9 (x86_64-ubuntu-linux-gnu)", nil)
+	if res.Status != StatusOK {
+		t.Errorf("expected StatusOK for valid zsh version, got %s", res.Status)
+	}
+
+	// Zsh missing
+	resErr := EvaluateZsh("", errors.New("executable file not found in $PATH"))
+	if resErr.Status != StatusError {
+		t.Errorf("expected StatusError for missing zsh, got %s", resErr.Status)
+	}
+
+	// Oh My Zsh present
+	omzRes := EvaluateOhMyZsh(true)
+	if omzRes.Status != StatusOK {
+		t.Errorf("expected StatusOK for present OMZ, got %s", omzRes.Status)
+	}
+
+	// Oh My Zsh missing
+	omzResMissing := EvaluateOhMyZsh(false)
+	if omzResMissing.Status != StatusError {
+		t.Errorf("expected StatusError for missing OMZ, got %s", omzResMissing.Status)
+	}
+}
+
 func TestRunDiagnostics(t *testing.T) {
 	report := RunDiagnostics()
 	if report == nil {
@@ -495,7 +521,7 @@ func TestRunDiagnostics(t *testing.T) {
 		categories[res.Category] = true
 	}
 
-	expectedCategories := []string{"System", "Toolchain", "Runtime", "Container", "Authentication", "Ports", "Optional Tools"}
+	expectedCategories := []string{"System", "Shell", "Toolchain", "Runtime", "Container", "Authentication", "Ports", "Optional Tools"}
 	for _, cat := range expectedCategories {
 		if !categories[cat] {
 			t.Errorf("expected report to contain category %q", cat)

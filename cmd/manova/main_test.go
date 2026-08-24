@@ -202,4 +202,57 @@ func TestNoPostRunNoticesOnUninstall(t *testing.T) {
 	}
 }
 
+func TestPureCompletionOutputWithoutBanners(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	sm, err := session.NewSessionManager("")
+	if err != nil {
+		t.Fatalf("NewSessionManager failed: %v", err)
+	}
+
+	s := sm.CreateSession("test-comp@manova.space", "Test Comp")
+	s.CurrentStage = session.StageKeypairReady
+	if err := sm.SaveSession(s); err != nil {
+		t.Fatalf("SaveSession failed: %v", err)
+	}
+
+	for _, shell := range []string{"bash", "zsh"} {
+		buf := new(bytes.Buffer)
+		rootCmd := newRootCmd()
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"completion", shell})
+
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("completion %s failed: %v", shell, err)
+		}
+
+		out := buf.String()
+		if strings.Contains(out, "Ongoing onboarding session detected") {
+			t.Errorf("completion output for %s contains onboarding banner:\n%s", shell, out)
+		}
+		if strings.Contains(out, "New release available:") {
+			t.Errorf("completion output for %s contains update banner:\n%s", shell, out)
+		}
+	}
+}
+
+func TestRootHelpAliasHint(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"--help"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("help execution failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Shortcut Alias:") || !strings.Contains(out, "'m' is configured as a fast shell alias") {
+		t.Errorf("expected root help to contain 'Shortcut Alias:' hint, got:\n%s", out)
+	}
+}
+
 

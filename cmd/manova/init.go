@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
@@ -31,9 +32,32 @@ Scopes:
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			in := cmd.InOrStdin()
 			scope := "core"
 			if len(args) > 0 && args[0] != "" {
 				scope = args[0]
+			}
+
+			// Pre-flight: verify mandatory Zsh and Oh My Zsh shell environment
+			zshRes := doctor.CheckZsh()
+			omzRes := doctor.CheckOhMyZsh()
+			if zshRes.Status != doctor.StatusOK || omzRes.Status != doctor.StatusOK {
+				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Zsh and Oh My Zsh are required for Manova developer workspaces."))
+				if promptYesNo(in, out, "Would you like to install and configure Zsh + Oh My Zsh now?", true) {
+					pm := doctor.DetectPackageManager()
+					if zshRes.Status != doctor.StatusOK {
+						if err := doctor.InstallZsh(cmd.Context(), pm, out); err != nil {
+							return fmt.Errorf("failed to install Zsh: %w", err)
+						}
+					}
+					if omzRes.Status != doctor.StatusOK {
+						if err := doctor.InstallOhMyZsh(cmd.Context(), out); err != nil {
+							return fmt.Errorf("failed to install Oh My Zsh: %w", err)
+						}
+					}
+				} else {
+					return fmt.Errorf("zsh and oh-my-zsh are mandatory for Manova workspace development; setup aborted")
+				}
 			}
 
 			workspaceRoot := findWorkspaceRoot("")

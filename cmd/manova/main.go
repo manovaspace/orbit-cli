@@ -43,9 +43,13 @@ func init() {
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "manova",
-		Short: "Zero-leak developer onboarding and workspace orchestrator",
-		Long:  "Fast, zero-leak developer onboarding, multi-repo synchronization, and dev stack orchestrator.",
+		Use:     "manova",
+		Aliases: []string{"m"},
+		Short:   "Zero-leak developer onboarding and workspace orchestrator",
+		Long: `Fast, zero-leak developer onboarding, multi-repo synchronization, and dev stack orchestrator.
+
+Shortcut Alias:
+  'm' is configured as a fast shell alias for 'manova' (e.g. 'm status', 'm dev up', 'm onboard').`,
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if shouldSuppressPostRunNotices(cmd) {
 				return
@@ -128,6 +132,7 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"selfupdate":  true,
 		"help":        true,
 		"worker":      true,
+		"completion":  true,
 	}
 	for _, n := range names {
 		if suppressList[n] {
