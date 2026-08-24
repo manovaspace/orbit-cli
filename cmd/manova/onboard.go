@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/alias"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
@@ -655,6 +656,19 @@ Actions that will be executed during onboarding:
 			return err
 		}
 		emitter.Emit(session.StageCompleted, "completed", "Onboarding completed successfully", s)
+	}
+
+	// ── Shell Shortcut Alias Configuration ('m' -> 'manova') ─────────────────
+	if !opts.nonInteractive && !opts.json {
+		if taken, reason := alias.IsCommandTaken("m"); taken {
+			fmt.Fprintf(out, "\n  %s  Command 'm' is already in use (%s); skipping shortcut alias.\n", iconInfo, reason)
+		} else {
+			if promptYesNo(in, out, "\nWould you like to set 'm' as a short shell alias for 'manova'?", true) {
+				if rcFile, err := alias.AddShellAlias("m", "manova"); err == nil {
+					fmt.Fprintf(out, "  %s  Added %s shortcut to %s\n", iconOK, codeStyle.Render("alias m=\"manova\""), subtleStyle.Render(rcFile))
+				}
+			}
+		}
 	}
 
 	// ── Summary Card ───────────────────────────────────────────────────────────
