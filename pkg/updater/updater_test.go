@@ -128,10 +128,10 @@ func TestResolveAPIEndpoint(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "empty defaults to Forgejo",
+			name:     "empty defaults to GitHub",
 			apiURL:   "",
 			repoSlug: "",
-			expected: "https://git.dev.manova.space/api/v1/repos/manova/orbit-cli/releases/latest",
+			expected: "https://api.github.com/repos/manovaspace/orbit-cli/releases/latest",
 		},
 		{
 			name:     "custom Forgejo with trailing slash",

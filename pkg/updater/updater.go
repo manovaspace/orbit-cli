@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	// DefaultForgejoURL is the primary release repository base URL.
+	// DefaultGitHubURL is the primary public release repository base URL.
+	DefaultGitHubURL = "https://api.github.com"
+	// DefaultForgejoURL is the internal mirror repository base URL.
 	DefaultForgejoURL = "https://git.dev.manova.space"
 	// DefaultRepoSlug is the default repository slug for manova CLI releases.
-	DefaultRepoSlug = "manova/orbit-cli"
+	DefaultRepoSlug = "manovaspace/orbit-cli"
 	// DefaultCacheFile is the default file path for caching update checks.
 	DefaultCacheFile = "~/.manova/update-check.json"
 	// DefaultTTL is the default cache validity duration (24 hours).
@@ -77,11 +79,12 @@ func IsNewerVersion(current, target string) bool {
 
 // ResolveAPIEndpoint constructs the full release API URL based on apiURL and repoSlug.
 func ResolveAPIEndpoint(apiURL, repoSlug string) string {
-	if apiURL == "" {
-		apiURL = DefaultForgejoURL
-	}
 	if repoSlug == "" {
 		repoSlug = DefaultRepoSlug
+	}
+
+	if apiURL == "" {
+		return fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repoSlug)
 	}
 
 	trimmed := strings.TrimSuffix(apiURL, "/")
@@ -270,13 +273,11 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 	if customSource != nil {
 		source = customSource
 	} else {
-		giteaSource, err := selfupdate.NewGiteaSource(selfupdate.GiteaConfig{
-			BaseURL: DefaultForgejoURL,
-		})
+		githubSource, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{})
 		if err != nil {
-			return fmt.Errorf("failed to create default gitea source: %w", err)
+			return fmt.Errorf("failed to create default github source: %w", err)
 		}
-		source = giteaSource
+		source = githubSource
 	}
 
 	updater, err := selfupdate.NewUpdater(selfupdate.Config{

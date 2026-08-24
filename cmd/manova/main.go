@@ -44,8 +44,8 @@ schema-driven environment management, 50-port block allocations, and container o
 				}
 			}
 
-			// Skip passive update check for version and self-update commands
-			if cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" {
+			// Skip passive update check for dev builds, disabled env, and update commands
+			if version == "dev" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" {
 				return
 			}
 
