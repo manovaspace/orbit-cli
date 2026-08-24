@@ -8,7 +8,10 @@ import (
 )
 
 func newDoctorCmd() *cobra.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		fixOutput  bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -95,6 +98,16 @@ func newDoctorCmd() *cobra.Command {
 			fmt.Fprintln(out, summary)
 
 			if report.HasErrors() {
+				if fixOutput {
+					fmt.Fprintf(out, "\n  %s  %s\n\n", iconInfo, infoStyle.Render("Auto-installing missing dependencies..."))
+					_ = doctor.AutoInstallDependencies(cmd.Context(), report, out)
+					// Re-evaluate
+					report = doctor.RunDiagnostics()
+					if !report.HasErrors() {
+						fmt.Fprintf(out, "\n  %s  %s\n", iconOK, successStyle.Render("All dependencies installed and verified successfully!"))
+						return nil
+					}
+				}
 				return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errors)
 			}
 
@@ -103,6 +116,8 @@ func newDoctorCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output diagnostic report in JSON format")
+	cmd.Flags().BoolVar(&fixOutput, "fix", false, "Automatically install missing dependencies and tools")
+	cmd.Flags().BoolVar(&fixOutput, "auto-install-deps", false, "Alias for --fix")
 
 	return cmd
 }

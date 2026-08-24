@@ -79,6 +79,7 @@ type onboardOptions struct {
 	rollback                  bool
 	nonInteractive            bool
 	json                      bool
+	autoInstallDeps           bool
 	skipStack                 bool
 	startStack                bool
 }
@@ -139,6 +140,8 @@ Pro capabilities:
 	cmd.Flags().BoolVar(&opts.rollback, "rollback", false, "Rollback provisioned resources and clear session")
 	cmd.Flags().BoolVarP(&opts.nonInteractive, "non-interactive", "y", false, "Run in non-interactive mode without prompting")
 	cmd.Flags().BoolVar(&opts.nonInteractive, "yes", false, "Alias for --non-interactive")
+	cmd.Flags().BoolVar(&opts.autoInstallDeps, "auto-install-deps", false, "Automatically install missing dependencies and tools")
+	cmd.Flags().BoolVar(&opts.autoInstallDeps, "fix", false, "Alias for --auto-install-deps")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output JSON progress event stream")
 	cmd.Flags().BoolVar(&opts.skipStack, "skip-stack", false, "Skip local dev stack initialization")
 	cmd.Flags().BoolVar(&opts.startStack, "start-stack", false, "Automatically start local dev stack without prompting")
@@ -346,12 +349,65 @@ Actions that will be executed during onboarding:
 		}
 
 		if report.HasErrors() {
-			emitter.Emit(session.StageInit, "failed", fmt.Sprintf("Pre-flight check failed with %d errors", errorsCount), nil)
-			if opts.nonInteractive {
-				return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errorsCount)
+			shouldAutoInstall := opts.autoInstallDeps
+			if !shouldAutoInstall && !opts.nonInteractive && !opts.json {
+				fmt.Fprintln(out)
+				shouldAutoInstall = promptYesNo(in, out, "Would you like manova to automatically install and configure missing dependencies on this machine?", true)
 			}
-			if !promptYesNo(in, out, "Critical checks failed. Proceed anyway?", false) {
-				return errors.New("onboarding cancelled due to pre-flight diagnostic errors")
+
+			if shouldAutoInstall {
+				if !opts.json {
+					fmt.Fprintf(out, "\n  %s  %s\n\n", iconInfo, infoStyle.Render("Installing missing dependencies and configuring system runtimes..."))
+				}
+				emitter.Emit(session.StageInit, "in_progress", "Auto-installing missing dependencies", nil)
+				_ = doctor.AutoInstallDependencies(cmd.Context(), report, out)
+
+				// Re-evaluate diagnostics in real-time
+				report = doctor.RunDiagnostics()
+				passed, warnings, errorsCount = 0, 0, 0
+				for _, res := range report.Results {
+					switch res.Status {
+					case doctor.StatusOK:
+						passed++
+					case doctor.StatusWarning:
+						warnings++
+					case doctor.StatusError:
+						errorsCount++
+					}
+				}
+
+				if !opts.json {
+					fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Install Verification ─────────────────────────────"))
+					for _, res := range report.Results {
+						var icon string
+						switch res.Status {
+						case doctor.StatusOK:
+							icon = iconOK
+						case doctor.StatusWarning:
+							icon = iconWarn
+						case doctor.StatusError:
+							icon = iconError
+						default:
+							icon = iconInfo
+						}
+						fmt.Fprintf(out, "  %s  %-26s %s\n", icon, res.Name, res.Message)
+					}
+					fmt.Fprintf(out, "\n  %s  %s  %s\n\n",
+						successStyle.Render(fmt.Sprintf("✔ %d passed", passed)),
+						warningStyle.Render(fmt.Sprintf("⚠ %d warnings", warnings)),
+						errorStyle.Render(fmt.Sprintf("✖ %d errors", errorsCount)),
+					)
+				}
+			}
+
+			if report.HasErrors() {
+				emitter.Emit(session.StageInit, "failed", fmt.Sprintf("Pre-flight check failed with %d errors", errorsCount), nil)
+				if opts.nonInteractive {
+					return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errorsCount)
+				}
+				if !promptYesNo(in, out, "Critical checks still failing. Proceed anyway?", false) {
+					return errors.New("onboarding cancelled due to pre-flight diagnostic errors")
+				}
 			}
 		}
 
