@@ -108,6 +108,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newInviteCmd())
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newUninstallCmd())
+	cmd.AddCommand(newWorkerCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
