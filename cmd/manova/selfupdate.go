@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
@@ -41,6 +42,21 @@ func newSelfUpdateCmd() *cobra.Command {
 				iconArrow,
 				successStyle.Render(updater.FormatVersion(res.LatestVersion)),
 			)
+
+			// Show Top 5 Release Notes
+			if res.Release != nil && res.Release.ReleaseNotes != "" {
+				highlights := updater.TruncateReleaseNotes(res.Release.ReleaseNotes, 5)
+				if len(highlights) > 0 {
+					fmt.Fprintf(out, "\n  %s\n", headerStyle.Render("Release Highlights:"))
+					for _, h := range highlights {
+						if strings.HasPrefix(h, "…") {
+							fmt.Fprintf(out, "    %s\n", subtleStyle.Render(h))
+						} else {
+							fmt.Fprintf(out, "    • %s\n", h)
+						}
+					}
+				}
+			}
 
 			if checkOnly {
 				fmt.Fprintln(out, "\n  Run 'manova self-update' without --check to install.")

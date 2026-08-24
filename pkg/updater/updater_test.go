@@ -464,3 +464,58 @@ func TestSelfUpdate_WithMockSource(t *testing.T) {
 		t.Error("expected error from failing source, got nil")
 	}
 }
+
+func TestFormatVersion(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"0.1.5", "v0.1.5"},
+		{"v0.1.5", "v0.1.5"},
+		{"vv0.1.5", "v0.1.5"},
+		{"dev", "dev"},
+		{"vdev", "dev"},
+		{"", "dev"},
+	}
+
+	for _, tt := range tests {
+		actual := FormatVersion(tt.input)
+		if actual != tt.expected {
+			t.Errorf("FormatVersion(%q) = %q, want %q", tt.input, actual, tt.expected)
+		}
+	}
+}
+
+func TestTruncateReleaseNotes(t *testing.T) {
+	rawNotes := `## What's Changed
+* Feature 1: Collision-aware shortcut alias
+- Feature 2: Automated on-the-fly dependency self-healing
+• Feature 3: Direct public self-update via GitHub Releases
+1. Feature 4: Interactive token prompt
+2. Feature 5: Built-in uninstall command
+* Feature 6: Diagnostic report bundle
+* Feature 7: Session resumption
+`
+
+	highlights := TruncateReleaseNotes(rawNotes, 5)
+	if len(highlights) != 6 { // 5 items + 1 truncated summary
+		t.Fatalf("expected 6 lines (5 items + 1 summary), got %d: %v", len(highlights), highlights)
+	}
+
+	if highlights[0] != "Feature 1: Collision-aware shortcut alias" {
+		t.Errorf("unexpected first item: %s", highlights[0])
+	}
+	if highlights[4] != "Feature 5: Built-in uninstall command" {
+		t.Errorf("unexpected fifth item: %s", highlights[4])
+	}
+	if highlights[5] != "… (+2 more changes)" {
+		t.Errorf("unexpected summary line: %s", highlights[5])
+	}
+
+	// Test short notes (< 5 items)
+	shortNotes := "* Patch A\n* Patch B"
+	shortHighlights := TruncateReleaseNotes(shortNotes, 5)
+	if len(shortHighlights) != 2 {
+		t.Errorf("expected 2 items, got %d", len(shortHighlights))
+	}
+}

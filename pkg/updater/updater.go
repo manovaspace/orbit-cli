@@ -51,13 +51,65 @@ type apiRelease struct {
 // FormatVersion normalizes a version string for display (e.g. "0.1.5" -> "v0.1.5", "dev" -> "dev").
 func FormatVersion(v string) string {
 	clean := strings.TrimSpace(v)
-	if clean == "" || strings.EqualFold(clean, "dev") {
+	if clean == "" || strings.EqualFold(clean, "dev") || strings.EqualFold(clean, "vdev") {
 		return "dev"
 	}
 	for strings.HasPrefix(clean, "v") || strings.HasPrefix(clean, "V") {
 		clean = clean[1:]
 	}
+	if strings.EqualFold(clean, "dev") {
+		return "dev"
+	}
 	return "v" + clean
+}
+
+// TruncateReleaseNotes extracts up to maxItems top bullet points / change summaries from raw markdown notes.
+// If more items exist, it appends a compact truncated summary line (e.g. "… (+N more changes)").
+func TruncateReleaseNotes(notes string, maxItems int) []string {
+	if maxItems <= 0 {
+		maxItems = 5
+	}
+
+	lines := strings.Split(notes, "\n")
+	var items []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "===") {
+			continue
+		}
+
+		// Clean leading bullet characters (*, -, •, +, 1., 2.)
+		cleaned := trimmed
+		cleaned = strings.TrimPrefix(cleaned, "* ")
+		cleaned = strings.TrimPrefix(cleaned, "- ")
+		cleaned = strings.TrimPrefix(cleaned, "• ")
+		cleaned = strings.TrimPrefix(cleaned, "+ ")
+		if len(cleaned) > 3 && cleaned[0] >= '0' && cleaned[0] <= '9' && (cleaned[1] == '.' || cleaned[2] == '.') {
+			idx := strings.Index(cleaned, ". ")
+			if idx != -1 && idx < 4 {
+				cleaned = strings.TrimSpace(cleaned[idx+2:])
+			}
+		}
+
+		cleaned = strings.TrimSpace(cleaned)
+		if cleaned != "" {
+			items = append(items, cleaned)
+		}
+	}
+
+	if len(items) == 0 {
+		return nil
+	}
+
+	if len(items) <= maxItems {
+		return items
+	}
+
+	truncated := append([]string{}, items[:maxItems]...)
+	remaining := len(items) - maxItems
+	truncated = append(truncated, fmt.Sprintf("… (+%d more changes)", remaining))
+	return truncated
 }
 
 // IsNewerVersion returns true if target represents a newer semver version than current.
