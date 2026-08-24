@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
+	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 )
 
@@ -67,21 +67,38 @@ func newRootCmd() *cobra.Command {
 				}
 			}
 
-			// Skip passive update check for dev builds, disabled env, and update/help commands
-			if version == "dev" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" {
+			// Skip passive update check if disabled by env or if running skip commands
+			if os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "1" {
+				return
+			}
+			if cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "uninstall" || cmdName == "help" || cmdName == "worker" {
 				return
 			}
 
-			// Non-blocking passive check with 24-hour TTL cache
-			if cached, err := updater.CheckUpdateCached(version, "", 24*time.Hour, "", ""); err == nil && cached != nil && cached.HasUpdate {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (%s %s %s). Run '%s' to upgrade.\n",
-					iconInfo,
-					warningStyle.Render("A newer version of manova CLI is available"),
-					updater.FormatVersion(version),
-					iconArrow,
-					updater.FormatVersion(cached.LatestVersion),
-					boldStyle.Render("manova self-update"),
-				)
+			// Check parent commands if any (e.g. worker subcommands)
+			for p := cmd.Parent(); p != nil; p = p.Parent() {
+				if p.Name() == "worker" {
+					return
+				}
+			}
+
+			// Skip banner in JSON mode
+			jsonFlag, _ := cmd.Flags().GetBool("json")
+			formatFlag, _ := cmd.Flags().GetString("format")
+			if jsonFlag || formatFlag == "json" {
+				return
+			}
+
+			// Check ~/.manova/edge-version.json in 0ms using watchdog
+			needsHealing, state, _ := worker.CheckWatchdog(worker.DefaultStateFile, worker.DefaultStaleThreshold)
+			if needsHealing {
+				execPath, _ := os.Executable()
+				worker.HealWorkerBackground(execPath)
+			}
+
+			// Display Top-5 highlights update banner if a newer release is detected
+			if state != nil && updater.IsNewerVersion(version, state.LatestVersion) {
+				fmt.Fprintln(cmd.OutOrStdout(), renderUpdateBanner(version, state.LatestVersion, state.Highlights))
 			}
 		},
 	}

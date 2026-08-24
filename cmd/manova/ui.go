@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/manovaspace/orbit-cli/pkg/updater"
 )
 
 var (
@@ -143,6 +145,42 @@ func renderCard(title, content string) string {
 	return cardStyle.Render(sb.String())
 }
 
+// renderUpdateBanner formats the new version notification card with Top 5 release highlights.
+func renderUpdateBanner(currentVersion, latestVersion string, highlights []string) string {
+	var sb strings.Builder
+
+	cur := updater.FormatVersion(currentVersion)
+	latest := updater.FormatVersion(latestVersion)
+
+	header := fmt.Sprintf("%s %s %s %s %s",
+		iconInfo,
+		boldStyle.Render("New release available:"),
+		codeStyle.Render(cur),
+		iconArrow,
+		successStyle.Render(latest),
+	)
+	sb.WriteString(header)
+
+	// Truncate highlights to Top 5
+	hl := highlights
+	if len(hl) > 5 {
+		hl = hl[:5]
+	}
+
+	if len(hl) > 0 {
+		sb.WriteString("\n\n")
+		sb.WriteString(headerStyle.Render("Release Highlights:"))
+		for _, item := range hl {
+			sb.WriteString("\n  • " + item)
+		}
+	}
+
+	sb.WriteString("\n\n")
+	sb.WriteString(fmt.Sprintf("Run '%s' to update.", boldStyle.Render("manova self-update")))
+
+	return cardStyle.Render(sb.String())
+}
+
 // padRight pads a string with spaces up to the specified width.
 func padRight(s string, width int) string {
 	length := lipgloss.Width(s)
@@ -151,3 +189,4 @@ func padRight(s string, width int) string {
 	}
 	return s + strings.Repeat(" ", width-length)
 }
+
