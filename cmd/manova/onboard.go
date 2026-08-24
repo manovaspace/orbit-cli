@@ -658,16 +658,25 @@ Actions that will be executed during onboarding:
 		emitter.Emit(session.StageCompleted, "completed", "Onboarding completed successfully", s)
 	}
 
-	// ── Shell Shortcut Alias Configuration ('m' -> 'manova') ─────────────────
-	if !opts.nonInteractive && !opts.json {
-		if taken, reason := alias.IsCommandTaken("m"); taken {
-			fmt.Fprintf(out, "\n  %s  Command 'm' is already in use (%s); skipping shortcut alias.\n", iconInfo, reason)
-		} else {
-			if promptYesNo(in, out, "\nWould you like to set 'm' as a short shell alias for 'manova'?", true) {
-				if rcFile, err := alias.AddShellAlias("m", "manova"); err == nil {
-					fmt.Fprintf(out, "  %s  Added %s shortcut to %s\n", iconOK, codeStyle.Render("alias m=\"manova\""), subtleStyle.Render(rcFile))
+	// ── Shell Shortcut Alias & Completion Configuration ──────────────────────
+	if !opts.json {
+		hasMAlias := false
+		if !opts.nonInteractive {
+			if taken, reason := alias.IsCommandTaken("m"); taken {
+				fmt.Fprintf(out, "\n  %s  Command 'm' is already in use (%s); skipping shortcut alias.\n", iconInfo, reason)
+			} else {
+				if promptYesNo(in, out, "\nWould you like to set 'm' as a short shell alias for 'manova'?", true) {
+					if rcFile, err := alias.AddShellAlias("m", "manova"); err == nil {
+						hasMAlias = true
+						fmt.Fprintf(out, "  %s  Added %s shortcut to %s\n", iconOK, codeStyle.Render("alias m=\"manova\""), subtleStyle.Render(rcFile))
+					}
 				}
 			}
+		}
+
+		// Configure Shell Autocompletion
+		if rcFile, err := alias.InstallShellCompletion(hasMAlias); err == nil {
+			fmt.Fprintf(out, "  %s  Configured shell autocompletion in %s\n", iconOK, subtleStyle.Render(rcFile))
 		}
 	}
 

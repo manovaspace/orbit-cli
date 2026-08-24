@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/manovaspace/orbit-cli/pkg/alias"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,8 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 						}
 					}
 				}
+				// Clean shell alias and autocompletion entries from RC files
+				alias.RemoveShellConfiguration()
 			}
 
 			// 2. Optional: Purge Cloned Workspace

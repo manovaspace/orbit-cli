@@ -62,3 +62,79 @@ func TestAddShellAlias(t *testing.T) {
 		t.Errorf("expected exactly 1 instance of alias, found %d", count)
 	}
 }
+
+func TestInstallShellCompletion(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	zshrc := filepath.Join(tmpDir, ".zshrc")
+	_ = os.WriteFile(zshrc, []byte("# Existing zshrc\n"), 0644)
+
+	targetFile, err := InstallShellCompletion(true)
+	if err != nil {
+		t.Fatalf("InstallShellCompletion failed: %v", err)
+	}
+	if targetFile != zshrc {
+		t.Errorf("expected targetFile %q, got %q", zshrc, targetFile)
+	}
+
+	content, err := os.ReadFile(zshrc)
+	if err != nil {
+		t.Fatalf("failed to read zshrc: %v", err)
+	}
+
+	if !strings.Contains(string(content), "source <(manova completion zsh)") {
+		t.Errorf("expected completion source line in zshrc")
+	}
+	if !strings.Contains(string(content), "compdef m=manova") {
+		t.Errorf("expected compdef alias hook in zshrc")
+	}
+
+	// Test idempotency
+	_, err = InstallShellCompletion(true)
+	if err != nil {
+		t.Fatalf("second InstallShellCompletion call failed: %v", err)
+	}
+
+	contentSecond, _ := os.ReadFile(zshrc)
+	count := strings.Count(string(contentSecond), "# Manova CLI Autocompletion")
+	if count != 1 {
+		t.Errorf("expected exactly 1 completion header, found %d", count)
+	}
+}
+
+func TestRemoveShellConfiguration(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	bashrc := filepath.Join(tmpDir, ".bashrc")
+	initialContent := `# Existing user line
+# Manova CLI shortcut
+alias m="manova"
+# Manova CLI Autocompletion
+if command -v manova >/dev/null 2>&1; then
+  source <(manova completion bash)
+fi
+# Trailing user line
+`
+	_ = os.WriteFile(bashrc, []byte(initialContent), 0644)
+
+	RemoveShellConfiguration()
+
+	cleaned, err := os.ReadFile(bashrc)
+	if err != nil {
+		t.Fatalf("failed to read cleaned bashrc: %v", err)
+	}
+
+	cleanedStr := string(cleaned)
+	if strings.Contains(cleanedStr, "alias m=") {
+		t.Errorf("expected alias m to be removed, got: %s", cleanedStr)
+	}
+	if strings.Contains(cleanedStr, "source <(manova completion") {
+		t.Errorf("expected completion to be removed, got: %s", cleanedStr)
+	}
+	if !strings.Contains(cleanedStr, "# Existing user line") || !strings.Contains(cleanedStr, "# Trailing user line") {
+		t.Errorf("expected user lines to be preserved, got: %s", cleanedStr)
+	}
+}
