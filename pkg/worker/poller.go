@@ -106,8 +106,16 @@ func WriteStateAtomic(statePath string, state *EdgeVersionState) error {
 // It updates statePath atomically. On network or server failures, it preserves
 // the last known valid version, marks server_status as "down", and logs the error.
 func PollOnce(endpoint, statePath string) (*EdgeVersionState, error) {
+	return PollOnceWithTimeout(endpoint, statePath, 5*time.Second)
+}
+
+// PollOnceWithTimeout performs a single version check against endpoint with the specified timeout.
+func PollOnceWithTimeout(endpoint, statePath string, timeout time.Duration) (*EdgeVersionState, error) {
 	if endpoint == "" {
 		endpoint = DefaultEdgeURL
+	}
+	if timeout <= 0 {
+		timeout = 5 * time.Second
 	}
 	expandedPath := ExpandPath(statePath)
 
@@ -133,7 +141,7 @@ func PollOnce(endpoint, statePath string) (*EdgeVersionState, error) {
 	}
 
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: timeout,
 	}
 
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)

@@ -2,9 +2,11 @@ package doctor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
@@ -34,6 +36,7 @@ func RunDiagnostics() *DoctorReport {
 	report.AddAll(CheckDocker())
 	report.AddAll(CheckSSHAuth())
 	report.Add(CheckPorts())
+	report.Add(CheckUpdateServer())
 	report.AddAll(CheckOptionalTools())
 
 	return report
@@ -780,3 +783,62 @@ func runCommandWithEnv(timeout time.Duration, extraEnv []string, name string, ar
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
+
+// CheckUpdateServer inspects the local edge version state and reports health status.
+func CheckUpdateServer() DiagnosticResult {
+	category := "Network"
+	name := "Manova Update Server"
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return DiagnosticResult{
+			Category: category,
+			Name:     name,
+			Status:   StatusOK,
+			Message:  "Operational (https://get.manova.space)",
+		}
+	}
+
+	stateFile := filepath.Join(home, ".manova", "edge-version.json")
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		return DiagnosticResult{
+			Category: category,
+			Name:     name,
+			Status:   StatusOK,
+			Message:  "Operational (https://get.manova.space)",
+		}
+	}
+
+	var state struct {
+		LatestVersion string    `json:"latest_version"`
+		LastCheckedAt time.Time `json:"last_checked_at"`
+		ServerStatus  string    `json:"server_status"`
+		LastError     string    `json:"last_error"`
+	}
+	if err := json.Unmarshal(data, &state); err == nil && state.ServerStatus == "down" {
+		msg := fmt.Sprintf("Degraded / Unreachable (%s)", state.LastError)
+		if !state.LastCheckedAt.IsZero() {
+			msg = fmt.Sprintf("Unreachable (%s, last seen version: %s at %s)", state.LastError, state.LatestVersion, state.LastCheckedAt.Format("15:04:05 UTC"))
+		}
+		return DiagnosticResult{
+			Category:      category,
+			Name:          name,
+			Status:        StatusWarning,
+			Message:       msg,
+			FixSuggestion: "Check internet connection or VPN. CLI commands continue working with cached configurations.",
+		}
+	}
+
+	versionStr := ""
+	if state.LatestVersion != "" {
+		versionStr = fmt.Sprintf(" (latest: %s)", state.LatestVersion)
+	}
+	return DiagnosticResult{
+		Category: category,
+		Name:     name,
+		Status:   StatusOK,
+		Message:  fmt.Sprintf("Operational%s", versionStr),
+	}
+}
+

@@ -40,7 +40,7 @@ type EdgeVersionState struct {
 	LatestVersion string    `json:"latest_version"`
 	LastCheckedAt time.Time `json:"last_checked_at"`
 	ServerStatus  string    `json:"server_status"`
-	LastError     string    `json:"last_error,omitempty"`
+	LastError     string    `json:"last_error"`
 	WorkerStatus  string    `json:"worker_status,omitempty"`
 	WorkerPID     int       `json:"worker_pid,omitempty"`
 	WorkerMode    string    `json:"worker_mode,omitempty"`

@@ -11,15 +11,20 @@ import (
 	"time"
 )
 
+// resolveExecPath resolves the binary executable path with fallback to "manova".
+func resolveExecPath(override string) string {
+	if override != "" {
+		return override
+	}
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		return exe
+	}
+	return "manova"
+}
+
 // GetServiceUnitContent generates the systemd user service unit definition.
 func GetServiceUnitContent(execPath string) string {
-	if execPath == "" {
-		if exe, err := os.Executable(); err == nil && exe != "" {
-			execPath = exe
-		} else {
-			execPath = "manova"
-		}
-	}
+	execPath = resolveExecPath(execPath)
 	return fmt.Sprintf(`[Unit]
 Description=Manova Edge Version Worker
 After=network-online.target
@@ -163,13 +168,7 @@ func IsProcessAlive(pid int) bool {
 // it installs and enables the systemd timer. Otherwise, it launches a detached background process
 // and records its PID in ~/.manova/worker.pid.
 func StartDaemon(execPath string) (string, error) {
-	if execPath == "" {
-		if exe, err := os.Executable(); err == nil && exe != "" {
-			execPath = exe
-		} else {
-			execPath = "manova"
-		}
-	}
+	execPath = resolveExecPath(execPath)
 
 	if IsSystemdFunctional() {
 		if err := InstallSystemdUnits(execPath); err != nil {
