@@ -11,7 +11,7 @@ func TestChangelogCmd_DefaultList(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"changelog"})
+	cmd.SetArgs([]string{"changelog", "--no-pager"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("changelog execution failed: %v", err)
@@ -21,8 +21,8 @@ func TestChangelogCmd_DefaultList(t *testing.T) {
 	if !strings.Contains(out, "Manova Changelog & Release Notes") {
 		t.Errorf("expected header in changelog output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "v0.3.0") {
-		t.Errorf("expected v0.3.0 in output, got:\n%s", out)
+	if !strings.Contains(out, "v0.3.2") {
+		t.Errorf("expected v0.3.2 in output, got:\n%s", out)
 	}
 }
 
@@ -31,15 +31,15 @@ func TestChangelogCmd_WhatsnewAlias(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"whatsnew", "--limit", "2"})
+	cmd.SetArgs([]string{"whatsnew", "--limit", "2", "--no-pager"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("whatsnew execution failed: %v", err)
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "v0.3.0") {
-		t.Errorf("expected v0.3.0 in output, got:\n%s", out)
+	if !strings.Contains(out, "v0.3.2") {
+		t.Errorf("expected v0.3.2 in output, got:\n%s", out)
 	}
 }
 
@@ -48,7 +48,7 @@ func TestChangelogCmd_SpecificVersion(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"changelog", "--version", "v0.2.9"})
+	cmd.SetArgs([]string{"changelog", "--version", "v0.2.9", "--no-pager"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("changelog --version v0.2.9 failed: %v", err)
@@ -72,7 +72,25 @@ func TestChangelogCmd_JsonOutput(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, `"version": "v0.3.0"`) && !strings.Contains(out, `"version":`) {
+	if !strings.Contains(out, `"version": "v0.3.2"`) && !strings.Contains(out, `"version":`) {
 		t.Errorf("expected json array with version field, got:\n%s", out)
+	}
+}
+
+func TestChangelogCmd_BoxCardRendering(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"changelog", "--no-pager", "--limit", "1"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("changelog failed: %v", err)
+	}
+
+	out := buf.String()
+	// Verify rounded box characters are present (lipgloss RoundedBorder uses ╭ and ╰)
+	if !strings.Contains(out, "╭") || !strings.Contains(out, "╰") {
+		t.Errorf("expected rounded box border characters in output, got:\n%s", out)
 	}
 }
