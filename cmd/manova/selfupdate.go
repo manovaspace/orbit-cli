@@ -11,7 +11,10 @@ import (
 )
 
 func newSelfUpdateCmd() *cobra.Command {
-	var checkOnly bool
+	var (
+		checkOnly     bool
+		targetVersion string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "self-update",
@@ -23,6 +26,44 @@ func newSelfUpdateCmd() *cobra.Command {
 			in := cmd.InOrStdin()
 			fmt.Fprintln(out, titleStyle.Render("Manova CLI Self-Update"))
 			fmt.Fprintf(out, "  Current Version: %s\n\n", codeStyle.Render(updater.FormatVersion(version)))
+
+			// If target version is explicitly requested:
+			if targetVersion != "" {
+				if !strings.HasPrefix(targetVersion, "v") && !strings.Contains(targetVersion, ".") {
+					targetVersion = "v" + targetVersion
+				}
+				fmt.Fprintf(out, "Targeting specific release: %s\n\n", boldStyle.Render(targetVersion))
+				if checkOnly {
+					fmt.Fprintf(out, "Run 'manova self-update --version %s' without --check to install.\n", targetVersion)
+					return nil
+				}
+
+				fmt.Fprintf(out, "%s\n", headerStyle.Render("Downloading and installing update..."))
+				if err := updater.SelfUpdateTo(version, targetVersion, "", nil); err != nil {
+					return fmt.Errorf("self-update failed: %w", err)
+				}
+
+				_ = os.Remove(updater.ExpandCachePath(""))
+				fmt.Fprintf(out, "  %s  %s\n", iconOK, successStyle.Render(fmt.Sprintf("Successfully updated manova to %s!", targetVersion)))
+
+				execPath, _ := os.Executable()
+				postCtx := &migrate.PostUpdateContext{
+					Interactive: true,
+					In:          in,
+					Out:         out,
+					ExecPath:    execPath,
+					PrevVersion: version,
+					NewVersion:  targetVersion,
+				}
+				if migResults, err := migrate.RunPostUpdateMigrations(postCtx); err == nil {
+					for _, r := range migResults {
+						if r.Success && !r.Skipped {
+							fmt.Fprintf(out, "  %s  %s\n", iconOK, subtleStyle.Render(r.Description))
+						}
+					}
+				}
+				return nil
+			}
 
 			res, err := updater.CheckUpdate(version, "", "")
 			if err != nil {
@@ -99,6 +140,7 @@ func newSelfUpdateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check for updates without downloading or installing")
+	cmd.Flags().StringVarP(&targetVersion, "version", "v", "", "Target specific release version (e.g. v0.2.8)")
 
 	return cmd
 }

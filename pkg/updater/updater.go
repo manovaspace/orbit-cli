@@ -376,3 +376,48 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 
 	return nil
 }
+
+// SelfUpdateTo downloads and installs a specific target version.
+func SelfUpdateTo(currentVersion, targetVersion, repoSlug string, customSource selfupdate.Source) error {
+	if repoSlug == "" {
+		repoSlug = DefaultRepoSlug
+	}
+
+	var source selfupdate.Source
+	if customSource != nil {
+		source = customSource
+	} else {
+		githubSource, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{})
+		if err != nil {
+			return fmt.Errorf("failed to create default github source: %w", err)
+		}
+		source = githubSource
+	}
+
+	updater, err := selfupdate.NewUpdater(selfupdate.Config{
+		Source: source,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize updater: %w", err)
+	}
+
+	targetTag := strings.TrimPrefix(targetVersion, "v")
+	repo := selfupdate.ParseSlug(repoSlug)
+	rel, found, err := updater.DetectVersion(context.Background(), repo, targetTag)
+	if err != nil {
+		return fmt.Errorf("failed to find version %s: %w", targetVersion, err)
+	}
+	if !found || rel == nil {
+		return fmt.Errorf("version %s not found on release server", targetVersion)
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	if err := updater.UpdateTo(context.Background(), rel, execPath); err != nil {
+		return fmt.Errorf("self-update to %s failed: %w", targetVersion, err)
+	}
+	return nil
+}
