@@ -117,9 +117,21 @@ func newWorkerStatusCmd(statePath *string) *cobra.Command {
 				return fmt.Errorf("failed to retrieve worker status: %w", err)
 			}
 
+			if feedState, err := notifier.ReadFeedState(notifier.DefaultFeedFile); err == nil && feedState != nil {
+				daemonStatus.LastCheckedAt = feedState.LastCheckedAt
+				daemonStatus.ServerStatus = feedState.ServerStatus
+				daemonStatus.LatestVersion = feedState.LatestVersion
+				daemonStatus.LastError = feedState.LastError
+			}
+
 			// If statePath was specifically overridden, read state from there
 			if statePath != nil && *statePath != "" {
-				if customState, err := worker.ReadState(*statePath); err == nil && customState != nil {
+				if customFeed, err := notifier.ReadFeedState(*statePath); err == nil && customFeed != nil {
+					daemonStatus.LastCheckedAt = customFeed.LastCheckedAt
+					daemonStatus.ServerStatus = customFeed.ServerStatus
+					daemonStatus.LatestVersion = customFeed.LatestVersion
+					daemonStatus.LastError = customFeed.LastError
+				} else if customState, err := worker.ReadState(*statePath); err == nil && customState != nil {
 					daemonStatus.LastCheckedAt = customState.LastCheckedAt
 					daemonStatus.ServerStatus = customState.ServerStatus
 					daemonStatus.LatestVersion = customState.LatestVersion
