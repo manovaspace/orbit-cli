@@ -405,25 +405,29 @@ func WarmUpSudo(ctx context.Context, in io.Reader, out io.Writer) error {
 
 // CreateDevUser creates a dedicated development user with sudo and docker group membership,
 // sets default shell to Zsh, copies root SSH keys, and configures .zshrc.
+// If the user already exists, it ensures sudo privileges, SSH keys, and Zsh configuration are active.
 func CreateDevUser(ctx context.Context, username string, out io.Writer) error {
 	if username == "" {
 		username = "dev"
 	}
-
-	fmt.Fprintf(out, "  ⠋ Creating dedicated developer user '%s'...\n", username)
 
 	zshPath, err := exec.LookPath("zsh")
 	if err != nil {
 		zshPath = "/usr/bin/zsh"
 	}
 
-	// 1. Create user if not exists
+	// 1. Check if user already exists
 	userExists := false
 	if _, err := exec.CommandContext(ctx, "id", "-u", username).Output(); err == nil {
 		userExists = true
 	}
 
-	if !userExists {
+	if userExists {
+		fmt.Fprintf(out, "  ℹ Developer user '%s' already exists. Configuring sudo, SSH keys, and Zsh shell...\n", username)
+		// Ensure default login shell is Zsh
+		_ = exec.CommandContext(ctx, "usermod", "-s", zshPath, username).Run()
+	} else {
+		fmt.Fprintf(out, "  ⠋ Creating dedicated developer user '%s'...\n", username)
 		cmdAdd := exec.CommandContext(ctx, "useradd", "-m", "-s", zshPath, username)
 		if outBytes, err := cmdAdd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to create user %s: %w (%s)", username, err, strings.TrimSpace(string(outBytes)))
@@ -440,15 +444,25 @@ func CreateDevUser(ctx context.Context, username string, out io.Writer) error {
 	sudoersFile := filepath.Join("/etc/sudoers.d", fmt.Sprintf("90-manova-%s", username))
 	_ = os.WriteFile(sudoersFile, []byte(sudoersContent), 0440)
 
-	// 4. Copy root SSH authorized_keys if present
+	// 4. Resolve user home directory
 	devHome := filepath.Join("/home", username)
+	if outBytes, err := exec.CommandContext(ctx, "getent", "passwd", username).Output(); err == nil {
+		parts := strings.Split(strings.TrimSpace(string(outBytes)), ":")
+		if len(parts) >= 6 && parts[5] != "" {
+			devHome = parts[5]
+		}
+	}
+
+	// Copy root SSH authorized_keys if present and user doesn't already have them
 	devSSHDir := filepath.Join(devHome, ".ssh")
+	devAuthKeys := filepath.Join(devSSHDir, "authorized_keys")
 	rootAuthKeys := "/root/.ssh/authorized_keys"
 
-	if rootKeys, err := os.ReadFile(rootAuthKeys); err == nil && len(rootKeys) > 0 {
-		_ = os.MkdirAll(devSSHDir, 0700)
-		devAuthKeys := filepath.Join(devSSHDir, "authorized_keys")
-		_ = os.WriteFile(devAuthKeys, rootKeys, 0600)
+	if _, err := os.Stat(devAuthKeys); os.IsNotExist(err) {
+		if rootKeys, err := os.ReadFile(rootAuthKeys); err == nil && len(rootKeys) > 0 {
+			_ = os.MkdirAll(devSSHDir, 0700)
+			_ = os.WriteFile(devAuthKeys, rootKeys, 0600)
+		}
 	}
 
 	// 5. Ensure .zshrc in dev home
@@ -457,6 +471,10 @@ func CreateDevUser(ctx context.Context, username string, out io.Writer) error {
 	// 6. Fix ownership of dev home directory
 	_ = exec.CommandContext(ctx, "chown", "-R", fmt.Sprintf("%s:%s", username, username), devHome).Run()
 
-	fmt.Fprintf(out, "  ✔ Dedicated developer user '%s' created and configured.\n", username)
+	if userExists {
+		fmt.Fprintf(out, "  ✔ Dedicated developer user '%s' configured with sudo privileges and Zsh shell.\n", username)
+	} else {
+		fmt.Fprintf(out, "  ✔ Dedicated developer user '%s' created and configured.\n", username)
+	}
 	return nil
 }

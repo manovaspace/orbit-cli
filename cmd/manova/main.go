@@ -143,6 +143,9 @@ func newRootCmd() *cobra.Command {
 	inviteCmd := newInviteCmd()
 	inviteCmd.GroupID = "system"
 
+	userCmd := newUserCmd()
+	userCmd.GroupID = "system"
+
 	docCmd := newDocCmd()
 	docCmd.GroupID = "system"
 
@@ -174,6 +177,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(migrateCmd)
 	cmd.AddCommand(workerCmd)
 	cmd.AddCommand(inviteCmd)
+	cmd.AddCommand(userCmd)
 	cmd.AddCommand(docCmd)
 	cmd.AddCommand(selfUpdateCmd)
 	cmd.AddCommand(uninstallCmd)
