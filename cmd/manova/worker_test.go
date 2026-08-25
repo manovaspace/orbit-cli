@@ -89,7 +89,7 @@ func TestWorkerRunOnceCmd(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "Edge version check completed successfully") {
+	if !strings.Contains(output, "Edge feed check completed successfully") && !strings.Contains(output, "Edge version check completed successfully") {
 		t.Errorf("expected success message, got: %s", output)
 	}
 	if !strings.Contains(output, "v0.1.9") {

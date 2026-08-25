@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/notifier"
 	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 )
@@ -194,26 +195,26 @@ func newWorkerRunOnceCmd(endpoint, statePath *string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "run-once",
-		Short: "Perform a single edge version poll and persist state",
-		Long:  "Pings the Cloudflare edge /version endpoint once, logs status, and atomically writes the state file.",
+		Short: "Perform a single edge feed poll and persist state",
+		Long:  "Polls the Cloudflare edge /api/feed endpoint once, logs status, and atomically writes feed.json and messages.json.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
-			ep := ""
-			if endpoint != nil {
+			ep := notifier.DefaultFeedURL
+			if endpoint != nil && *endpoint != "" {
 				ep = *endpoint
 			}
-			sp := ""
-			if statePath != nil {
+			sp := notifier.DefaultFeedFile
+			if statePath != nil && *statePath != "" {
 				sp = *statePath
 			}
 
-			state, err := worker.PollOnce(ep, sp)
+			state, err := notifier.PollFeed(ep, sp)
 
 			if jsonOutput {
-				data, err := json.MarshalIndent(state, "", "  ")
-				if err != nil {
-					return fmt.Errorf("failed to marshal JSON output: %w", err)
+				data, jErr := json.MarshalIndent(state, "", "  ")
+				if jErr != nil {
+					return fmt.Errorf("failed to marshal JSON output: %w", jErr)
 				}
 				fmt.Fprintln(out, string(data))
 				return nil
@@ -222,15 +223,16 @@ func newWorkerRunOnceCmd(endpoint, statePath *string) *cobra.Command {
 			if err != nil {
 				fmt.Fprintf(out, "%s %s: %s\n",
 					iconWarn,
-					warningStyle.Render("Edge poll finished with warning/error"),
+					warningStyle.Render("Feed poll finished with warning/error"),
 					err.Error(),
 				)
 			} else {
-				fmt.Fprintf(out, "%s %s\n", iconOK, successStyle.Render("Edge version check completed successfully."))
+				fmt.Fprintf(out, "%s %s\n", iconOK, successStyle.Render("Edge feed check completed successfully."))
 			}
 
 			fmt.Fprintf(out, "  Latest Version: %s\n", codeStyle.Render(state.LatestVersion))
 			fmt.Fprintf(out, "  Server Status:  %s\n", state.ServerStatus)
+			fmt.Fprintf(out, "  Messages:       %d\n", len(state.Messages))
 			fmt.Fprintf(out, "  Last Checked:   %s\n", state.LastCheckedAt.Format(time.RFC3339))
 			return nil
 		},
@@ -240,6 +242,7 @@ func newWorkerRunOnceCmd(endpoint, statePath *string) *cobra.Command {
 
 	return cmd
 }
+
 
 func newWorkerRunCmd(endpoint, statePath *string) *cobra.Command {
 	var interval time.Duration

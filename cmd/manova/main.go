@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/manovaspace/orbit-cli/pkg/notifier"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/manovaspace/orbit-cli/pkg/worker"
@@ -67,9 +68,24 @@ Shortcut Alias:
 				}
 			}
 
-			// Skip passive update check if disabled by env
+			// Skip passive update/feed check if disabled by env
 			if os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "true" || os.Getenv("MANOVA_SKIP_UPDATE_CHECK") == "1" {
 				return
+			}
+
+			// Render active notifier messages from ~/.manova/feed.json
+			hasFeedMessages := false
+			if feedState, err := notifier.ReadFeedState(notifier.DefaultFeedFile); err == nil && feedState != nil {
+				store, _ := notifier.ReadStore(notifier.DefaultStoreFile)
+				if store == nil {
+					store = &notifier.MessageStore{}
+				}
+				visible := notifier.FilterVisible(feedState.Messages, store)
+				for _, msg := range visible {
+					hasFeedMessages = true
+					fmt.Fprintln(cmd.OutOrStdout(), renderMessageBanner(msg))
+					_ = notifier.MarkSeen(notifier.DefaultStoreFile, msg.ID)
+				}
 			}
 
 			// Check ~/.manova/edge-version.json in 0ms using watchdog
@@ -79,8 +95,8 @@ Shortcut Alias:
 				worker.HealWorkerBackground(execPath)
 			}
 
-			// Display Top-5 highlights update banner if a newer release is detected
-			if state != nil && updater.IsNewerVersion(version, state.LatestVersion) {
+			// If no feed messages were displayed, fallback to legacy version banner if newer release detected
+			if !hasFeedMessages && state != nil && updater.IsNewerVersion(version, state.LatestVersion) {
 				fmt.Fprintln(cmd.OutOrStdout(), renderUpdateBanner(version, state.LatestVersion, state.Highlights))
 			}
 		},

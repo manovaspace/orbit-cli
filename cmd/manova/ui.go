@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/manovaspace/orbit-cli/pkg/notifier"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 )
 
@@ -181,6 +182,20 @@ func renderUpdateBanner(currentVersion, latestVersion string, highlights []strin
 	return cardStyle.Render(sb.String())
 }
 
+// renderMessageBanner formats a typed notification message into a visual card.
+func renderMessageBanner(msg notifier.Message) string {
+	var sb strings.Builder
+	icon := msg.TypeIcon()
+	sb.WriteString(fmt.Sprintf("%s %s", icon, boldStyle.Render(msg.Title)))
+	if msg.Body != "" {
+		sb.WriteString(fmt.Sprintf("\n\n   %s", msg.Body))
+	}
+	if msg.Action != "" {
+		sb.WriteString(fmt.Sprintf("\n\n → %s", successStyle.Render(msg.Action)))
+	}
+	return cardStyle.Render(sb.String())
+}
+
 // padRight pads a string with spaces up to the specified width.
 func padRight(s string, width int) string {
 	length := lipgloss.Width(s)
@@ -189,4 +204,5 @@ func padRight(s string, width int) string {
 	}
 	return s + strings.Repeat(" ", width-length)
 }
+
 

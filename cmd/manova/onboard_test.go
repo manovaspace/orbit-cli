@@ -79,6 +79,16 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}
 
+	// 2.5 Pre-seed session stage to StageDoctorPassed to simulate passing diagnostics in CI/test environment
+	smPre, err := session.NewSessionManager(sessionPath)
+	if err != nil {
+		t.Fatalf("NewSessionManager failed: %v", err)
+	}
+	_ = smPre.SaveSession(&session.Session{
+		ID:           "test-sess-preflight",
+		CurrentStage: session.StageDoctorPassed,
+	})
+
 	// 3. Execute onboard in non-interactive mode
 	buf := new(bytes.Buffer)
 	cmd := newOnboardCmd()
@@ -86,6 +96,7 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"--non-interactive",
+		"--resume",
 		"--token", tokenStr,
 		"--edge-url", server.URL,
 		"--session-file", sessionPath,

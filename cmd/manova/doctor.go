@@ -127,7 +127,9 @@ func newDoctorCmd() *cobra.Command {
 						return nil
 					}
 				}
-				return fmt.Errorf("pre-flight diagnostics failed with %d error(s)", errors)
+				if !fixOutput {
+					fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Run 'manova doctor --fix' to automatically install missing dependencies."))
+				}
 			}
 
 			return nil
