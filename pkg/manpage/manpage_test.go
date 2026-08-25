@@ -16,11 +16,32 @@ func createTestRootCmd() *cobra.Command {
 		Short: "Developer onboarding and workspace orchestrator",
 		Long:  "Fast, zero-leak developer onboarding and dev stack orchestrator.",
 	}
-	subCmd := &cobra.Command{
-		Use:   "doctor",
-		Short: "Run pre-flight diagnostics",
+	rootCmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands:"})
+	rootCmd.AddGroup(&cobra.Group{ID: "workspace", Title: "Workspace Commands:"})
+	rootCmd.AddGroup(&cobra.Group{ID: "system", Title: "System & Tooling:"})
+
+	docCmd := &cobra.Command{
+		Use:     "doctor",
+		GroupID: "core",
+		Short:   "Run pre-flight diagnostics",
 	}
-	rootCmd.AddCommand(subCmd)
+	docCmd.Flags().Bool("fix", false, "Auto-heal issues")
+	rootCmd.AddCommand(docCmd)
+
+	syncCmd := &cobra.Command{
+		Use:     "sync",
+		GroupID: "workspace",
+		Short:   "Sync repositories",
+	}
+	rootCmd.AddCommand(syncCmd)
+
+	userCmd := &cobra.Command{
+		Use:     "user",
+		GroupID: "system",
+		Short:   "Manage users",
+	}
+	rootCmd.AddCommand(userCmd)
+
 	return rootCmd
 }
 
@@ -28,16 +49,25 @@ func TestGenerateManPages(t *testing.T) {
 	dir := t.TempDir()
 	cmd := createTestRootCmd()
 
+	// Seed a legacy fragmented file to test cleanup
+	legacyFile := filepath.Join(dir, "manova-doctor.1")
+	_ = os.WriteFile(legacyFile, []byte("legacy"), 0644)
+
 	files, err := manpage.GenerateManPages(cmd, dir)
 	if err != nil {
 		t.Fatalf("GenerateManPages failed: %v", err)
 	}
 
-	if len(files) == 0 {
-		t.Fatal("expected generated man page files, got 0")
+	if len(files) != 2 {
+		t.Fatalf("expected exactly 2 files (manova.1, m.1), got %d: %v", len(files), files)
 	}
 
-	// Verify manova.1 exists and contains troff header
+	// Verify legacy file was purged
+	if _, err := os.Stat(legacyFile); !os.IsNotExist(err) {
+		t.Errorf("expected legacy subpage manova-doctor.1 to be purged, but it still exists")
+	}
+
+	// Verify manova.1 exists and contains troff header and all sections
 	manova1 := filepath.Join(dir, "manova.1")
 	data, err := os.ReadFile(manova1)
 	if err != nil {
@@ -45,7 +75,22 @@ func TestGenerateManPages(t *testing.T) {
 	}
 	content := string(data)
 	if !strings.Contains(content, ".TH \"MANOVA\"") {
-		t.Errorf("expected .TH header in manova.1, got: %s", content)
+		t.Errorf("expected .TH header in manova.1, got:\n%s", content)
+	}
+	if !strings.Contains(content, ".SH CORE COMMANDS") {
+		t.Errorf("expected .SH CORE COMMANDS section, got:\n%s", content)
+	}
+	if !strings.Contains(content, ".SH WORKSPACE COMMANDS") {
+		t.Errorf("expected .SH WORKSPACE COMMANDS section, got:\n%s", content)
+	}
+	if !strings.Contains(content, ".SH ENVIRONMENT VARIABLES") {
+		t.Errorf("expected .SH ENVIRONMENT VARIABLES section, got:\n%s", content)
+	}
+	if !strings.Contains(content, ".SH FILES") {
+		t.Errorf("expected .SH FILES section, got:\n%s", content)
+	}
+	if !strings.Contains(content, "--fix") {
+		t.Errorf("expected flag --fix in manova.1, got:\n%s", content)
 	}
 
 	// Verify alias m.1 exists
@@ -67,6 +112,9 @@ func TestInstallAndUninstallManPages(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "manova.1")); err != nil {
 		t.Errorf("manova.1 missing after install")
 	}
+	if _, err := os.Stat(filepath.Join(dir, "m.1")); err != nil {
+		t.Errorf("m.1 missing after install")
+	}
 
 	if err := manpage.UninstallFromDir(dir); err != nil {
 		t.Fatalf("UninstallFromDir failed: %v", err)
@@ -74,5 +122,8 @@ func TestInstallAndUninstallManPages(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "manova.1")); !os.IsNotExist(err) {
 		t.Errorf("manova.1 should be removed after uninstall")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "m.1")); !os.IsNotExist(err) {
+		t.Errorf("m.1 should be removed after uninstall")
 	}
 }
