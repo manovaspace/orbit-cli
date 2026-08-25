@@ -270,5 +270,5 @@ cd orbit/orbit-cli && go test ./pkg/manpage/... -v
 
 - Test `manova doc man /tmp/man1`
 - Test `man manova` and `man m` on local machine
-- Build `v0.2.7`, release to GitHub, deploy to remote `root@91.107.146.32`
-- Verify `man manova`, `man m`, `man manova-doctor` on remote server.
+- Build release, publish to GitHub
+- Verify `man manova`, `man m`, `man manova-doctor` on target test environment.

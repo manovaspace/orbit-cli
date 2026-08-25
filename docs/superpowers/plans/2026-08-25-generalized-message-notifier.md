@@ -844,35 +844,32 @@ gh release create v0.2.5 \
   dist/manova-linux-amd64 dist/manova-linux-arm64
 ```
 
-### Step 3: Update remote machine binary
+### Step 3: Test installation on clean environment
 ```bash
-ssh root@91.107.146.32 'curl -fsSL https://get.manova.space | bash'
-# or manually:
-scp dist/manova-linux-amd64 root@91.107.146.32:/usr/local/bin/manova
-ssh root@91.107.146.32 'chmod +x /usr/local/bin/manova && manova version'
+curl -fsSL https://get.manova.space | bash
 ```
 
-### Step 4: Bootstrap worker on remote
+### Step 4: Bootstrap worker on test environment
 ```bash
-ssh root@91.107.146.32 'manova worker start'
+manova worker start
 ```
 Expected: `✔ Worker daemon started successfully (systemd user timer: manova-worker.timer)`
 
 ### Step 5: Force a poll and verify messages
 ```bash
-ssh root@91.107.146.32 'manova worker run-once && cat ~/.manova/feed.json'
+manova worker run-once && cat ~/.manova/feed.json
 ```
-Expected: feed.json written with `latest_version: v0.2.5` and `messages[]`
+Expected: feed.json written with `latest_version` and `messages[]`
 
 ### Step 6: Trigger a CLI command to see message banner
 ```bash
-ssh root@91.107.146.32 'manova doctor 2>&1 | tail -20'
+manova doctor 2>&1 | tail -20
 ```
 Expected: message banner rendered at bottom, exit code 0
 
 ### Step 7: Verify messages.json tracking
 ```bash
-ssh root@91.107.146.32 'cat ~/.manova/messages.json'
+cat ~/.manova/messages.json
 ```
 Expected: `{"seen":["release-v0.2.4","tip-2026-08-25-doctor-fix"], ...}`
 
