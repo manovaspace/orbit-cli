@@ -102,7 +102,7 @@ Scopes:
 			_ = manpage.InstallManPages(cmd.Root())
 
 			if bootstrapFlag {
-				fmt.Fprintf(out, "\n%s\n", successStyle.Render("✔ Manova developer environment initialized!"))
+				fmt.Fprintf(out, "\n%s\n", successStyle.Render(fmt.Sprintf("✔ Manova developer environment initialized (%s)!", version)))
 				fmt.Fprintf(out, "  • Zsh and Oh My Zsh configured as default shell.\n")
 				fmt.Fprintf(out, "  • 'm' alias and shell completions active in ~/.zshrc.\n")
 				fmt.Fprintf(out, "  • Background update worker pulse active.\n")
