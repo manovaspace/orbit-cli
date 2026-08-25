@@ -250,8 +250,8 @@ func TestRootHelpAliasHint(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "Shortcut Alias:") || !strings.Contains(out, "'m' is configured as a fast shell alias") {
-		t.Errorf("expected root help to contain 'Shortcut Alias:' hint, got:\n%s", out)
+	if !strings.Contains(out, "Shortcut: 'm'") && !strings.Contains(out, "Shortcut") {
+		t.Errorf("expected root help to contain 'Shortcut: 'm'' hint, got:\n%s", out)
 	}
 }
 

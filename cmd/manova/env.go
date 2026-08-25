@@ -15,7 +15,7 @@ import (
 func newEnvCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env",
-		Short: "Manage and validate workspace environment variables and .env files",
+		Short: "Validate and manage workspace environment variables",
 		Long:  "Validate project .env files against .env.schema.yaml contracts, generate initial .env files, and manage MCP secrets.",
 	}
 

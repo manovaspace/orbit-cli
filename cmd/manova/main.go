@@ -44,13 +44,9 @@ func init() {
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "manova",
-		Aliases: []string{"m"},
-		Short:   "Zero-leak developer onboarding and workspace orchestrator",
-		Long: `Fast, zero-leak developer onboarding, multi-repo synchronization, and dev stack orchestrator.
-
-Shortcut Alias:
-  'm' is configured as a fast shell alias for 'manova' (e.g. 'm status', 'm dev up', 'm onboard').`,
+		Use:   "manova",
+		Short: "Zero-leak developer onboarding and workspace orchestrator",
+		Long:  "Zero-leak developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'm')",
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if shouldSuppressPostRunNotices(cmd) {
 				return
@@ -102,29 +98,80 @@ Shortcut Alias:
 		},
 	}
 
+	cmd.AddGroup(&cobra.Group{ID: "core", Title: "Core Commands:"})
+	cmd.AddGroup(&cobra.Group{ID: "workspace", Title: "Workspace Commands:"})
+	cmd.AddGroup(&cobra.Group{ID: "system", Title: "System & Tooling:"})
+
+	onboardCmd := newOnboardCmd()
+	onboardCmd.GroupID = "core"
+
+	initCmd := newInitCmd()
+	initCmd.GroupID = "core"
+
+	doctorCmd := newDoctorCmd()
+	doctorCmd.GroupID = "core"
+
+	devCmd := newDevCmd()
+	devCmd.GroupID = "core"
+
+	statusCmd := newStatusCmd()
+	statusCmd.GroupID = "workspace"
+
+	syncCmd := newSyncCmd()
+	syncCmd.GroupID = "workspace"
+
+	updateCmd := newUpdateCmd()
+	updateCmd.GroupID = "workspace"
+
+	portCmd := newPortCmd()
+	portCmd.GroupID = "workspace"
+
+	envCmd := newEnvCmd()
+	envCmd.GroupID = "workspace"
+
+	migrateCmd := newMigrateCmd()
+	migrateCmd.GroupID = "workspace"
+
+	workerCmd := newWorkerCmd()
+	workerCmd.GroupID = "system"
+
+	inviteCmd := newInviteCmd()
+	inviteCmd.GroupID = "system"
+
+	docCmd := newDocCmd()
+	docCmd.GroupID = "system"
+
+	selfUpdateCmd := newSelfUpdateCmd()
+	selfUpdateCmd.GroupID = "system"
+
+	uninstallCmd := newUninstallCmd()
+	uninstallCmd.GroupID = "system"
+
 	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print the CLI version and build metadata",
+		Use:     "version",
+		GroupID: "system",
+		Short:   "Print the CLI version and build metadata",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(cmd.OutOrStdout(), "manova version %s (commit: %s, date: %s)\n", version, commit, date)
 		},
 	}
 
 	// Register all subcommands
-	cmd.AddCommand(newInitCmd())
-	cmd.AddCommand(newDoctorCmd())
-	cmd.AddCommand(newStatusCmd())
-	cmd.AddCommand(newSyncCmd())
-	cmd.AddCommand(newEnvCmd())
-	cmd.AddCommand(newPortCmd())
-	cmd.AddCommand(newMigrateCmd())
-	cmd.AddCommand(newUpdateCmd())
-	cmd.AddCommand(newDevCmd())
-	cmd.AddCommand(newSelfUpdateCmd())
-	cmd.AddCommand(newInviteCmd())
-	cmd.AddCommand(newOnboardCmd())
-	cmd.AddCommand(newUninstallCmd())
-	cmd.AddCommand(newWorkerCmd())
+	cmd.AddCommand(onboardCmd)
+	cmd.AddCommand(initCmd)
+	cmd.AddCommand(doctorCmd)
+	cmd.AddCommand(devCmd)
+	cmd.AddCommand(statusCmd)
+	cmd.AddCommand(syncCmd)
+	cmd.AddCommand(updateCmd)
+	cmd.AddCommand(portCmd)
+	cmd.AddCommand(envCmd)
+	cmd.AddCommand(migrateCmd)
+	cmd.AddCommand(workerCmd)
+	cmd.AddCommand(inviteCmd)
+	cmd.AddCommand(docCmd)
+	cmd.AddCommand(selfUpdateCmd)
+	cmd.AddCommand(uninstallCmd)
 	cmd.AddCommand(versionCmd)
 
 	return cmd

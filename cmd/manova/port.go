@@ -26,7 +26,7 @@ var defaultSlotNames = map[int]string{
 func newPortCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "port",
-		Short: "Manage and inspect the hybrid 50-port allocation model",
+		Short: "Manage and inspect hybrid port allocations",
 		Long:  "Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and dynamically allocate ports (10-49).",
 	}
 

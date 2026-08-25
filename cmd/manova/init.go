@@ -7,6 +7,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/alias"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/manpage"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/worker"
@@ -97,11 +98,15 @@ Scopes:
 			execPath, _ := os.Executable()
 			_, _ = worker.StartDaemon(execPath)
 
+			// Install Unix man pages
+			_ = manpage.InstallManPages(cmd.Root())
+
 			if bootstrapFlag {
 				fmt.Fprintf(out, "\n%s\n", successStyle.Render("✔ Manova developer environment initialized!"))
 				fmt.Fprintf(out, "  • Zsh and Oh My Zsh configured as default shell.\n")
 				fmt.Fprintf(out, "  • 'm' alias and shell completions active in ~/.zshrc.\n")
-				fmt.Fprintf(out, "  • Background update worker pulse active.\n\n")
+				fmt.Fprintf(out, "  • Background update worker pulse active.\n")
+				fmt.Fprintf(out, "  • Unix man pages installed (run 'man manova' or 'man m').\n\n")
 				fmt.Fprintf(out, "When you receive an invitation token, run '%s' to claim your workspace.\n\n", boldStyle.Render("m onboard"))
 				return nil
 			}

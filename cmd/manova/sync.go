@@ -17,7 +17,7 @@ func newSyncCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "sync [scope]",
-		Short: "Fetch and fast-forward clean default branches across workspace repositories",
+		Short: "Fast-forward clean default branches across repos",
 		Long:  "Fetches upstream origin for all targets, verifies clean working tree, and performs fast-forward merges on default branches without overwriting uncommitted work.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

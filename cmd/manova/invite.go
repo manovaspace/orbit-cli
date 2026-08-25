@@ -21,7 +21,7 @@ const (
 func newInviteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "invite",
-		Short: "Manage cryptographically signed developer onboarding invitations",
+		Short: "Manage developer onboarding invite tokens",
 		Long: `Create, list, and revoke cryptographically signed developer onboarding invitations.
 Invitations are HMAC-SHA256 signed single-use or scoped tokens with built-in expiration
 and claims for automated developer onboarding.`,

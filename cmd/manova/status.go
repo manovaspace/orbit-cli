@@ -14,7 +14,7 @@ func newStatusCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "status [scope]",
-		Short: "Show git status and working tree cleanliness across workspace repositories",
+		Short: "Git status across workspace repositories",
 		Long:  "Inspects all cloned repositories and renders a colorized table of branch names, sync states (ahead/behind), and uncommitted changes.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -16,7 +16,7 @@ func newSelfUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "self-update",
 		Aliases: []string{"selfupdate"},
-		Short:   "Update the manova CLI binary to the latest release",
+		Short:   "Update CLI binary to latest release",
 		Long:    "Checks Forgejo/GitHub releases for the latest manova CLI binary, downloads matching OS/arch archive, and replaces the running binary.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

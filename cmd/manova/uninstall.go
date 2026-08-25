@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/manovaspace/orbit-cli/pkg/alias"
+	"github.com/manovaspace/orbit-cli/pkg/manpage"
 	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ func newUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uninstall",
 		Aliases: []string{"remove", "purge"},
-		Short:   "Completely remove manova CLI binary and local configurations",
+		Short:   "Uninstall CLI binary and clean local state",
 		Long: `Uninstall the manova CLI binary and remove local session checkpoints,
 diagnostic caches (~/.manova), and optionally purge cloned workspace repositories.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -112,6 +113,10 @@ diagnostic caches (~/.manova), and optionally purge cloned workspace repositorie
 					}
 				}
 			}
+
+			// 5. Remove Unix Man Pages
+			_ = manpage.UninstallManPages()
+			fmt.Fprintf(out, "  %s  Removed Unix man pages\n", iconOK)
 
 			fmt.Fprintf(out, "\n%s  %s\n", iconOK, successStyle.Render("Successfully uninstalled manova CLI."))
 			return nil

@@ -22,8 +22,8 @@ func newWorkerCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "worker",
-		Short: "Manage the background edge version poller worker daemon",
-		Long:  "Commands to start, stop, check status, and execute the background edge version worker daemon.",
+		Short: "Background edge update poller worker",
+		Long:  "Commands to start, stop, monitor, or manually poll the background edge update worker daemon.",
 	}
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "Cloudflare edge version endpoint URL")

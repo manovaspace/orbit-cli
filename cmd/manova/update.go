@@ -25,7 +25,7 @@ func newUpdateCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Unified workspace update (CLI, git branches, migrations, and env validation)",
+		Short: "Unified update (CLI, git repos, migrations, env)",
 		Long: `Performs a full workspace synchronization and verification:
   1. Checks for manova CLI updates
   2. Synchronizes all clean default git branches from origin

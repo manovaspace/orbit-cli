@@ -107,7 +107,7 @@ func newOnboardCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "onboard",
-		Short: "Interactive onboarding wizard with resume, claims, and stack provisioning",
+		Short: "Interactive developer onboarding wizard",
 		Long: `Interactive onboarding wizard that sets up developer identity, SSH keys,
 repository clones, Cursor MCP integrations, and local development infrastructure.
 

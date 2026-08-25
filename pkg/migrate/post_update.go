@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -54,6 +55,11 @@ func GetPostUpdateMigrations() []PostUpdateMigration {
 			ID:          "003_prompt_m_alias",
 			Description: "Prompt user to configure 'm' shortcut alias for manova",
 			Run:         PromptMAlias,
+		},
+		{
+			ID:          "004_refresh_man_pages",
+			Description: "Refresh Unix man pages with newest command flags and documentation",
+			Run:         RefreshManPages,
 		},
 	}
 }
@@ -133,6 +139,24 @@ func PromptMAlias(ctx *PostUpdateContext) (bool, string, error) {
 	}
 
 	return true, "no input received; skipped", nil
+}
+
+// RefreshManPages regenerates and refreshes the installed man pages for the current binary.
+func RefreshManPages(ctx *PostUpdateContext) (bool, string, error) {
+	execPath := ctx.ExecPath
+	if execPath == "" {
+		if exe, err := os.Executable(); err == nil && exe != "" {
+			execPath = exe
+		} else {
+			execPath = "manova"
+		}
+	}
+	// Run manova doc man to update installed man pages
+	cmd := exec.Command(execPath, "doc", "man")
+	if err := cmd.Run(); err != nil {
+		return true, "man page refresh skipped (executable not available)", nil
+	}
+	return true, "Unix man pages refreshed successfully", nil
 }
 
 // resolvePostUpdateStatePath expands ~ and resolves the state.json path.

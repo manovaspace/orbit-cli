@@ -46,8 +46,8 @@ func TestRunPostUpdateMigrations_NonInteractive(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 3 {
-		t.Fatalf("expected 3 migration results, got %d", len(results))
+	if len(results) != 4 {
+		t.Fatalf("expected 4 migration results, got %d", len(results))
 	}
 
 	// 001_upgrade_systemd_worker should succeed (skipped systemd because MANOVA_FORCE_DETACHED=1)
@@ -114,8 +114,8 @@ func TestRunPostUpdateMigrations_Interactive_PromptAcceptY(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 3 {
-		t.Fatalf("expected 3 migration results, got %d", len(results))
+	if len(results) != 4 {
+		t.Fatalf("expected 4 migration results, got %d", len(results))
 	}
 
 	// Check that prompt was printed
@@ -168,8 +168,8 @@ func TestRunPostUpdateMigrations_Interactive_PromptDeclineN(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 3 {
-		t.Fatalf("expected 3 migration results, got %d", len(results))
+	if len(results) != 4 {
+		t.Fatalf("expected 4 migration results, got %d", len(results))
 	}
 
 	// Check that prompt was printed
@@ -219,8 +219,8 @@ func TestRunPostUpdateMigrations_Idempotency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
-	if len(res1) != 3 {
-		t.Fatalf("expected 3 results on first run, got %d", len(res1))
+	if len(res1) != 4 {
+		t.Fatalf("expected 4 results on first run, got %d", len(res1))
 	}
 
 	// Second run: should be idempotent (0 new migrations executed)
@@ -266,8 +266,8 @@ func TestRunPostUpdateMigrations_CommandTakenSkipped(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results, got %d", len(results))
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
 	}
 
 	// 003 should have resolved because 'm' was already taken, not prompting the user
@@ -292,8 +292,8 @@ func TestRunPostUpdateMigrations_NilContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error with default context, got: %v", err)
 	}
-	if len(results) != 3 {
-		t.Errorf("expected 3 results, got %d", len(results))
+	if len(results) != 4 {
+		t.Errorf("expected 4 results, got %d", len(results))
 	}
 }
 
