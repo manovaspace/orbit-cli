@@ -261,13 +261,27 @@ func InstallZsh(ctx context.Context, pm PackageManager, out io.Writer) error {
 	var cmd *exec.Cmd
 	switch pm {
 	case PkgApt:
-		cmd = exec.CommandContext(ctx, "sudo", "apt-get", "install", "-y", "zsh")
+		if os.Geteuid() == 0 {
+			_ = exec.CommandContext(ctx, "apt-get", "update", "-y").Run()
+			cmd = exec.CommandContext(ctx, "apt-get", "install", "-y", "zsh", "curl", "git")
+		} else {
+			_ = exec.CommandContext(ctx, "sudo", "apt-get", "update", "-y").Run()
+			cmd = exec.CommandContext(ctx, "sudo", "apt-get", "install", "-y", "zsh", "curl", "git")
+		}
 	case PkgBrew:
 		cmd = exec.CommandContext(ctx, "brew", "install", "zsh")
 	case PkgDnf:
-		cmd = exec.CommandContext(ctx, "sudo", "dnf", "install", "-y", "zsh")
+		if os.Geteuid() == 0 {
+			cmd = exec.CommandContext(ctx, "dnf", "install", "-y", "zsh")
+		} else {
+			cmd = exec.CommandContext(ctx, "sudo", "dnf", "install", "-y", "zsh")
+		}
 	case PkgPacman:
-		cmd = exec.CommandContext(ctx, "sudo", "pacman", "-S", "--noconfirm", "zsh")
+		if os.Geteuid() == 0 {
+			cmd = exec.CommandContext(ctx, "pacman", "-S", "--noconfirm", "zsh")
+		} else {
+			cmd = exec.CommandContext(ctx, "sudo", "pacman", "-S", "--noconfirm", "zsh")
+		}
 	default:
 		return fmt.Errorf("unsupported package manager (%s) for automatic Zsh install", pm)
 	}
