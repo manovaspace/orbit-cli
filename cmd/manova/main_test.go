@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -254,5 +255,36 @@ func TestRootHelpAliasHint(t *testing.T) {
 		t.Errorf("expected root help to contain 'Shortcut: 'm'' hint, got:\n%s", out)
 	}
 }
+
+func TestFeedReleaseNotificationSuppressedWhenUpToDate(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("MANOVA_FORCE_DETACHED", "1")
+
+	// Set current CLI version to v0.2.7
+	origVersion := version
+	version = "v0.2.7"
+	defer func() { version = origVersion }()
+
+	// Write feed state with version v0.2.7 and a release message for v0.2.7
+	feedFile := filepath.Join(tempHome, ".manova", "feed.json")
+	feedPayload := `{"version":"v0.2.7","status":"ok","messages":[{"id":"release-v0.2.7","type":"release","priority":"high","title":"v0.2.7 available","action":"manova self-update"}]}`
+	_ = os.MkdirAll(filepath.Dir(feedFile), 0755)
+	_ = os.WriteFile(feedFile, []byte(feedPayload), 0644)
+
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"port", "list"})
+
+	_ = rootCmd.Execute()
+	out := buf.String()
+
+	if strings.Contains(out, "v0.2.7 available") {
+		t.Errorf("expected release notification for v0.2.7 to be suppressed when running v0.2.7, got:\n%s", out)
+	}
+}
+
 
 

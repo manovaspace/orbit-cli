@@ -78,6 +78,11 @@ func newRootCmd() *cobra.Command {
 				}
 				visible := notifier.FilterVisible(feedState.Messages, store)
 				for _, msg := range visible {
+					// If the message is a release notification, only show if target version is strictly newer than current binary
+					if msg.Type == "release" && !updater.IsNewerVersion(version, feedState.LatestVersion) {
+						_ = notifier.MarkSeen(notifier.DefaultStoreFile, msg.ID)
+						continue
+					}
 					hasFeedMessages = true
 					fmt.Fprintln(cmd.OutOrStdout(), renderMessageBanner(msg))
 					_ = notifier.MarkSeen(notifier.DefaultStoreFile, msg.ID)
@@ -189,10 +194,12 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"uninstall":   true,
 		"remove":      true,
 		"purge":       true,
+		"init":        true,
 		"onboard":     true,
 		"version":     true,
 		"self-update": true,
 		"selfupdate":  true,
+		"doc":         true,
 		"help":        true,
 		"worker":      true,
 		"completion":  true,
