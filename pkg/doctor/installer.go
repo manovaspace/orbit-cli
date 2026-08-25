@@ -373,3 +373,76 @@ func EnsureZshConfigured(home string) error {
 	}
 	return nil
 }
+
+// WarmUpSudo runs 'sudo -v' for non-root users to authenticate once and cache credential timestamp.
+func WarmUpSudo(ctx context.Context, in io.Reader, out io.Writer) error {
+	if os.Geteuid() == 0 {
+		return nil
+	}
+	if _, err := exec.LookPath("sudo"); err != nil {
+		return nil
+	}
+	cmd := exec.CommandContext(ctx, "sudo", "-v")
+	cmd.Stdin = in
+	cmd.Stdout = out
+	cmd.Stderr = out
+	return cmd.Run()
+}
+
+// CreateDevUser creates a dedicated development user with sudo and docker group membership,
+// sets default shell to Zsh, copies root SSH keys, and configures .zshrc.
+func CreateDevUser(ctx context.Context, username string, out io.Writer) error {
+	if username == "" {
+		username = "dev"
+	}
+
+	fmt.Fprintf(out, "  ⠋ Creating dedicated developer user '%s'...\n", username)
+
+	zshPath, err := exec.LookPath("zsh")
+	if err != nil {
+		zshPath = "/usr/bin/zsh"
+	}
+
+	// 1. Create user if not exists
+	userExists := false
+	if _, err := exec.CommandContext(ctx, "id", "-u", username).Output(); err == nil {
+		userExists = true
+	}
+
+	if !userExists {
+		cmdAdd := exec.CommandContext(ctx, "useradd", "-m", "-s", zshPath, username)
+		if outBytes, err := cmdAdd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to create user %s: %w (%s)", username, err, strings.TrimSpace(string(outBytes)))
+		}
+	}
+
+	// 2. Add user to sudo, docker, and wheel groups
+	for _, grp := range []string{"sudo", "docker", "wheel"} {
+		_ = exec.CommandContext(ctx, "usermod", "-aG", grp, username).Run()
+	}
+
+	// 3. Configure sudoers rule (/etc/sudoers.d/90-manova-dev)
+	sudoersContent := fmt.Sprintf("%s ALL=(ALL) NOPASSWD:ALL\n", username)
+	sudoersFile := filepath.Join("/etc/sudoers.d", fmt.Sprintf("90-manova-%s", username))
+	_ = os.WriteFile(sudoersFile, []byte(sudoersContent), 0440)
+
+	// 4. Copy root SSH authorized_keys if present
+	devHome := filepath.Join("/home", username)
+	devSSHDir := filepath.Join(devHome, ".ssh")
+	rootAuthKeys := "/root/.ssh/authorized_keys"
+
+	if rootKeys, err := os.ReadFile(rootAuthKeys); err == nil && len(rootKeys) > 0 {
+		_ = os.MkdirAll(devSSHDir, 0700)
+		devAuthKeys := filepath.Join(devSSHDir, "authorized_keys")
+		_ = os.WriteFile(devAuthKeys, rootKeys, 0600)
+	}
+
+	// 5. Ensure .zshrc in dev home
+	_ = EnsureZshConfigured(devHome)
+
+	// 6. Fix ownership of dev home directory
+	_ = exec.CommandContext(ctx, "chown", "-R", fmt.Sprintf("%s:%s", username, username), devHome).Run()
+
+	fmt.Fprintf(out, "  ✔ Dedicated developer user '%s' created and configured.\n", username)
+	return nil
+}

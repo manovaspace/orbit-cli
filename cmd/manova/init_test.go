@@ -58,3 +58,20 @@ groups:
 		t.Errorf("expected target repo .git directory to exist at %s: %v", targetRepoDir, err)
 	}
 }
+
+func TestInitBootstrapFlag(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"init", "--bootstrap"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init --bootstrap failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Manova developer environment initialized") {
+		t.Errorf("expected bootstrap success message, got: %s", output)
+	}
+}

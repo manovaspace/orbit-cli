@@ -9,19 +9,21 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/worker"
 	"github.com/spf13/cobra"
 )
 
 func newInitCmd() *cobra.Command {
 	var (
-		manifestFlag string
-		concurrency  int
-		skipHooks    bool
+		manifestFlag  string
+		concurrency   int
+		skipHooks     bool
+		bootstrapFlag bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "init [scope]",
-		Short: "Clone and initialize workspace repositories",
+		Short: "Clone and initialize workspace repositories or bootstrap environment",
 		Long: `Resolves repository targets from workspace.yaml and clones them concurrently.
 Scopes:
   core            - Clones essential core baseline (default)
@@ -39,6 +41,18 @@ Scopes:
 				scope = args[0]
 			}
 
+			// Root check: Suggest dedicated non-root developer user
+			if os.Geteuid() == 0 {
+				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Running as root is not recommended for development workspaces."))
+				if promptYesNo(in, out, "Would you like to create a dedicated developer user with sudo privileges?", true) {
+					username := promptString(in, out, "Developer username", "dev")
+					if err := doctor.CreateDevUser(cmd.Context(), username, out); err != nil {
+						return fmt.Errorf("failed to create developer user: %w", err)
+					}
+					fmt.Fprintf(out, "\n  %s  %s\n\n", iconOK, successStyle.Render(fmt.Sprintf("Developer user '%s' is ready. To switch: su - %s", username, username)))
+				}
+			}
+
 			// Pre-flight: verify mandatory Zsh, Oh My Zsh and default login shell environment
 			zshRes := doctor.CheckZsh()
 			omzRes := doctor.CheckOhMyZsh()
@@ -46,6 +60,7 @@ Scopes:
 			if zshRes.Status != doctor.StatusOK || omzRes.Status != doctor.StatusOK || shellRes.Status != doctor.StatusOK {
 				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Zsh, Oh My Zsh, and Zsh default shell are required for Manova developer workspaces."))
 				if promptYesNo(in, out, "Would you like to install and configure Zsh + Oh My Zsh now?", true) {
+					_ = doctor.WarmUpSudo(cmd.Context(), in, out)
 					pm := doctor.DetectPackageManager()
 					if zshRes.Status != doctor.StatusOK {
 						if err := doctor.InstallZsh(cmd.Context(), pm, out); err != nil {
@@ -62,12 +77,33 @@ Scopes:
 							return fmt.Errorf("failed to set default shell: %w", err)
 						}
 					}
-					// Ensure completions and shortcut alias are in .zshrc
+					if home, err := os.UserHomeDir(); err == nil {
+						_ = doctor.EnsureZshConfigured(home)
+					}
 					_, _ = alias.InstallShellCompletion(true)
 					_, _ = alias.AddShellAlias("m", "manova")
 				} else {
 					return fmt.Errorf("zsh and oh-my-zsh are mandatory for Manova workspace development; setup aborted")
 				}
+			} else {
+				if home, err := os.UserHomeDir(); err == nil {
+					_ = doctor.EnsureZshConfigured(home)
+				}
+				_, _ = alias.InstallShellCompletion(true)
+				_, _ = alias.AddShellAlias("m", "manova")
+			}
+
+			// Auto-start background edge worker
+			execPath, _ := os.Executable()
+			_, _ = worker.StartDaemon(execPath)
+
+			if bootstrapFlag {
+				fmt.Fprintf(out, "\n%s\n", successStyle.Render("✔ Manova developer environment initialized!"))
+				fmt.Fprintf(out, "  • Zsh and Oh My Zsh configured as default shell.\n")
+				fmt.Fprintf(out, "  • 'm' alias and shell completions active in ~/.zshrc.\n")
+				fmt.Fprintf(out, "  • Background update worker pulse active.\n\n")
+				fmt.Fprintf(out, "When you receive an invitation token, run '%s' to claim your workspace.\n\n", boldStyle.Render("m onboard"))
+				return nil
 			}
 
 			workspaceRoot := findWorkspaceRoot("")
@@ -164,6 +200,7 @@ Scopes:
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 4, "Number of concurrent clone workers")
 	cmd.Flags().BoolVar(&skipHooks, "skip-hooks", false, "Skip post-clone workspace hooks and migrations")
+	cmd.Flags().BoolVar(&bootstrapFlag, "bootstrap", false, "Bootstrap base developer environment without cloning workspace manifest")
 
 	return cmd
 }
