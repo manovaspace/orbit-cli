@@ -24,6 +24,9 @@ func TestChangelogCmd_DefaultList(t *testing.T) {
 	if !strings.Contains(out, "v0.3.2") {
 		t.Errorf("expected v0.3.2 in output, got:\n%s", out)
 	}
+	if !strings.Contains(out, "Tip: Showing 2 latest releases") {
+		t.Errorf("expected tip hint in changelog output, got:\n%s", out)
+	}
 }
 
 func TestChangelogCmd_WhatsnewAlias(t *testing.T) {

@@ -172,7 +172,7 @@ func renderUpdateBanner(currentVersion, latestVersion string, highlights []strin
 		sb.WriteString("\n\n")
 		sb.WriteString(headerStyle.Render("Release Highlights:"))
 		for _, item := range hl {
-			sb.WriteString("\n  • " + item)
+			sb.WriteString("\n  • " + updater.FormatTerminalHighlight(item))
 		}
 	}
 

@@ -112,6 +112,61 @@ func TruncateReleaseNotes(notes string, maxItems int) []string {
 	return truncated
 }
 
+// CleanMarkdown removes markdown bold (**), italic (* or _), and backticks (`) for clean terminal readability.
+func CleanMarkdown(s string) string {
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.ReplaceAll(s, "__", "")
+	s = strings.ReplaceAll(s, "`", "")
+	return strings.TrimSpace(s)
+}
+
+// FormatTerminalHighlight parses a release highlight item, cleanly extracting and accenting the title/prefix
+// and stripping raw markdown syntax for polished terminal presentation.
+func FormatTerminalHighlight(item string) string {
+	trimmed := strings.TrimSpace(item)
+	if trimmed == "" {
+		return ""
+	}
+
+	// Truncated summary line
+	if strings.HasPrefix(trimmed, "…") {
+		return trimmed
+	}
+
+	// Pattern 1: **Title:** Description OR **Title**: Description OR **Title** - Description
+	if strings.HasPrefix(trimmed, "**") {
+		idx := strings.Index(trimmed[2:], "**")
+		if idx != -1 {
+			title := trimmed[2 : 2+idx]
+			rest := strings.TrimSpace(trimmed[2+idx+2:])
+
+			// Clean separators
+			rest = strings.TrimPrefix(rest, ":")
+			rest = strings.TrimPrefix(rest, " - ")
+			rest = strings.TrimPrefix(rest, " — ")
+			rest = strings.TrimSpace(rest)
+
+			title = strings.TrimSuffix(title, ":")
+			title = CleanMarkdown(title)
+			rest = CleanMarkdown(rest)
+
+			if rest != "" {
+				return fmt.Sprintf("\033[1;36m%s:\033[0m %s", title, rest)
+			}
+			return fmt.Sprintf("\033[1;36m%s\033[0m", title)
+		}
+	}
+
+	// Pattern 2: Title: Description (clean plain text prefix)
+	if idx := strings.Index(trimmed, ": "); idx > 0 && idx < 40 {
+		title := CleanMarkdown(trimmed[:idx])
+		rest := CleanMarkdown(trimmed[idx+2:])
+		return fmt.Sprintf("\033[1;36m%s:\033[0m %s", title, rest)
+	}
+
+	return CleanMarkdown(trimmed)
+}
+
 // IsNewerVersion returns true if target represents a newer semver version than current.
 // Handles "v" prefixes and "dev" versions gracefully.
 func IsNewerVersion(current, target string) bool {

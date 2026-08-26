@@ -519,3 +519,42 @@ func TestTruncateReleaseNotes(t *testing.T) {
 		t.Errorf("expected 2 items, got %d", len(shortHighlights))
 	}
 }
+
+func TestCleanMarkdown(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"**Bold Title**", "Bold Title"},
+		{"`command --flag`", "command --flag"},
+		{"**Title:** with `code` block", "Title: with code block"},
+		{"Plain text", "Plain text"},
+	}
+
+	for _, tt := range tests {
+		actual := CleanMarkdown(tt.input)
+		if actual != tt.expected {
+			t.Errorf("CleanMarkdown(%q) = %q, want %q", tt.input, actual, tt.expected)
+		}
+	}
+}
+
+func TestFormatTerminalHighlight(t *testing.T) {
+	input1 := "**Styled Release Cards:** Each changelog entry renders in a box."
+	formatted1 := FormatTerminalHighlight(input1)
+	if !strings.Contains(formatted1, "Styled Release Cards:") || !strings.Contains(formatted1, "Each changelog entry renders in a box.") || strings.Contains(formatted1, "**") {
+		t.Errorf("unexpected FormatTerminalHighlight output: %q", formatted1)
+	}
+
+	input2 := "Auto-Pager: Output is automatically paged through `less -RF`."
+	formatted2 := FormatTerminalHighlight(input2)
+	if !strings.Contains(formatted2, "Auto-Pager:") || !strings.Contains(formatted2, "less -RF") || strings.Contains(formatted2, "`") {
+		t.Errorf("unexpected FormatTerminalHighlight output: %q", formatted2)
+	}
+
+	input3 := "… (+2 more changes)"
+	formatted3 := FormatTerminalHighlight(input3)
+	if formatted3 != input3 {
+		t.Errorf("expected summary line unchanged, got: %q", formatted3)
+	}
+}

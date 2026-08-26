@@ -95,7 +95,7 @@ func newSelfUpdateCmd() *cobra.Command {
 						if strings.HasPrefix(h, "…") {
 							fmt.Fprintf(out, "    %s\n", subtleStyle.Render(h))
 						} else {
-							fmt.Fprintf(out, "    • %s\n", h)
+							fmt.Fprintf(out, "    • %s\n", updater.FormatTerminalHighlight(h))
 						}
 					}
 				}

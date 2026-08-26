@@ -74,6 +74,11 @@ formatted cards. Output is paged automatically when run in a terminal
 				changelog.FormatAllCards(recent),
 			)
 
+			if len(recent) < len(releases) {
+				tip := fmt.Sprintf("\n💡 Tip: Showing %d latest releases. Run 'm changelog -n 10' for more, or 'm whatsnew -v <tag>' for a specific version.", len(recent))
+				content += subtleStyle.Render(tip) + "\n"
+			}
+
 			if noPager {
 				fmt.Fprint(out, content)
 				return nil
@@ -87,7 +92,7 @@ formatted cards. Output is paged automatically when run in a terminal
 	}
 
 	cmd.Flags().StringVarP(&targetVersion, "version", "v", "", "Show notes for a specific version tag")
-	cmd.Flags().IntVarP(&limit, "limit", "n", 5, "Number of recent releases to display")
+	cmd.Flags().IntVarP(&limit, "limit", "n", 2, "Number of recent releases to display")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output in JSON format (implies --no-pager)")
 	cmd.Flags().BoolVar(&noPager, "no-pager", false, "Print directly to stdout without paging")
 

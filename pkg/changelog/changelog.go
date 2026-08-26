@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/manovaspace/orbit-cli/pkg/updater"
 )
 
 var (
@@ -196,7 +197,7 @@ func FormatReleaseCard(r ReleaseEntry) string {
 	for _, h := range r.Highlights {
 		inner.WriteString(fmt.Sprintf("  %s %s\n",
 			cardVersionStyle.Render("•"),
-			cardBulletStyle.Render(h),
+			updater.FormatTerminalHighlight(h),
 		))
 	}
 
