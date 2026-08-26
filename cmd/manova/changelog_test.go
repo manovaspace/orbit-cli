@@ -29,20 +29,23 @@ func TestChangelogCmd_DefaultList(t *testing.T) {
 	}
 }
 
-func TestChangelogCmd_WhatsnewAlias(t *testing.T) {
+func TestChangelogCmd_LimitFlag(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := newRootCmd()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"whatsnew", "--limit", "2", "--no-pager"})
+	cmd.SetArgs([]string{"changelog", "--limit", "3", "--no-pager"})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("whatsnew execution failed: %v", err)
+		t.Fatalf("changelog --limit 3 execution failed: %v", err)
 	}
 
 	out := buf.String()
 	if !strings.Contains(out, "v0.3.2") {
 		t.Errorf("expected v0.3.2 in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Tip: Showing 3 latest releases") {
+		t.Errorf("expected tip hint for 3 releases in changelog output, got:\n%s", out)
 	}
 }
 

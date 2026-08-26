@@ -18,9 +18,8 @@ func newChangelogCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "changelog",
-		Aliases: []string{"whatsnew", "whatisnew", "news"},
-		Short:   "View recent release notes and what's new in Manova",
+		Use:   "changelog",
+		Short: "View recent release notes and what's new in Manova",
 		Long: `Displays release highlights and feature changelogs in beautifully
 formatted cards. Output is paged automatically when run in a terminal
 (press q to quit, / to search). Use --no-pager to disable paging.`,
@@ -75,7 +74,7 @@ formatted cards. Output is paged automatically when run in a terminal
 			)
 
 			if len(recent) < len(releases) {
-				tip := fmt.Sprintf("\n💡 Tip: Showing %d latest releases. Run 'm changelog -n 10' for more, or 'm whatsnew -v <tag>' for a specific version.", len(recent))
+				tip := fmt.Sprintf("\n💡 Tip: Showing %d latest releases. Run 'm changelog -n 10' for more, or 'm changelog -v <tag>' for a specific version.", len(recent))
 				content += subtleStyle.Render(tip) + "\n"
 			}
 

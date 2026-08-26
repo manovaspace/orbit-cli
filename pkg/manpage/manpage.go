@@ -137,7 +137,7 @@ func GenerateRoffContent(rootCmd *cobra.Command) string {
 	buf.WriteString(".TP\nClaim onboarding invite and provision local workspace:\n\\fBm onboard --token manova-inv...\\fR\n")
 	buf.WriteString(".TP\nStart local container stack with Traefik/Caddy routing:\n\\fBm dev up\\fR\n")
 	buf.WriteString(".TP\nList provisioned developer accounts across LDAP, Git, and VPN:\n\\fBm user list\\fR\n")
-	buf.WriteString(".TP\nInspect recent release notes and highlights:\n\\fBm whatsnew\\fR\n")
+	buf.WriteString(".TP\nInspect recent release notes and highlights:\n\\fBm changelog\\fR\n")
 	buf.WriteString(".TP\nUpdate CLI to latest stable release:\n\\fBm self-update\\fR\n\n")
 
 	// Authors & Links

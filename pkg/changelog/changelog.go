@@ -49,7 +49,7 @@ var DefaultReleases = []ReleaseEntry{
 		Title:       "Multi-Modal Version Pinning & Terminal Changelog",
 		Highlights: []string{
 			"Install any version: get.manova.space/v0.2.8, MANOVA_VERSION env var, or --version flag",
-			"New 'manova changelog' (aliases: whatsnew, news) terminal release viewer",
+			"New 'manova changelog' terminal release viewer",
 			"Pin specific version upgrades/downgrades via 'manova self-update --version <tag>'",
 		},
 	},

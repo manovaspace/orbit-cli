@@ -286,5 +286,54 @@ func TestFeedReleaseNotificationSuppressedWhenUpToDate(t *testing.T) {
 	}
 }
 
+func TestRootHelpCommandCoverage(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"--help"})
 
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("help execution failed: %v", err)
+	}
 
+	out := buf.String()
+
+	expectedCommands := []string{
+		"onboard",
+		"init",
+		"doctor",
+		"dev",
+		"sync",
+		"status",
+		"update",
+		"env",
+		"port",
+		"migrate",
+		"changelog",
+		"user",
+		"invite",
+		"worker",
+		"doc",
+		"self-update",
+		"uninstall",
+		"version",
+	}
+
+	for _, cmdName := range expectedCommands {
+		if !strings.Contains(out, cmdName) {
+			t.Errorf("expected command %q to be listed in root help output, but was missing:\n%s", cmdName, out)
+		}
+	}
+
+	// Verify group headers
+	if !strings.Contains(out, "Core Commands:") {
+		t.Errorf("expected 'Core Commands:' section in help")
+	}
+	if !strings.Contains(out, "Workspace Commands:") {
+		t.Errorf("expected 'Workspace Commands:' section in help")
+	}
+	if !strings.Contains(out, "System & Tooling:") {
+		t.Errorf("expected 'System & Tooling:' section in help")
+	}
+}
