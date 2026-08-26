@@ -409,8 +409,8 @@ func TestCheckUpdateCached(t *testing.T) {
 func TestExpandCachePath(t *testing.T) {
 	// Empty path
 	def := ExpandCachePath("")
-	if !strings.HasSuffix(def, filepath.Join(".manova", "update-check.json")) {
-		t.Errorf("expected default cache path to end with .manova/update-check.json, got %q", def)
+	if !strings.HasSuffix(def, filepath.Join(".orbit", "edge-version.json")) {
+		t.Errorf("expected default cache path to end with .orbit/edge-version.json, got %q", def)
 	}
 
 	// Absolute path
@@ -556,5 +556,47 @@ func TestFormatTerminalHighlight(t *testing.T) {
 	formatted3 := FormatTerminalHighlight(input3)
 	if formatted3 != input3 {
 		t.Errorf("expected summary line unchanged, got: %q", formatted3)
+	}
+}
+
+func TestCheckEdgeUpdateCasual(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "edge-version.json")
+
+	var serverHits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverHits++
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(EdgeVersionPayload{
+			Version:     "v0.2.0",
+			PublishedAt: time.Now().UTC(),
+			Highlights:  []string{"Highlight 1", "Highlight 2"},
+			Status:      "ok",
+		})
+	}))
+	defer server.Close()
+
+	// 1. Initial call (cache miss) -> hits server and writes cache
+	res1, err := CheckEdgeUpdateCasual("v0.1.0", cachePath, 1*time.Hour, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error on first casual check: %v", err)
+	}
+	if serverHits != 1 {
+		t.Errorf("expected 1 server hit, got %d", serverHits)
+	}
+	if !res1.HasUpdate || res1.LatestVersion != "v0.2.0" {
+		t.Errorf("expected HasUpdate true and latest v0.2.0, got: %+v", res1)
+	}
+
+	// 2. Second call within TTL (1 hour) -> hits cache, does not hit server
+	res2, err := CheckEdgeUpdateCasual("v0.1.0", cachePath, 1*time.Hour, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error on second casual check: %v", err)
+	}
+	if serverHits != 1 {
+		t.Errorf("expected serverHits to remain 1 on cache hit, got %d", serverHits)
+	}
+	if !res2.HasUpdate || res2.LatestVersion != "v0.2.0" {
+		t.Errorf("expected cached update, got: %+v", res2)
 	}
 }

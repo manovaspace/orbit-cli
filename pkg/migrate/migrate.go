@@ -10,10 +10,10 @@ import (
 
 const (
 	// DefaultStateVersion defines the default migration state format version.
-	DefaultStateVersion = "1.0"
+	DefaultStateVersion = "0.1.0"
 
 	// DefaultStateRelativePath defines the standard relative location for state.json.
-	DefaultStateRelativePath = ".manova/state.json"
+	DefaultStateRelativePath = ".orbit/state.json"
 )
 
 // Engine manages reading, writing, and executing workspace state migrations.

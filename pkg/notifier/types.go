@@ -3,9 +3,9 @@ package notifier
 import "time"
 
 const (
-	DefaultFeedURL    = "https://get.manova.space/api/feed"
-	DefaultFeedFile   = "~/.manova/feed.json"
-	DefaultStoreFile  = "~/.manova/messages.json"
+	DefaultFeedURL    = "https://orbit.manova.space/api/feed"
+	DefaultFeedFile   = "~/.orbit/feed.json"
+	DefaultStoreFile  = "~/.orbit/messages.json"
 	MaxMessagesPerRun = 3
 )
 
@@ -55,13 +55,13 @@ func (m Message) TypeIcon() string {
 	}
 }
 
-// MessageStore is the client-side tracking file (~/.manova/messages.json).
+// MessageStore is the client-side tracking file (~/.orbit/messages.json).
 type MessageStore struct {
 	Seen      []string  `json:"seen"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// FeedState is the cached feed persisted to ~/.manova/feed.json.
+// FeedState is the cached feed persisted to ~/.orbit/feed.json.
 type FeedState struct {
 	LatestVersion string    `json:"latest_version"`
 	LastCheckedAt time.Time `json:"last_checked_at"`

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultUserStoreFile = "~/.manova/users.json"
+	DefaultUserStoreFile = "~/.orbit/users.json"
 )
 
 var (

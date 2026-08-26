@@ -12,7 +12,7 @@ import (
 
 func createTestRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "manova",
+		Use:   "orbit",
 		Short: "Developer onboarding and workspace orchestrator",
 		Long:  "Fast, zero-leak developer onboarding and dev stack orchestrator.",
 	}
@@ -50,7 +50,7 @@ func TestGenerateManPages(t *testing.T) {
 	cmd := createTestRootCmd()
 
 	// Seed a legacy fragmented file to test cleanup
-	legacyFile := filepath.Join(dir, "manova-doctor.1")
+	legacyFile := filepath.Join(dir, "orbit-doctor.1")
 	_ = os.WriteFile(legacyFile, []byte("legacy"), 0644)
 
 	files, err := manpage.GenerateManPages(cmd, dir)
@@ -59,23 +59,23 @@ func TestGenerateManPages(t *testing.T) {
 	}
 
 	if len(files) != 2 {
-		t.Fatalf("expected exactly 2 files (manova.1, m.1), got %d: %v", len(files), files)
+		t.Fatalf("expected exactly 2 files (orbit.1, o.1), got %d: %v", len(files), files)
 	}
 
 	// Verify legacy file was purged
 	if _, err := os.Stat(legacyFile); !os.IsNotExist(err) {
-		t.Errorf("expected legacy subpage manova-doctor.1 to be purged, but it still exists")
+		t.Errorf("expected legacy subpage orbit-doctor.1 to be purged, but it still exists")
 	}
 
-	// Verify manova.1 exists and contains troff header and all sections
-	manova1 := filepath.Join(dir, "manova.1")
-	data, err := os.ReadFile(manova1)
+	// Verify orbit.1 exists and contains troff header and all sections
+	orbit1 := filepath.Join(dir, "orbit.1")
+	data, err := os.ReadFile(orbit1)
 	if err != nil {
-		t.Fatalf("failed to read manova.1: %v", err)
+		t.Fatalf("failed to read orbit.1: %v", err)
 	}
 	content := string(data)
-	if !strings.Contains(content, ".TH \"MANOVA\"") {
-		t.Errorf("expected .TH header in manova.1, got:\n%s", content)
+	if !strings.Contains(content, ".TH \"ORBIT\"") {
+		t.Errorf("expected .TH header in orbit.1, got:\n%s", content)
 	}
 	if !strings.Contains(content, ".SH CORE COMMANDS") {
 		t.Errorf("expected .SH CORE COMMANDS section, got:\n%s", content)
@@ -90,13 +90,13 @@ func TestGenerateManPages(t *testing.T) {
 		t.Errorf("expected .SH FILES section, got:\n%s", content)
 	}
 	if !strings.Contains(content, "--fix") {
-		t.Errorf("expected flag --fix in manova.1, got:\n%s", content)
+		t.Errorf("expected flag --fix in orbit.1, got:\n%s", content)
 	}
 
-	// Verify alias m.1 exists
-	m1 := filepath.Join(dir, "m.1")
-	if _, err := os.Stat(m1); err != nil {
-		t.Errorf("expected m.1 to exist: %v", err)
+	// Verify alias o.1 exists
+	o1 := filepath.Join(dir, "o.1")
+	if _, err := os.Stat(o1); err != nil {
+		t.Errorf("expected o.1 to exist: %v", err)
 	}
 }
 
@@ -108,22 +108,22 @@ func TestInstallAndUninstallManPages(t *testing.T) {
 		t.Fatalf("InstallToDir failed: %v", err)
 	}
 
-	// Verify manova.1 and m.1 exist
-	if _, err := os.Stat(filepath.Join(dir, "manova.1")); err != nil {
-		t.Errorf("manova.1 missing after install")
+	// Verify orbit.1 and o.1 exist
+	if _, err := os.Stat(filepath.Join(dir, "orbit.1")); err != nil {
+		t.Errorf("orbit.1 missing after install")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "m.1")); err != nil {
-		t.Errorf("m.1 missing after install")
+	if _, err := os.Stat(filepath.Join(dir, "o.1")); err != nil {
+		t.Errorf("o.1 missing after install")
 	}
 
 	if err := manpage.UninstallFromDir(dir); err != nil {
 		t.Fatalf("UninstallFromDir failed: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "manova.1")); !os.IsNotExist(err) {
-		t.Errorf("manova.1 should be removed after uninstall")
+	if _, err := os.Stat(filepath.Join(dir, "orbit.1")); !os.IsNotExist(err) {
+		t.Errorf("orbit.1 should be removed after uninstall")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "m.1")); !os.IsNotExist(err) {
-		t.Errorf("m.1 should be removed after uninstall")
+	if _, err := os.Stat(filepath.Join(dir, "o.1")); !os.IsNotExist(err) {
+		t.Errorf("o.1 should be removed after uninstall")
 	}
 }

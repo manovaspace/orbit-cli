@@ -7,17 +7,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/alias"
-	"github.com/manovaspace/orbit-cli/pkg/worker"
 )
 
 const (
 	// DefaultPostUpdateStateFile is the default user-level state file path for post-update migrations.
-	DefaultPostUpdateStateFile = "~/.manova/state.json"
+	DefaultPostUpdateStateFile = "~/.orbit/state.json"
 )
 
 // PostUpdateContext encapsulates runtime context and I/O streams for post-update migrations.
@@ -42,49 +40,21 @@ type PostUpdateMigration struct {
 func GetPostUpdateMigrations() []PostUpdateMigration {
 	return []PostUpdateMigration{
 		{
-			ID:          "001_upgrade_systemd_worker",
-			Description: "Upgrade and restart systemd background worker",
-			Run:         UpgradeSystemdWorker,
-		},
-		{
-			ID:          "002_ensure_shell_completion",
+			ID:          "001_ensure_shell_completion",
 			Description: "Ensure shell completion hooks are installed in user shell profile",
 			Run:         EnsureShellCompletion,
 		},
 		{
-			ID:          "003_prompt_m_alias",
-			Description: "Prompt user to configure 'm' shortcut alias for manova",
-			Run:         PromptMAlias,
+			ID:          "002_prompt_o_alias",
+			Description: "Prompt user to configure 'o' shortcut alias for orbit",
+			Run:         PromptOAlias,
 		},
 		{
-			ID:          "004_refresh_man_pages",
+			ID:          "003_refresh_man_pages",
 			Description: "Refresh Unix man pages with newest command flags and documentation",
 			Run:         RefreshManPages,
 		},
 	}
-}
-
-// UpgradeSystemdWorker upgrades and restarts the systemd user service worker daemon if on Linux and functional.
-func UpgradeSystemdWorker(ctx *PostUpdateContext) (bool, string, error) {
-	if runtime.GOOS != "linux" || !worker.IsSystemdFunctional() {
-		return true, "systemd worker not applicable or functional on this environment; skipped", nil
-	}
-
-	execPath := ctx.ExecPath
-	if execPath == "" {
-		if exe, err := os.Executable(); err == nil && exe != "" {
-			execPath = exe
-		} else {
-			execPath = "manova"
-		}
-	}
-
-	mode, err := worker.StartDaemon(execPath)
-	if err != nil {
-		return false, "", fmt.Errorf("failed to restart worker daemon: %w", err)
-	}
-
-	return true, fmt.Sprintf("systemd worker daemon restarted (%s)", mode), nil
 }
 
 // EnsureShellCompletion ensures shell completion hooks are installed in the user's RC file.
@@ -99,15 +69,15 @@ func EnsureShellCompletion(ctx *PostUpdateContext) (bool, string, error) {
 	return true, fmt.Sprintf("shell completion configured in %s", rcPath), nil
 }
 
-// PromptMAlias prompts the user in interactive mode to configure the 'm' shortcut alias if not taken.
-func PromptMAlias(ctx *PostUpdateContext) (bool, string, error) {
+// PromptOAlias prompts the user in interactive mode to configure the 'o' shortcut alias if not taken.
+func PromptOAlias(ctx *PostUpdateContext) (bool, string, error) {
 	if !ctx.Interactive {
 		return false, "non-interactive session; alias prompt skipped", nil
 	}
 
-	taken, reason := alias.IsCommandTaken("m")
+	taken, reason := alias.IsCommandTaken("o")
 	if taken {
-		return true, fmt.Sprintf("shortcut 'm' already in use (%s); skipped", reason), nil
+		return true, fmt.Sprintf("shortcut 'o' already in use (%s); skipped", reason), nil
 	}
 
 	in := ctx.In
@@ -119,20 +89,20 @@ func PromptMAlias(ctx *PostUpdateContext) (bool, string, error) {
 		out = os.Stdout
 	}
 
-	fmt.Fprintf(out, "? Set 'm' as a short shell alias for 'manova'? [Y/n] ")
+	fmt.Fprintf(out, "? Set 'o' as a short shell alias for 'orbit'? [Y/n] ")
 	scanner := bufio.NewScanner(in)
 	if scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.ToLower(strings.TrimSpace(line))
 		if trimmed == "n" || trimmed == "no" {
-			return true, "Shortcut 'm' declined by user", nil
+			return true, "Shortcut 'o' declined by user", nil
 		}
 
-		rcPath, err := alias.AddShellAlias("m", "manova")
+		rcPath, err := alias.AddShellAlias("o", "orbit")
 		if err != nil {
 			return false, "", err
 		}
-		return true, fmt.Sprintf("Added alias m=\"manova\" to %s", filepath.Base(rcPath)), nil
+		return true, fmt.Sprintf("Added alias o=\"orbit\" to %s", filepath.Base(rcPath)), nil
 	}
 	if err := scanner.Err(); err != nil {
 		return false, "", fmt.Errorf("failed to read response: %w", err)
@@ -148,10 +118,10 @@ func RefreshManPages(ctx *PostUpdateContext) (bool, string, error) {
 		if exe, err := os.Executable(); err == nil && exe != "" {
 			execPath = exe
 		} else {
-			execPath = "manova"
+			execPath = "orbit"
 		}
 	}
-	// Run manova doc man to update installed man pages
+	// Run orbit doc man to update installed man pages
 	cmd := exec.Command(execPath, "doc", "man")
 	if err := cmd.Run(); err != nil {
 		return true, "man page refresh skipped (executable not available)", nil

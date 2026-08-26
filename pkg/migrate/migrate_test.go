@@ -11,7 +11,7 @@ import (
 
 func TestMigrationStatePersistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	stateFile := filepath.Join(tmpDir, ".manova", "state.json")
+	stateFile := filepath.Join(tmpDir, ".orbit", "state.json")
 
 	engine := NewEngine(tmpDir, stateFile)
 	applied, err := engine.Apply([]Migration{
@@ -445,7 +445,7 @@ func TestRunPendingMigrations(t *testing.T) {
 	}
 
 	// Verify state file was created
-	statePath := filepath.Join(tmpDir, ".manova", "state.json")
+	statePath := filepath.Join(tmpDir, ".orbit", "state.json")
 	if _, err := os.Stat(statePath); err != nil {
 		t.Fatalf("expected state file %s to exist: %v", statePath, err)
 	}

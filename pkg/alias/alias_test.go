@@ -18,7 +18,7 @@ func TestIsCommandTaken(t *testing.T) {
 	}
 
 	// High-entropy unlikely command name
-	unlikelyCmd := "unlikely_manova_fake_cmd_xyz_123"
+	unlikelyCmd := "unlikely_orbit_fake_cmd_xyz_123"
 	taken, _ = IsCommandTaken(unlikelyCmd)
 	if taken {
 		t.Errorf("expected %q not to be taken, got true", unlikelyCmd)
@@ -33,7 +33,7 @@ func TestAddShellAlias(t *testing.T) {
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	_ = os.WriteFile(rcFile, []byte("# Existing bashrc\n"), 0644)
 
-	targetFile, err := AddShellAlias("m", "manova")
+	targetFile, err := AddShellAlias("o", "orbit")
 	if err != nil {
 		t.Fatalf("AddShellAlias failed: %v", err)
 	}
@@ -46,18 +46,18 @@ func TestAddShellAlias(t *testing.T) {
 		t.Fatalf("failed to read rcFile: %v", err)
 	}
 
-	if !strings.Contains(string(content), `alias m="manova"`) {
+	if !strings.Contains(string(content), `alias o="orbit"`) {
 		t.Errorf("expected alias line in file, got: %s", string(content))
 	}
 
 	// Test idempotency (should not duplicate entry)
-	_, err = AddShellAlias("m", "manova")
+	_, err = AddShellAlias("o", "orbit")
 	if err != nil {
 		t.Fatalf("second AddShellAlias call failed: %v", err)
 	}
 
 	contentSecond, _ := os.ReadFile(rcFile)
-	count := strings.Count(string(contentSecond), `alias m="manova"`)
+	count := strings.Count(string(contentSecond), `alias o="orbit"`)
 	if count != 1 {
 		t.Errorf("expected exactly 1 instance of alias, found %d", count)
 	}
@@ -84,10 +84,10 @@ func TestInstallShellCompletion(t *testing.T) {
 		t.Fatalf("failed to read zshrc: %v", err)
 	}
 
-	if !strings.Contains(string(content), "source <(manova completion zsh)") {
+	if !strings.Contains(string(content), "source <(orbit completion zsh)") {
 		t.Errorf("expected completion source line in zshrc")
 	}
-	if !strings.Contains(string(content), "compdef m=manova") {
+	if !strings.Contains(string(content), "compdef o=orbit") {
 		t.Errorf("expected compdef alias hook in zshrc")
 	}
 
@@ -98,7 +98,7 @@ func TestInstallShellCompletion(t *testing.T) {
 	}
 
 	contentSecond, _ := os.ReadFile(zshrc)
-	count := strings.Count(string(contentSecond), "# Manova CLI Autocompletion")
+	count := strings.Count(string(contentSecond), "# Orbit CLI Autocompletion")
 	if count != 1 {
 		t.Errorf("expected exactly 1 completion header, found %d", count)
 	}
@@ -110,11 +110,11 @@ func TestRemoveShellConfiguration(t *testing.T) {
 
 	bashrc := filepath.Join(tmpDir, ".bashrc")
 	initialContent := `# Existing user line
-# Manova CLI shortcut
-alias m="manova"
-# Manova CLI Autocompletion
-if command -v manova >/dev/null 2>&1; then
-  source <(manova completion bash)
+# Orbit CLI shortcut
+alias o="orbit"
+# Orbit CLI Autocompletion
+if command -v orbit >/dev/null 2>&1; then
+  source <(orbit completion bash)
 fi
 # Trailing user line
 `
@@ -128,10 +128,10 @@ fi
 	}
 
 	cleanedStr := string(cleaned)
-	if strings.Contains(cleanedStr, "alias m=") {
-		t.Errorf("expected alias m to be removed, got: %s", cleanedStr)
+	if strings.Contains(cleanedStr, "alias o=") {
+		t.Errorf("expected alias o to be removed, got: %s", cleanedStr)
 	}
-	if strings.Contains(cleanedStr, "source <(manova completion") {
+	if strings.Contains(cleanedStr, "source <(orbit completion") {
 		t.Errorf("expected completion to be removed, got: %s", cleanedStr)
 	}
 	if !strings.Contains(cleanedStr, "# Existing user line") || !strings.Contains(cleanedStr, "# Trailing user line") {

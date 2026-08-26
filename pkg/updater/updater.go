@@ -20,12 +20,14 @@ const (
 	DefaultGitHubURL = "https://api.github.com"
 	// DefaultForgejoURL is the internal mirror repository base URL.
 	DefaultForgejoURL = "https://git.dev.manova.space"
-	// DefaultRepoSlug is the default repository slug for manova CLI releases.
+	// DefaultEdgeURL is the primary Cloudflare edge version check endpoint.
+	DefaultEdgeURL = "https://orbit.manova.space/version"
+	// DefaultRepoSlug is the default repository slug for orbit CLI releases.
 	DefaultRepoSlug = "manovaspace/orbit-cli"
-	// DefaultCacheFile is the default file path for caching update checks.
-	DefaultCacheFile = "~/.manova/update-check.json"
-	// DefaultTTL is the default cache validity duration (24 hours).
-	DefaultTTL = 24 * time.Hour
+	// DefaultCacheFile is the default file path for caching edge update checks.
+	DefaultCacheFile = "~/.orbit/edge-version.json"
+	// DefaultTTL is the casual version check interval (1 hour).
+	DefaultTTL = 1 * time.Hour
 )
 
 type apiAsset struct {
@@ -475,4 +477,111 @@ func SelfUpdateTo(currentVersion, targetVersion, repoSlug string, customSource s
 		return fmt.Errorf("self-update to %s failed: %w", targetVersion, err)
 	}
 	return nil
+}
+
+// EdgeVersionPayload matches the JSON schema from Cloudflare edge /version.
+type EdgeVersionPayload struct {
+	Version             string    `json:"version"`
+	TagName             string    `json:"tag_name,omitempty"`
+	PublishedAt         time.Time `json:"published_at,omitempty"`
+	Highlights          []string  `json:"highlights,omitempty"`
+	DownloadURLTemplate string    `json:"download_url_template,omitempty"`
+	Status              string    `json:"status,omitempty"`
+}
+
+// EdgeVersionCache represents persisted edge check state on disk.
+type EdgeVersionCache struct {
+	LatestVersion string    `json:"latest_version"`
+	Highlights    []string  `json:"highlights,omitempty"`
+	LastCheckedAt time.Time `json:"last_checked_at"`
+	ServerStatus  string    `json:"server_status,omitempty"`
+}
+
+// CheckEdgeUpdateCasual performs a fast, non-intrusive edge check if last check was > ttl ago (default 1h).
+func CheckEdgeUpdateCasual(currentVersion, cacheFile string, ttl time.Duration, edgeURL string) (*UpdateCheckResult, error) {
+	if ttl <= 0 {
+		ttl = DefaultTTL
+	}
+	if edgeURL == "" {
+		edgeURL = DefaultEdgeURL
+	}
+	expandedPath := ExpandCachePath(cacheFile)
+
+	// 1. Read existing cache
+	if data, err := os.ReadFile(expandedPath); err == nil {
+		var cached EdgeVersionCache
+		if err := json.Unmarshal(data, &cached); err == nil {
+			if !cached.LastCheckedAt.IsZero() && time.Since(cached.LastCheckedAt) < ttl {
+				return &UpdateCheckResult{
+					CurrentVersion: currentVersion,
+					LatestVersion:  cached.LatestVersion,
+					HasUpdate:      IsNewerVersion(currentVersion, cached.LatestVersion),
+					Release: &ReleaseInfo{
+						Version:      cached.LatestVersion,
+						TagName:      cached.LatestVersion,
+						ReleaseNotes: strings.Join(cached.Highlights, "\n"),
+					},
+					CheckedAt: cached.LastCheckedAt,
+				}, nil
+			}
+		}
+	}
+
+	// 2. Perform fast edge fetch with tight timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, edgeURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "orbit-cli-casual-check/"+currentVersion)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// Network offline or timeout: return cached without failing
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("edge server returned HTTP %d", resp.StatusCode)
+	}
+
+	var payload EdgeVersionPayload
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("failed to decode edge version response: %w", err)
+	}
+
+	if payload.Version == "" {
+		return nil, fmt.Errorf("empty version in edge response")
+	}
+
+	// 3. Atomically write cache
+	cacheData := EdgeVersionCache{
+		LatestVersion: payload.Version,
+		Highlights:    payload.Highlights,
+		LastCheckedAt: time.Now().UTC(),
+		ServerStatus:  "ok",
+	}
+
+	if err := os.MkdirAll(filepath.Dir(expandedPath), 0755); err == nil {
+		if data, err := json.MarshalIndent(cacheData, "", "  "); err == nil {
+			_ = os.WriteFile(expandedPath, append(data, '\n'), 0644)
+		}
+	}
+
+	hasUpdate := IsNewerVersion(currentVersion, payload.Version)
+
+	return &UpdateCheckResult{
+		CurrentVersion: currentVersion,
+		LatestVersion:  payload.Version,
+		HasUpdate:      hasUpdate,
+		Release: &ReleaseInfo{
+			Version:      payload.Version,
+			PublishedAt:  payload.PublishedAt,
+			ReleaseNotes: strings.Join(payload.Highlights, "\n"),
+		},
+		CheckedAt: cacheData.LastCheckedAt,
+	}, nil
 }

@@ -14,8 +14,6 @@ func setupTestEnvironment(t *testing.T) (string, string) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
 	t.Setenv("SHELL", "/bin/bash")
-	// Disable real systemctl interactions in tests
-	t.Setenv("MANOVA_FORCE_DETACHED", "1")
 
 	// Create mock .bashrc
 	bashrc := filepath.Join(tmpHome, ".bashrc")
@@ -23,7 +21,7 @@ func setupTestEnvironment(t *testing.T) (string, string) {
 		t.Fatalf("failed to create mock bashrc: %v", err)
 	}
 
-	statePath := filepath.Join(tmpHome, ".manova", "state.json")
+	statePath := filepath.Join(tmpHome, ".orbit", "state.json")
 	return tmpHome, statePath
 }
 
@@ -35,9 +33,9 @@ func TestRunPostUpdateMigrations_NonInteractive(t *testing.T) {
 		Interactive: false,
 		In:          strings.NewReader(""),
 		Out:         &out,
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		PrevVersion: "0.1.0",
-		NewVersion:  "0.2.1",
+		NewVersion:  "0.1.1",
 		StatePath:   statePath,
 	}
 
@@ -46,18 +44,13 @@ func TestRunPostUpdateMigrations_NonInteractive(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 4 {
-		t.Fatalf("expected 4 migration results, got %d", len(results))
+	if len(results) != 3 {
+		t.Fatalf("expected 3 migration results, got %d", len(results))
 	}
 
-	// 001_upgrade_systemd_worker should succeed (skipped systemd because MANOVA_FORCE_DETACHED=1)
-	if results[0].ID != "001_upgrade_systemd_worker" || !results[0].Success || results[0].Skipped {
+	// 001_ensure_shell_completion should succeed
+	if results[0].ID != "001_ensure_shell_completion" || !results[0].Success || results[0].Skipped {
 		t.Errorf("expected 001 to succeed and not be skipped, got: %+v", results[0])
-	}
-
-	// 002_ensure_shell_completion should succeed
-	if results[1].ID != "002_ensure_shell_completion" || !results[1].Success || results[1].Skipped {
-		t.Errorf("expected 002 to succeed and not be skipped, got: %+v", results[1])
 	}
 
 	// Verify shell completion was added to .bashrc
@@ -65,33 +58,30 @@ func TestRunPostUpdateMigrations_NonInteractive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read .bashrc: %v", err)
 	}
-	if !strings.Contains(string(bashrcData), "manova completion") {
+	if !strings.Contains(string(bashrcData), "orbit completion") {
 		t.Errorf("expected shell completion in .bashrc, got:\n%s", string(bashrcData))
 	}
 
-	// 003_prompt_m_alias should be skipped in non-interactive mode
-	if results[2].ID != "003_prompt_m_alias" || !results[2].Success || !results[2].Skipped {
-		t.Errorf("expected 003 to be skipped in non-interactive mode, got: %+v", results[2])
+	// 002_prompt_o_alias should be skipped in non-interactive mode
+	if results[1].ID != "002_prompt_o_alias" || !results[1].Success || !results[1].Skipped {
+		t.Errorf("expected 002 to be skipped in non-interactive mode, got: %+v", results[1])
 	}
 
-	// Verify state.json was written with 001 and 002 applied, but not 003
+	// Verify state.json was written with 001 applied, but not 002
 	engine := NewEngine("", statePath)
 	state, err := engine.LoadState()
 	if err != nil {
 		t.Fatalf("failed to load state: %v", err)
 	}
 
-	if !state.IsApplied("001_upgrade_systemd_worker") {
+	if !state.IsApplied("001_ensure_shell_completion") {
 		t.Errorf("expected 001 to be recorded in state")
 	}
-	if !state.IsApplied("002_ensure_shell_completion") {
-		t.Errorf("expected 002 to be recorded in state")
+	if state.IsApplied("002_prompt_o_alias") {
+		t.Errorf("expected 002 NOT to be recorded in state when skipped")
 	}
-	if state.IsApplied("003_prompt_m_alias") {
-		t.Errorf("expected 003 NOT to be recorded in state when skipped")
-	}
-	if state.Version != "0.2.1" {
-		t.Errorf("expected state version to be 0.2.1, got %s", state.Version)
+	if state.Version != "0.1.1" {
+		t.Errorf("expected state version to be 0.1.1, got %s", state.Version)
 	}
 }
 
@@ -103,9 +93,9 @@ func TestRunPostUpdateMigrations_Interactive_PromptAcceptY(t *testing.T) {
 		Interactive: true,
 		In:          strings.NewReader("y\n"),
 		Out:         &out,
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		PrevVersion: "0.1.0",
-		NewVersion:  "0.2.1",
+		NewVersion:  "0.1.1",
 		StatePath:   statePath,
 	}
 
@@ -114,38 +104,38 @@ func TestRunPostUpdateMigrations_Interactive_PromptAcceptY(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 4 {
-		t.Fatalf("expected 4 migration results, got %d", len(results))
+	if len(results) != 3 {
+		t.Fatalf("expected 3 migration results, got %d", len(results))
 	}
 
 	// Check that prompt was printed
 	promptOutput := out.String()
-	if !strings.Contains(promptOutput, "? Set 'm' as a short shell alias for 'manova'? [Y/n]") {
+	if !strings.Contains(promptOutput, "? Set 'o' as a short shell alias for 'orbit'? [Y/n]") {
 		t.Errorf("expected prompt text in output, got: %q", promptOutput)
 	}
 
-	// Check 003 succeeded and not skipped
-	if results[2].ID != "003_prompt_m_alias" || !results[2].Success || results[2].Skipped {
-		t.Errorf("expected 003 to succeed, got: %+v", results[2])
+	// Check 002 succeeded and not skipped
+	if results[1].ID != "002_prompt_o_alias" || !results[1].Success || results[1].Skipped {
+		t.Errorf("expected 002 to succeed, got: %+v", results[1])
 	}
 
-	// Verify alias 'alias m="manova"' was added to .bashrc
+	// Verify alias 'alias o="orbit"' was added to .bashrc
 	bashrcData, err := os.ReadFile(filepath.Join(tmpHome, ".bashrc"))
 	if err != nil {
 		t.Fatalf("failed to read .bashrc: %v", err)
 	}
-	if !strings.Contains(string(bashrcData), "alias m=\"manova\"") && !strings.Contains(string(bashrcData), "alias m='manova'") {
-		t.Errorf("expected alias m in .bashrc, got:\n%s", string(bashrcData))
+	if !strings.Contains(string(bashrcData), `alias o="orbit"`) && !strings.Contains(string(bashrcData), `alias o='orbit'`) {
+		t.Errorf("expected alias o in .bashrc, got:\n%s", string(bashrcData))
 	}
 
-	// Verify state.json has all 3 recorded
+	// Verify state.json has recorded 002
 	engine := NewEngine("", statePath)
 	state, err := engine.LoadState()
 	if err != nil {
 		t.Fatalf("failed to load state: %v", err)
 	}
-	if !state.IsApplied("003_prompt_m_alias") {
-		t.Errorf("expected 003 to be recorded in state")
+	if !state.IsApplied("002_prompt_o_alias") {
+		t.Errorf("expected 002 to be recorded in state")
 	}
 }
 
@@ -157,9 +147,9 @@ func TestRunPostUpdateMigrations_Interactive_PromptDeclineN(t *testing.T) {
 		Interactive: true,
 		In:          strings.NewReader("n\n"),
 		Out:         &out,
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		PrevVersion: "0.1.0",
-		NewVersion:  "0.2.1",
+		NewVersion:  "0.1.1",
 		StatePath:   statePath,
 	}
 
@@ -168,19 +158,19 @@ func TestRunPostUpdateMigrations_Interactive_PromptDeclineN(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 4 {
-		t.Fatalf("expected 4 migration results, got %d", len(results))
+	if len(results) != 3 {
+		t.Fatalf("expected 3 migration results, got %d", len(results))
 	}
 
 	// Check that prompt was printed
 	promptOutput := out.String()
-	if !strings.Contains(promptOutput, "? Set 'm' as a short shell alias for 'manova'? [Y/n]") {
+	if !strings.Contains(promptOutput, "? Set 'o' as a short shell alias for 'orbit'? [Y/n]") {
 		t.Errorf("expected prompt text in output, got: %q", promptOutput)
 	}
 
-	// 003 should succeed and be marked applied (declined by user, so migration is resolved)
-	if results[2].ID != "003_prompt_m_alias" || !results[2].Success || results[2].Skipped {
-		t.Errorf("expected 003 to succeed (resolved decline), got: %+v", results[2])
+	// 002 should succeed and be marked applied (declined by user, so migration is resolved)
+	if results[1].ID != "002_prompt_o_alias" || !results[1].Success || results[1].Skipped {
+		t.Errorf("expected 002 to succeed (resolved decline), got: %+v", results[1])
 	}
 
 	// Verify alias is NOT in .bashrc
@@ -188,18 +178,18 @@ func TestRunPostUpdateMigrations_Interactive_PromptDeclineN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read .bashrc: %v", err)
 	}
-	if strings.Contains(string(bashrcData), "alias m=") {
-		t.Errorf("alias m should not be present in .bashrc, got:\n%s", string(bashrcData))
+	if strings.Contains(string(bashrcData), "alias o=") {
+		t.Errorf("alias o should not be present in .bashrc, got:\n%s", string(bashrcData))
 	}
 
-	// Verify state.json records 003 as applied so prompt is never repeated
+	// Verify state.json records 002 as applied so prompt is never repeated
 	engine := NewEngine("", statePath)
 	state, err := engine.LoadState()
 	if err != nil {
 		t.Fatalf("failed to load state: %v", err)
 	}
-	if !state.IsApplied("003_prompt_m_alias") {
-		t.Errorf("expected 003 to be recorded in state after user decline")
+	if !state.IsApplied("002_prompt_o_alias") {
+		t.Errorf("expected 002 to be recorded in state after user decline")
 	}
 }
 
@@ -211,7 +201,7 @@ func TestRunPostUpdateMigrations_Idempotency(t *testing.T) {
 		Interactive: true,
 		In:          strings.NewReader("y\n"),
 		Out:         &bytes.Buffer{},
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		StatePath:   statePath,
 	}
 
@@ -219,8 +209,8 @@ func TestRunPostUpdateMigrations_Idempotency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
-	if len(res1) != 4 {
-		t.Fatalf("expected 4 results on first run, got %d", len(res1))
+	if len(res1) != 3 {
+		t.Fatalf("expected 3 results on first run, got %d", len(res1))
 	}
 
 	// Second run: should be idempotent (0 new migrations executed)
@@ -229,7 +219,7 @@ func TestRunPostUpdateMigrations_Idempotency(t *testing.T) {
 		Interactive: true,
 		In:          strings.NewReader("y\n"),
 		Out:         &out2,
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		StatePath:   statePath,
 	}
 
@@ -248,16 +238,16 @@ func TestRunPostUpdateMigrations_Idempotency(t *testing.T) {
 func TestRunPostUpdateMigrations_CommandTakenSkipped(t *testing.T) {
 	tmpHome, statePath := setupTestEnvironment(t)
 
-	// Pre-populate .bashrc with existing m alias
+	// Pre-populate .bashrc with existing o alias
 	bashrc := filepath.Join(tmpHome, ".bashrc")
-	_ = os.WriteFile(bashrc, []byte("alias m='custom_command'\n"), 0644)
+	_ = os.WriteFile(bashrc, []byte("alias o='custom_command'\n"), 0644)
 
 	var out bytes.Buffer
 	ctx := &PostUpdateContext{
 		Interactive: true,
 		In:          strings.NewReader("y\n"),
 		Out:         &out,
-		ExecPath:    "/usr/local/bin/manova",
+		ExecPath:    "/usr/local/bin/orbit",
 		StatePath:   statePath,
 	}
 
@@ -266,11 +256,11 @@ func TestRunPostUpdateMigrations_CommandTakenSkipped(t *testing.T) {
 		t.Fatalf("RunPostUpdateMigrations failed: %v", err)
 	}
 
-	if len(results) != 4 {
-		t.Fatalf("expected 4 results, got %d", len(results))
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
 	}
 
-	// 003 should have resolved because 'm' was already taken, not prompting the user
+	// 002 should have resolved because 'o' was already taken, not prompting the user
 	if out.Len() != 0 {
 		t.Errorf("expected no prompt when command is taken, got: %q", out.String())
 	}
@@ -292,8 +282,8 @@ func TestRunPostUpdateMigrations_NilContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error with default context, got: %v", err)
 	}
-	if len(results) != 4 {
-		t.Errorf("expected 4 results, got %d", len(results))
+	if len(results) != 3 {
+		t.Errorf("expected 3 results, got %d", len(results))
 	}
 }
 
@@ -303,7 +293,7 @@ func (errReader) Read(p []byte) (n int, err error) {
 	return 0, errors.New("read error")
 }
 
-func TestPromptMAlias_ErrorHandling(t *testing.T) {
+func TestPromptOAlias_ErrorHandling(t *testing.T) {
 	tmpHome, _ := setupTestEnvironment(t)
 
 	// Test EOF without input
@@ -313,7 +303,7 @@ func TestPromptMAlias_ErrorHandling(t *testing.T) {
 		In:          strings.NewReader(""),
 		Out:         &out,
 	}
-	applied, msg, err := PromptMAlias(ctxEOF)
+	applied, msg, err := PromptOAlias(ctxEOF)
 	if err != nil {
 		t.Fatalf("unexpected error on EOF: %v", err)
 	}
@@ -327,7 +317,7 @@ func TestPromptMAlias_ErrorHandling(t *testing.T) {
 		In:          errReader{},
 		Out:         &out,
 	}
-	_, _, err = PromptMAlias(ctxErr)
+	_, _, err = PromptOAlias(ctxErr)
 	if err == nil {
 		t.Errorf("expected error on read failure, got nil")
 	}
@@ -338,13 +328,13 @@ func TestPromptMAlias_ErrorHandling(t *testing.T) {
 		In:          strings.NewReader("\n"),
 		Out:         &out,
 	}
-	applied, _, err = PromptMAlias(ctxEnter)
+	applied, _, err = PromptOAlias(ctxEnter)
 	if err != nil || !applied {
 		t.Fatalf("expected Enter to accept default alias, err=%v, applied=%v", err, applied)
 	}
 	data, _ := os.ReadFile(filepath.Join(tmpHome, ".bashrc"))
-	if !strings.Contains(string(data), "alias m=") {
-		t.Errorf("expected alias m in .bashrc on Enter default")
+	if !strings.Contains(string(data), "alias o=") {
+		t.Errorf("expected alias o in .bashrc on Enter default")
 	}
 }
 
@@ -359,7 +349,7 @@ func TestResolvePostUpdateStatePath(t *testing.T) {
 	}
 
 	// Default tilde path
-	expectedDefault := filepath.Join(tmpHome, ".manova", "state.json")
+	expectedDefault := filepath.Join(tmpHome, ".orbit", "state.json")
 	if resolvePostUpdateStatePath("") != expectedDefault {
 		t.Errorf("expected %s, got %s", expectedDefault, resolvePostUpdateStatePath(""))
 	}

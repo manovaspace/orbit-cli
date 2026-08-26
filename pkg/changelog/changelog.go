@@ -34,74 +34,16 @@ var (
 // DefaultReleases provides built-in changelog entries when offline.
 var DefaultReleases = []ReleaseEntry{
 	{
-		Version:     "v0.3.2",
-		PublishedAt: time.Date(2026, 8, 25, 19, 48, 0, 0, time.UTC),
-		Title:       "Single Unified Man Page & Purged Subpages",
+		Version:     "v0.1.0",
+		PublishedAt: time.Date(2026, 8, 26, 19, 0, 0, 0, time.UTC),
+		Title:       "Orbit CLI Initial Release & Workspace Orchestrator",
 		Highlights: []string{
-			"Single comprehensive man page consolidating all commands, flags, files, and examples",
-			"Auto-purge of 50+ legacy fragmented subpages on every update",
-			"Full in-pager search across all commands and options ('man manova', 'man m')",
-		},
-	},
-	{
-		Version:     "v0.3.1",
-		PublishedAt: time.Date(2026, 8, 25, 19, 24, 0, 0, time.UTC),
-		Title:       "Multi-Modal Version Pinning & Terminal Changelog",
-		Highlights: []string{
-			"Install any version: get.manova.space/v0.2.8, MANOVA_VERSION env var, or --version flag",
-			"New 'manova changelog' terminal release viewer",
-			"Pin specific version upgrades/downgrades via 'manova self-update --version <tag>'",
-		},
-	},
-	{
-		Version:     "v0.3.0",
-		PublishedAt: time.Date(2026, 8, 25, 19, 16, 0, 0, time.UTC),
-		Title:       "Explicit Version Diagnostics & Verified Passive Worker",
-		Highlights: []string{
-			"Multi-modal version selection in installer ('get.manova.space/vX.Y.Z', MANOVA_VERSION env, --version flag)",
-			"Explicit version readout in installer and developer bootstrap completion messages",
-			"Strictly verified passive background worker (never modifies binaries in background)",
-		},
-	},
-	{
-		Version:     "v0.2.9",
-		PublishedAt: time.Date(2026, 8, 25, 19, 10, 0, 0, time.UTC),
-		Title:       "Developer User Management",
-		Highlights: []string{
-			"New 'manova user' command (list, inspect, lock, unlock, deprovision, rotate-key)",
-			"Zero-leak atomic offboarding across LLDAP, Forgejo Git, and WireGuard VPN",
-			"Re-entrant init handling when non-root developer user already exists",
-		},
-	},
-	{
-		Version:     "v0.2.8",
-		PublishedAt: time.Date(2026, 8, 25, 19, 0, 0, 0, time.UTC),
-		Title:       "Smart Update Notification Filtering",
-		Highlights: []string{
-			"Strict version filtering on release banners (suppressed if binary is already up to date)",
-			"Suppressed post-run update notices during initial machine bootstrap ('init') and doc export",
-		},
-	},
-	{
-		Version:     "v0.2.7",
-		PublishedAt: time.Date(2026, 8, 25, 9, 46, 0, 0, time.UTC),
-		Title:       "Unix Man Pages & Streamlined Help UX",
-		Highlights: []string{
-			"Full Unix roff man pages for 'manova', 'm', and all subcommands",
-			"Automated man page installation on bootstrap and refresh on every self-update",
-			"Streamlined and grouped root help UX with categorized command listings",
-			"New 'manova doc man' and 'manova doc markdown' generator commands",
-		},
-	},
-	{
-		Version:     "v0.2.6",
-		PublishedAt: time.Date(2026, 8, 25, 7, 5, 0, 0, time.UTC),
-		Title:       "Bootstrap Experience & Shell Integration",
-		Highlights: []string{
-			"Installer automatically hands off to 'manova init --bootstrap' or 'manova onboard'",
-			"Dedicated 'dev' user creation prompt when running on fresh VPS as root",
-			"Single-prompt sudo warmup cache for unprivileged developer setups",
-			"Automatic ~/.zshrc configuration with Oh My Zsh and 'm' alias",
+			"Orbit Platform & Workspace Orchestrator (`orbit`, shortcut `o`)",
+			"Zero-leak developer onboarding with cryptographic token validation (`orbit onboard`)",
+			"Centralized developer user lifecycle management (`orbit user`)",
+			"Automated multi-repo workspace synchronization (`orbit sync`)",
+			"Local container stack orchestration & development routing (`orbit dev`)",
+			"Unified Unix roff manual pages (`man orbit`, `man o`)",
 		},
 	},
 }
@@ -110,7 +52,7 @@ var DefaultReleases = []ReleaseEntry{
 // falling back to DefaultReleases if unreachable.
 func FetchReleases(ctx context.Context, feedURL string) []ReleaseEntry {
 	if feedURL == "" {
-		feedURL = "https://get.manova.space/version"
+		feedURL = "https://orbit.manova.space/version"
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
@@ -172,9 +114,6 @@ func FindRelease(releases []ReleaseEntry, tag string) *ReleaseEntry {
 }
 
 // FormatReleaseCard formats a single release entry as a rounded box card.
-// The card header shows the version tag + date; the title (if set) is on a
-// subtitle line; highlights are indented bullet points; an optional body note
-// is rendered in muted italic at the bottom.
 func FormatReleaseCard(r ReleaseEntry) string {
 	var inner strings.Builder
 

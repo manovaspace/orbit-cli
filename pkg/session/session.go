@@ -17,7 +17,7 @@ type SessionManager struct {
 }
 
 // NewSessionManager creates a SessionManager instance with either a custom path
-// or the default canonical path ~/.manova/session.json (with fallback to ~/.config/manova/session.json).
+// or the default canonical path ~/.orbit/session.json (with fallback to ~/.manova/session.json or ~/.config/orbit/session.json).
 func NewSessionManager(customPath string) (*SessionManager, error) {
 	p := customPath
 	if p == "" {
@@ -25,12 +25,17 @@ func NewSessionManager(customPath string) (*SessionManager, error) {
 		if err != nil {
 			return nil, err
 		}
-		p = filepath.Join(home, ".manova", "session.json")
-		// Check legacy path ~/.config/manova/session.json if canonical file does not exist
+		p = filepath.Join(home, ".orbit", "session.json")
+		// Check fallback paths if canonical file does not exist
 		if _, err := os.Stat(p); os.IsNotExist(err) {
-			legacyPath := filepath.Join(home, ".config", "manova", "session.json")
-			if _, err := os.Stat(legacyPath); err == nil {
-				p = legacyPath
+			manovaPath := filepath.Join(home, ".manova", "session.json")
+			if _, err := os.Stat(manovaPath); err == nil {
+				p = manovaPath
+			} else {
+				legacyPath := filepath.Join(home, ".config", "orbit", "session.json")
+				if _, err := os.Stat(legacyPath); err == nil {
+					p = legacyPath
+				}
 			}
 		}
 	}

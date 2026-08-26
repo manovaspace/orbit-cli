@@ -18,8 +18,8 @@ const (
 	UserManDir   = "~/.local/share/man/man1"
 )
 
-// GenerateManPages generates a single unified, comprehensive man page 'manova.1' and 'm.1' symlink.
-// It also cleans up any legacy fragmented 'manova-*.1' files in targetDir.
+// GenerateManPages generates a single unified, comprehensive man page 'orbit.1' and 'o.1' symlink.
+// It also cleans up any legacy fragmented files in targetDir.
 func GenerateManPages(rootCmd *cobra.Command, targetDir string) ([]string, error) {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create man directory %q: %w", targetDir, err)
@@ -29,25 +29,25 @@ func GenerateManPages(rootCmd *cobra.Command, targetDir string) ([]string, error
 	entries, _ := os.ReadDir(targetDir)
 	for _, e := range entries {
 		name := e.Name()
-		if strings.HasPrefix(name, "manova-") && strings.HasSuffix(name, ".1") {
+		if (strings.HasPrefix(name, "manova-") || strings.HasPrefix(name, "orbit-")) && strings.HasSuffix(name, ".1") {
 			_ = os.Remove(filepath.Join(targetDir, name))
 		}
 	}
 
 	content := GenerateRoffContent(rootCmd)
-	manova1 := filepath.Join(targetDir, "manova.1")
-	if err := os.WriteFile(manova1, []byte(content), 0644); err != nil {
-		return nil, fmt.Errorf("failed to write manova.1: %w", err)
+	orbit1 := filepath.Join(targetDir, "orbit.1")
+	if err := os.WriteFile(orbit1, []byte(content), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write orbit.1: %w", err)
 	}
 
-	// Create m.1 symlink pointing to manova.1 (or copy if symlink fails)
-	m1 := filepath.Join(targetDir, "m.1")
-	_ = os.Remove(m1)
-	if err := os.Symlink("manova.1", m1); err != nil {
-		_ = os.WriteFile(m1, []byte(content), 0644)
+	// Create o.1 symlink pointing to orbit.1 (or copy if symlink fails)
+	o1 := filepath.Join(targetDir, "o.1")
+	_ = os.Remove(o1)
+	if err := os.Symlink("orbit.1", o1); err != nil {
+		_ = os.WriteFile(o1, []byte(content), 0644)
 	}
 
-	return []string{manova1, m1}, nil
+	return []string{orbit1, o1}, nil
 }
 
 // GenerateRoffContent builds a complete, standard roff man page from the Cobra command tree.
@@ -55,18 +55,18 @@ func GenerateRoffContent(rootCmd *cobra.Command) string {
 	var buf bytes.Buffer
 	dateStr := time.Now().Format("02-Jan-2006")
 
-	buf.WriteString(fmt.Sprintf(".TH \"MANOVA\" \"1\" \"%s\" \"Manova Orbit Platform\" \"Manova CLI Developer Reference\"\n", dateStr))
+	buf.WriteString(fmt.Sprintf(".TH \"ORBIT\" \"1\" \"%s\" \"Manova Orbit Platform\" \"Orbit CLI Developer Reference\"\n", dateStr))
 	buf.WriteString(".SH NAME\n")
-	buf.WriteString("manova, m \\- Zero-leak developer onboarding, multi-repo sync, and dev stack orchestrator\n\n")
+	buf.WriteString("orbit, o \\- Zero-leak developer onboarding, multi-repo sync, and dev stack orchestrator\n\n")
 
 	buf.WriteString(".SH SYNOPSIS\n")
-	buf.WriteString(".B manova\n")
+	buf.WriteString(".B orbit\n")
 	buf.WriteString("[\\fIcommand\\fR] [\\fIoptions\\fR] [\\fIarguments\\fR]\n.br\n")
-	buf.WriteString(".B m\n")
+	buf.WriteString(".B o\n")
 	buf.WriteString("[\\fIcommand\\fR] [\\fIoptions\\fR] [\\fIarguments\\fR]\n\n")
 
 	buf.WriteString(".SH DESCRIPTION\n")
-	buf.WriteString("\\fBmanova\\fR (short alias \\fBm\\fR) is a high-performance developer workspace orchestrator and zero-leak onboarding engine. ")
+	buf.WriteString("\\fBorbit\\fR (short alias \\fBo\\fR) is a high-performance developer workspace orchestrator and zero-leak onboarding engine. ")
 	buf.WriteString("It coordinates developer identity (LLDAP), Forgejo Git repositories, WireGuard mesh VPN peers, 50-port block allocations, multi-repo manifests, local container stacks, and automated background update feeds.\n\n")
 
 	// Group commands
@@ -121,24 +121,24 @@ func GenerateRoffContent(rootCmd *cobra.Command) string {
 
 	// Environment Variables
 	buf.WriteString(".SH ENVIRONMENT VARIABLES\n")
-	buf.WriteString(".TP\n.B MANOVA_VERSION\nOverrides the target version downloaded by the installation script.\n")
-	buf.WriteString(".TP\n.B MANOVA_FORCE_DETACHED\nForces detached background worker daemon mode instead of systemd user timers.\n")
-	buf.WriteString(".TP\n.B MANOVA_INVITE_SECRET\nHMAC-SHA256 secret key used for signing and validating developer onboarding tokens.\n\n")
+	buf.WriteString(".TP\n.B ORBIT_VERSION\nOverrides the target version downloaded by the installation script.\n")
+	buf.WriteString(".TP\n.B ORBIT_FORCE_DETACHED\nForces detached background worker daemon mode instead of systemd user timers.\n")
+	buf.WriteString(".TP\n.B ORBIT_INVITE_SECRET\nHMAC-SHA256 secret key used for signing and validating developer onboarding tokens.\n\n")
 
 	// Files
 	buf.WriteString(".SH FILES\n")
-	buf.WriteString(".TP\n.B ~/.manova/feed.json\nCached edge update feed and broadcast messages.\n")
-	buf.WriteString(".TP\n.B ~/.manova/users.json\nLocal developer identity directory and subsystem credentials.\n")
-	buf.WriteString(".TP\n.B ~/.manova/messages.json\nSeen tracking store for passive notification banners.\n")
-	buf.WriteString(".TP\n.B ~/.manova/state.json\nCLI execution metadata and post-update migration state.\n\n")
+	buf.WriteString(".TP\n.B ~/.orbit/feed.json\nCached edge update feed and broadcast messages.\n")
+	buf.WriteString(".TP\n.B ~/.orbit/users.json\nLocal developer identity directory and subsystem credentials.\n")
+	buf.WriteString(".TP\n.B ~/.orbit/messages.json\nSeen tracking store for passive notification banners.\n")
+	buf.WriteString(".TP\n.B ~/.orbit/state.json\nCLI execution metadata and post-update migration state.\n\n")
 
 	// Examples
 	buf.WriteString(".SH EXAMPLES\n")
-	buf.WriteString(".TP\nClaim onboarding invite and provision local workspace:\n\\fBm onboard --token manova-inv...\\fR\n")
-	buf.WriteString(".TP\nStart local container stack with Traefik/Caddy routing:\n\\fBm dev up\\fR\n")
-	buf.WriteString(".TP\nList provisioned developer accounts across LDAP, Git, and VPN:\n\\fBm user list\\fR\n")
-	buf.WriteString(".TP\nInspect recent release notes and highlights:\n\\fBm changelog\\fR\n")
-	buf.WriteString(".TP\nUpdate CLI to latest stable release:\n\\fBm self-update\\fR\n\n")
+	buf.WriteString(".TP\nClaim onboarding invite and provision local workspace:\n\\fBo onboard --token orbit-inv...\\fR\n")
+	buf.WriteString(".TP\nStart local container stack with dev routing:\n\\fBo dev up\\fR\n")
+	buf.WriteString(".TP\nList provisioned developer accounts across LDAP, Git, and VPN:\n\\fBo user list\\fR\n")
+	buf.WriteString(".TP\nInspect recent release notes and highlights:\n\\fBo changelog\\fR\n")
+	buf.WriteString(".TP\nUpdate CLI to latest stable release:\n\\fBo self-update\\fR\n\n")
 
 	// Authors & Links
 	buf.WriteString(".SH AUTHORS\n")
@@ -250,7 +250,7 @@ func InstallToDir(cmd *cobra.Command, targetDir string) error {
 	return nil
 }
 
-// UninstallFromDir removes all manova*.1 and m.1 files from targetDir.
+// UninstallFromDir removes all orbit*.1, manova*.1, and o.1/m.1 files from targetDir.
 func UninstallFromDir(targetDir string) error {
 	entries, err := os.ReadDir(targetDir)
 	if err != nil {
@@ -258,7 +258,7 @@ func UninstallFromDir(targetDir string) error {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if (strings.HasPrefix(name, "manova") || name == "m.1") && strings.HasSuffix(name, ".1") {
+		if (strings.HasPrefix(name, "orbit") || strings.HasPrefix(name, "manova") || name == "o.1" || name == "m.1") && strings.HasSuffix(name, ".1") {
 			_ = os.Remove(filepath.Join(targetDir, name))
 		}
 	}

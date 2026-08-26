@@ -106,7 +106,7 @@ func AddShellAlias(aliasName, targetCmd string) (string, error) {
 	}
 	defer f.Close()
 
-	entry := fmt.Sprintf("\n# Manova CLI shortcut\n%s\n", aliasLine)
+	entry := fmt.Sprintf("\n# Orbit CLI shortcut\n%s\n", aliasLine)
 	if _, err := f.WriteString(entry); err != nil {
 		return "", fmt.Errorf("failed to write alias to %s: %w", rcPath, err)
 	}
@@ -114,7 +114,7 @@ func AddShellAlias(aliasName, targetCmd string) (string, error) {
 	return rcPath, nil
 }
 
-// InstallShellCompletion appends idempotent autocompletion hooks for manova (and optionally alias m) to the user's RC file.
+// InstallShellCompletion appends idempotent autocompletion hooks for orbit (and optionally alias o) to the user's RC file.
 func InstallShellCompletion(includeAlias bool) (string, error) {
 	rcPath := DetectTargetRCFile()
 	if rcPath == "" {
@@ -123,7 +123,7 @@ func InstallShellCompletion(includeAlias bool) (string, error) {
 
 	// Read existing content
 	if data, err := os.ReadFile(rcPath); err == nil {
-		if strings.Contains(string(data), "# Manova CLI Autocompletion") {
+		if strings.Contains(string(data), "# Orbit CLI Autocompletion") {
 			return rcPath, nil // Already configured
 		}
 	}
@@ -132,15 +132,15 @@ func InstallShellCompletion(includeAlias bool) (string, error) {
 	if strings.HasSuffix(rcPath, ".zshrc") {
 		aliasHook := ""
 		if includeAlias {
-			aliasHook = "\n  compdef m=manova 2>/dev/null || true"
+			aliasHook = "\n  compdef o=orbit 2>/dev/null || true"
 		}
-		block = fmt.Sprintf("\n# Manova CLI Autocompletion\nif command -v manova >/dev/null 2>&1; then\n  source <(manova completion zsh)%s\nfi\n", aliasHook)
+		block = fmt.Sprintf("\n# Orbit CLI Autocompletion\nif command -v orbit >/dev/null 2>&1; then\n  source <(orbit completion zsh)%s\nfi\n", aliasHook)
 	} else {
 		aliasHook := ""
 		if includeAlias {
-			aliasHook = "\n  complete -o default -F __start_manova m 2>/dev/null || true"
+			aliasHook = "\n  complete -o default -F __start_orbit o 2>/dev/null || true"
 		}
-		block = fmt.Sprintf("\n# Manova CLI Autocompletion\nif command -v manova >/dev/null 2>&1; then\n  source <(manova completion bash)%s\nfi\n", aliasHook)
+		block = fmt.Sprintf("\n# Orbit CLI Autocompletion\nif command -v orbit >/dev/null 2>&1; then\n  source <(orbit completion bash)%s\nfi\n", aliasHook)
 	}
 
 	f, err := os.OpenFile(rcPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -156,7 +156,7 @@ func InstallShellCompletion(includeAlias bool) (string, error) {
 	return rcPath, nil
 }
 
-// RemoveShellConfiguration cleans up any Manova alias or completion entries from shell RC files.
+// RemoveShellConfiguration cleans up any Orbit alias or completion entries from shell RC files.
 func RemoveShellConfiguration() {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -176,7 +176,8 @@ func RemoveShellConfiguration() {
 			continue
 		}
 		content := string(data)
-		if !strings.Contains(content, "manova") && !strings.Contains(content, "Manova CLI") {
+		if !strings.Contains(content, "orbit") && !strings.Contains(content, "Orbit CLI") &&
+			!strings.Contains(content, "manova") && !strings.Contains(content, "Manova CLI") {
 			continue
 		}
 
@@ -185,13 +186,15 @@ func RemoveShellConfiguration() {
 		skipNext := 0
 
 		for _, line := range lines {
-			if strings.Contains(line, "# Manova CLI") {
+			if strings.Contains(line, "# Orbit CLI") || strings.Contains(line, "# Manova CLI") {
 				continue
 			}
-			if strings.Contains(line, "alias m=\"manova\"") || strings.Contains(line, "alias m='manova'") {
+			if strings.Contains(line, "alias o=\"orbit\"") || strings.Contains(line, "alias o='orbit'") ||
+				strings.Contains(line, "alias m=\"manova\"") || strings.Contains(line, "alias m='manova'") {
 				continue
 			}
-			if strings.Contains(line, "source <(manova completion") || strings.Contains(line, "compdef m=manova") || strings.Contains(line, "__start_manova m") {
+			if strings.Contains(line, "source <(orbit completion") || strings.Contains(line, "compdef o=orbit") || strings.Contains(line, "__start_orbit o") ||
+				strings.Contains(line, "source <(manova completion") || strings.Contains(line, "compdef m=manova") || strings.Contains(line, "__start_manova m") {
 				continue
 			}
 			if skipNext > 0 {
