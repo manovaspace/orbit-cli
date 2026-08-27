@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -65,6 +66,9 @@ func newRootCmd() *cobra.Command {
 					)
 				}
 			}
+
+			// Check for available updates in background cache
+			updater.NotifyIfUpdateAvailable(cmd.OutOrStdout(), version)
 		},
 	}
 

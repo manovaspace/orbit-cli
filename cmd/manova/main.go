@@ -5,7 +5,6 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
@@ -79,16 +78,7 @@ schema-driven environment management, 50-port block allocations, and container o
 			}
 
 			// Non-blocking passive check with 24-hour TTL cache
-			if cached, err := updater.CheckUpdateCached(version, "", 24*time.Hour, "", ""); err == nil && cached != nil && cached.HasUpdate {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (v%s %s v%s). Run '%s' to upgrade.\n",
-					iconInfo,
-					warningStyle.Render("A newer version of manova CLI is available"),
-					version,
-					iconArrow,
-					cached.LatestVersion,
-					boldStyle.Render("manova self-update"),
-				)
-			}
+			updater.NotifyIfUpdateAvailable(cmd.OutOrStdout(), version)
 		},
 	}
 

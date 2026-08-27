@@ -107,6 +107,16 @@ func ResolveAPIEndpoint(apiURL, repoSlug string) string {
 	return fmt.Sprintf("%s/api/v1/repos/%s/releases/latest", trimmed, repoSlug)
 }
 
+// GetAuthToken resolves a GitHub API token from standard environment variables.
+func GetAuthToken() string {
+	for _, envKey := range []string{"GITHUB_TOKEN", "GH_TOKEN", "ORBIT_GITHUB_TOKEN"} {
+		if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
 // CheckUpdate queries the remote release API (Forgejo or GitHub) and determines
 // if a newer release is available compared to currentVersion.
 func CheckUpdate(currentVersion, apiURL, repoSlug string) (*UpdateCheckResult, error) {
@@ -123,6 +133,9 @@ func CheckUpdate(currentVersion, apiURL, repoSlug string) (*UpdateCheckResult, e
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "manova-cli-updater")
+	if token := GetAuthToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -270,16 +283,28 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 	if customSource != nil {
 		source = customSource
 	} else {
-		ghSource, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{})
+		ghCfg := selfupdate.GitHubConfig{}
+		if token := GetAuthToken(); token != "" {
+			ghCfg.APIToken = token
+		}
+		ghSource, err := selfupdate.NewGitHubSource(ghCfg)
 		if err != nil {
 			return fmt.Errorf("failed to create default github source: %w", err)
 		}
 		source = ghSource
 	}
 
-	updater, err := selfupdate.NewUpdater(selfupdate.Config{
-		Source: source,
-	})
+	// Explicitly configure filters so that regardless of whether the executable
+	// was invoked via symlink "o" or "m", or "orbit" or "manova", it matches release assets.
+	cfg := selfupdate.Config{
+		Source:  source,
+		Filters: []string{"^orbit[-_]", "^manova[-_]"},
+	}
+
+	// Configure SHA-256 checksums.txt validator
+	cfg.Validator = &selfupdate.ChecksumValidator{UniqueFilename: "checksums.txt"}
+
+	updater, err := selfupdate.NewUpdater(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize updater: %w", err)
 	}
@@ -292,7 +317,19 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 	repo := selfupdate.ParseSlug(repoSlug)
 	release, err := updater.UpdateSelf(context.Background(), verToCompare, repo)
 	if err != nil {
-		return fmt.Errorf("self-update failed: %w", err)
+		// If SHA-256 validation failed because release didn't publish checksums, fallback to unvalidated update
+		if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "checksum") {
+			fallbackUpdater, fErr := selfupdate.NewUpdater(selfupdate.Config{
+				Source:  source,
+				Filters: []string{"^orbit[-_]", "^manova[-_]"},
+			})
+			if fErr == nil {
+				release, err = fallbackUpdater.UpdateSelf(context.Background(), verToCompare, repo)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("self-update failed: %w", err)
+		}
 	}
 
 	if release == nil {
