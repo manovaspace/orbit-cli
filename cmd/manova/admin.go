@@ -99,7 +99,7 @@ master signing secret in the local owner vault (mode 0600).`,
 			if noSendFlag && strings.TrimSpace(codeFlag) == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: --no-send requires an explicit verification code via --code."))
 				fmt.Fprintf(cmd.ErrOrStderr(), "  Terminal OTP display is disabled for security.\n")
-				fmt.Fprintf(cmd.ErrOrStderr(), "  When bypassing email delivery for testing, pass: orbit admin init --no-send --code <code>\n\n")
+				fmt.Fprintf(cmd.ErrOrStderr(), "  When bypassing email delivery for testing, pass: manova admin init --no-send --code <code>\n\n")
 				return errors.New("--no-send requires an explicit verification code via --code")
 			}
 
