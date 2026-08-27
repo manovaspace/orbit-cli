@@ -14,6 +14,47 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 )
 
+func TestAdminInitFailsWithoutSMTP(t *testing.T) {
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd := newAdminInitCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+	cmd.SetArgs([]string{"--owner", "test@example.com", "--store", filepath.Join(t.TempDir(), "owner.json")})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected admin init to fail when SMTP is unconfigured")
+	}
+
+	combined := buf.String() + errBuf.String()
+	if strings.Contains(combined, "Verification OTP generated") {
+		t.Fatalf("security violation: OTP was printed to terminal: %s", combined)
+	}
+	if !strings.Contains(combined, "Mail relay is not configured") && !strings.Contains(combined, "Pre-flight Check Failed") {
+		t.Fatalf("expected pre-flight error message, got: %s", combined)
+	}
+}
+
+func TestAdminInit_NoSendWithoutCodeFails(t *testing.T) {
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd := newAdminInitCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+	cmd.SetArgs([]string{"--owner", "test@example.com", "--no-send", "--store", filepath.Join(t.TempDir(), "owner.json")})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected admin init to fail when --no-send is used without --code")
+	}
+
+	combined := buf.String() + errBuf.String()
+	if strings.Contains(combined, "Verification OTP generated") {
+		t.Fatalf("security violation: OTP was printed to terminal: %s", combined)
+	}
+}
+
 func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")

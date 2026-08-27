@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
+	"github.com/manovaspace/orbit-cli/pkg/config"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
@@ -39,6 +41,7 @@ func newAdminInitCmd() *cobra.Command {
 		noSendFlag bool
 		codeFlag   string
 		forceFlag  bool
+		configFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -52,13 +55,23 @@ master signing secret in the local owner vault (mode 0600).`,
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
 
+			cfg, err := config.Resolve(config.ResolveOptions{
+				ConfigPath: configFlag,
+				ServerFlag: serverFlag,
+				OwnerFlag:  ownerFlag,
+				NameFlag:   nameFlag,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to resolve configuration: %w", err)
+			}
+
 			email := strings.TrimSpace(ownerFlag)
 			if len(args) > 0 && email == "" {
 				email = strings.TrimSpace(args[0])
 			}
 
 			if email == "" {
-				email = promptString(in, out, "Enter platform owner email address", "")
+				email = promptString(in, out, "Enter platform owner email address", cfg.Admin.Email)
 				email = strings.TrimSpace(email)
 			}
 
@@ -83,6 +96,13 @@ master signing secret in the local owner vault (mode 0600).`,
 					)
 					return nil
 				}
+			}
+
+			if noSendFlag && strings.TrimSpace(codeFlag) == "" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: --no-send requires an explicit verification code via --code."))
+				fmt.Fprintf(cmd.ErrOrStderr(), "  Terminal OTP display is disabled for security.\n")
+				fmt.Fprintf(cmd.ErrOrStderr(), "  When bypassing email delivery for testing, pass: orbit admin init --no-send --code <code>\n\n")
+				return errors.New("--no-send requires an explicit verification code via --code")
 			}
 
 			serverURL := strings.TrimSpace(serverFlag)
@@ -121,8 +141,31 @@ master signing secret in the local owner vault (mode 0600).`,
 					challengeCode = genCode
 				}
 
-				mailer := invite.NewMailerFromEnv()
-				if !noSendFlag && mailer.IsConfigured() {
+				if noSendFlag && codeFlag != "" {
+					// Hermetic testing bypass: skip email dispatch
+				} else {
+					mailer := invite.NewSMTPMailer(invite.MailerConfig{
+						Host: cfg.SMTP.Host,
+						Port: strconv.Itoa(cfg.SMTP.Port),
+						User: cfg.SMTP.User,
+						Pass: cfg.SMTP.Pass,
+						From: cfg.SMTP.From,
+					})
+
+					if !mailer.IsConfigured() {
+						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: Mail relay is not configured."))
+						fmt.Fprintf(cmd.ErrOrStderr(), "  Platform ownership requires out-of-band email OTP verification.\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "  To configure SMTP credentials, set the following environment variables or update ~/.config/orbit/config.yaml:\n\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_HOST=%s\n", cfg.SMTP.Host)
+						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_PORT=%d\n", cfg.SMTP.Port)
+						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_USER=\"<your-smtp-user>\"\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_PASS=\"<your-smtp-password>\"\n\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "  Alternatively, run:\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "    orbit config set smtp.user <username>\n")
+						fmt.Fprintf(cmd.ErrOrStderr(), "    orbit config set smtp.pass <password>\n\n")
+						return errors.New("mail relay is not configured: pre-flight transport check failed")
+					}
+
 					emailData := invite.OwnerChallengeEmailData{
 						OwnerEmail:  email,
 						OTPCode:     challengeCode,
@@ -131,25 +174,14 @@ master signing secret in the local owner vault (mode 0600).`,
 					}
 
 					if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n", iconWarn, warningStyle.Render("Failed to dispatch challenge email via Mailcow"), err)
-						if codeFlag == "" {
-							fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
-								iconInfo,
-								boldStyle.Render(email),
-								codeStyle.Render(challengeCode),
-							)
-						}
-					} else {
-						fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
-							iconOK,
-							boldStyle.Render(email),
-						)
+						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: Failed to dispatch challenge email via Mailcow"), err)
+						fmt.Fprintf(cmd.ErrOrStderr(), "  Please check your SMTP configuration and network connectivity.\n")
+						return fmt.Errorf("failed to dispatch challenge email: %w", err)
 					}
-				} else if codeFlag == "" {
-					fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
-						iconInfo,
+
+					fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
+						iconOK,
 						boldStyle.Render(email),
-						codeStyle.Render(challengeCode),
 					)
 				}
 			}
@@ -189,6 +221,9 @@ master signing secret in the local owner vault (mode 0600).`,
 			}
 
 			displayName := strings.TrimSpace(nameFlag)
+			if displayName == "" {
+				displayName = cfg.Admin.Name
+			}
 			rec := &owner.OwnerRecord{
 				Email:             email,
 				DisplayName:       displayName,
@@ -229,6 +264,7 @@ master signing secret in the local owner vault (mode 0600).`,
 	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "Suppress dispatching challenge email")
 	cmd.Flags().StringVarP(&codeFlag, "code", "c", "", "6-digit verification code (for non-interactive execution)")
 	cmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force re-initialization even if already verified")
+	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
@@ -249,6 +285,7 @@ func newAdminStatusCmd() *cobra.Command {
 	var (
 		storeFlag  string
 		formatFlag string
+		configFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -262,9 +299,13 @@ func newAdminStatusCmd() *cobra.Command {
 			rec, err := store.LoadOwner()
 			permErr := store.CheckPermissions()
 
-			mailHost := os.Getenv("ORBIT_SMTP_HOST")
-			if mailHost == "" {
-				mailHost = os.Getenv("SMTP_HOST")
+			cfg, _ := config.Resolve(config.ResolveOptions{
+				ConfigPath: configFlag,
+			})
+
+			mailHost := cfg.SMTP.Host
+			if cfg.SMTP.Port > 0 && !strings.Contains(mailHost, ":") {
+				mailHost = fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
 			}
 			if mailHost == "" {
 				mailHost = "mail.manova.space:587"
@@ -337,17 +378,19 @@ func newAdminStatusCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table or json")
+	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
 
 func newAdminVerifyCmd() *cobra.Command {
 	var (
-		ownerFlag string
-		codeFlag  string
-		nameFlag  string
-		storeFlag string
-		forceFlag bool
+		ownerFlag  string
+		codeFlag   string
+		nameFlag   string
+		storeFlag  string
+		forceFlag  bool
+		configFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -359,12 +402,18 @@ func newAdminVerifyCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
 
+			cfg, _ := config.Resolve(config.ResolveOptions{
+				ConfigPath: configFlag,
+				OwnerFlag:  ownerFlag,
+				NameFlag:   nameFlag,
+			})
+
 			email := strings.TrimSpace(ownerFlag)
 			if len(args) > 0 && email == "" {
 				email = strings.TrimSpace(args[0])
 			}
 			if email == "" {
-				email = promptString(in, out, "Enter owner email address", "")
+				email = promptString(in, out, "Enter owner email address", cfg.Admin.Email)
 				email = strings.TrimSpace(email)
 			}
 			if email == "" {
@@ -414,6 +463,9 @@ func newAdminVerifyCmd() *cobra.Command {
 			}
 
 			displayName := strings.TrimSpace(nameFlag)
+			if displayName == "" {
+				displayName = cfg.Admin.Name
+			}
 			rec := &owner.OwnerRecord{
 				Email:             email,
 				DisplayName:       displayName,
@@ -440,6 +492,7 @@ func newAdminVerifyCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Owner display name")
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force re-verification even if already verified")
+	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
