@@ -194,7 +194,7 @@ func TestConfigViaRootCmd(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetArgs([]string{"config", "init", "--config", cfgPath})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("orbit config init failed: %v", err)
+		t.Fatalf("manova config init failed: %v", err)
 	}
 
 	buf.Reset()
@@ -202,7 +202,7 @@ func TestConfigViaRootCmd(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetArgs([]string{"config", "path", "--config", cfgPath})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("orbit config path failed: %v", err)
+		t.Fatalf("manova config path failed: %v", err)
 	}
 	if !strings.Contains(buf.String(), cfgPath) {
 		t.Errorf("expected config path %s, got %s", cfgPath, buf.String())

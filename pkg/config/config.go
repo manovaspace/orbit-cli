@@ -18,6 +18,8 @@ const (
 	DefaultSMTPHost   = "mail.manova.space"
 	DefaultSMTPPort   = 587
 	DefaultSMTPFrom   = "Orbit Platform <noreply@manova.space>"
+	DefaultScope      = "core"
+	DefaultExpiryDays = 7
 )
 
 func DefaultConfig() *Config {
@@ -36,10 +38,17 @@ func DefaultConfig() *Config {
 			From: DefaultSMTPFrom,
 			TLS:  true,
 		},
+		Defaults: DefaultsConfig{
+			Scope:      DefaultScope,
+			ExpiryDays: DefaultExpiryDays,
+		},
 	}
 }
 
 func DefaultConfigPath() string {
+	if p := strings.TrimSpace(os.Getenv("ORBIT_CONFIG")); p != "" {
+		return p
+	}
 	configDir := os.Getenv("XDG_CONFIG_HOME")
 	if configDir == "" {
 		home, err := os.UserHomeDir()
@@ -56,11 +65,21 @@ func Load(path string) (*Config, error) {
 		path = DefaultConfigPath()
 	}
 
-	data, err := os.ReadFile(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, os.ErrNotExist
 		}
+		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
+	}
+
+	// Auto-tighten permissions if wider than 0600
+	if info.Mode().Perm()&0077 != 0 || info.Mode().Perm() > 0600 {
+		_ = os.Chmod(path, 0600)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
 
@@ -89,7 +108,20 @@ func (c *Config) Save(path string) error {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file %q: %w", path, err)
 	}
+	_ = os.Chmod(path, 0600)
 	return nil
+}
+
+func getEnvWithFallback(primary, fallback string) string {
+	if val := strings.TrimSpace(os.Getenv(primary)); val != "" {
+		return val
+	}
+	if fallback != "" {
+		if val := strings.TrimSpace(os.Getenv(fallback)); val != "" {
+			return val
+		}
+	}
+	return ""
 }
 
 func Resolve(opts ResolveOptions) (*Config, error) {
@@ -105,31 +137,31 @@ func Resolve(opts ResolveOptions) (*Config, error) {
 		cfg = loaded
 	}
 
-	// Environment variable overrides
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SERVER")); val != "" {
+	// Environment variable overrides with fallbacks
+	if val := getEnvWithFallback("ORBIT_SERVER", "ORBIT_SERVER_URL"); val != "" {
 		cfg.Server.URL = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_ADMIN_EMAIL")); val != "" {
+	if val := getEnvWithFallback("ORBIT_ADMIN_EMAIL", "ORBIT_OWNER_EMAIL"); val != "" {
 		cfg.Admin.Email = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_ADMIN_NAME")); val != "" {
+	if val := getEnvWithFallback("ORBIT_ADMIN_NAME", "ORBIT_OWNER_NAME"); val != "" {
 		cfg.Admin.Name = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SMTP_HOST")); val != "" {
+	if val := getEnvWithFallback("ORBIT_SMTP_HOST", "SMTP_HOST"); val != "" {
 		cfg.SMTP.Host = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SMTP_PORT")); val != "" {
+	if val := getEnvWithFallback("ORBIT_SMTP_PORT", "SMTP_PORT"); val != "" {
 		if p, err := strconv.Atoi(val); err == nil && p > 0 {
 			cfg.SMTP.Port = p
 		}
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SMTP_USER")); val != "" {
+	if val := getEnvWithFallback("ORBIT_SMTP_USER", "SMTP_USER"); val != "" {
 		cfg.SMTP.User = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SMTP_PASS")); val != "" {
+	if val := getEnvWithFallback("ORBIT_SMTP_PASS", "SMTP_PASS"); val != "" {
 		cfg.SMTP.Pass = val
 	}
-	if val := strings.TrimSpace(os.Getenv("ORBIT_SMTP_FROM")); val != "" {
+	if val := getEnvWithFallback("ORBIT_SMTP_FROM", "SMTP_FROM"); val != "" {
 		cfg.SMTP.From = val
 	}
 
@@ -180,6 +212,10 @@ func (c *Config) Get(key string) (string, error) {
 		return c.SMTP.Pass, nil
 	case "smtp.from":
 		return c.SMTP.From, nil
+	case "defaults.scope":
+		return c.Defaults.Scope, nil
+	case "defaults.expiry_days", "defaults.expirydays":
+		return strconv.Itoa(c.Defaults.ExpiryDays), nil
 	default:
 		return "", fmt.Errorf("unknown configuration key %q", key)
 	}
@@ -208,6 +244,14 @@ func (c *Config) Set(key, value string) error {
 		c.SMTP.Pass = v
 	case "smtp.from":
 		c.SMTP.From = v
+	case "defaults.scope":
+		c.Defaults.Scope = v
+	case "defaults.expiry_days", "defaults.expirydays":
+		days, err := strconv.Atoi(v)
+		if err != nil || days <= 0 {
+			return fmt.Errorf("invalid expiry_days %q: must be positive integer", v)
+		}
+		c.Defaults.ExpiryDays = days
 	default:
 		return fmt.Errorf("unknown configuration key %q", key)
 	}

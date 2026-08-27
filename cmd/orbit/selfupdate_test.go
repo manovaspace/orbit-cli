@@ -42,6 +42,7 @@ func TestSubcommandRegistration(t *testing.T) {
 		"dev",
 		"self-update",
 		"version",
+		"admin",
 		"config",
 	}
 

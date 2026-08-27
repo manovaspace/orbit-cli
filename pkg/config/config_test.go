@@ -15,8 +15,17 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Admin.Email != "alirezaopmc@gmail.com" {
 		t.Fatalf("expected admin email alirezaopmc@gmail.com, got %s", cfg.Admin.Email)
 	}
+	if cfg.Admin.Name != "Alireza" {
+		t.Fatalf("expected admin name Alireza, got %s", cfg.Admin.Name)
+	}
 	if cfg.SMTP.Host != "mail.manova.space" {
 		t.Fatalf("expected smtp host mail.manova.space, got %s", cfg.SMTP.Host)
+	}
+	if cfg.Defaults.Scope != "core" {
+		t.Fatalf("expected default scope 'core', got %s", cfg.Defaults.Scope)
+	}
+	if cfg.Defaults.ExpiryDays != 7 {
+		t.Fatalf("expected default expiry days 7, got %d", cfg.Defaults.ExpiryDays)
 	}
 }
 
@@ -153,6 +162,107 @@ func TestResolveAllOverrides(t *testing.T) {
 	}
 }
 
+func TestResolveFallbackEnvVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "fallback", "config.yaml")
+
+	t.Setenv("ORBIT_SERVER_URL", "https://fallback.server.local")
+	t.Setenv("ORBIT_OWNER_EMAIL", "fallback.owner@local")
+	t.Setenv("ORBIT_OWNER_NAME", "FallbackOwner")
+	t.Setenv("SMTP_HOST", "fallback.smtp.local")
+	t.Setenv("SMTP_PORT", "5870")
+	t.Setenv("SMTP_USER", "fallbackuser")
+	t.Setenv("SMTP_PASS", "fallbackpass")
+	t.Setenv("SMTP_FROM", "fallback@local")
+
+	resolved, err := Resolve(ResolveOptions{
+		ConfigPath: cfgPath,
+	})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	if resolved.Server.URL != "https://fallback.server.local" {
+		t.Errorf("expected server URL https://fallback.server.local, got %s", resolved.Server.URL)
+	}
+	if resolved.Admin.Email != "fallback.owner@local" {
+		t.Errorf("expected admin email fallback.owner@local, got %s", resolved.Admin.Email)
+	}
+	if resolved.Admin.Name != "FallbackOwner" {
+		t.Errorf("expected admin name FallbackOwner, got %s", resolved.Admin.Name)
+	}
+	if resolved.SMTP.Host != "fallback.smtp.local" {
+		t.Errorf("expected smtp host fallback.smtp.local, got %s", resolved.SMTP.Host)
+	}
+	if resolved.SMTP.Port != 5870 {
+		t.Errorf("expected smtp port 5870, got %d", resolved.SMTP.Port)
+	}
+	if resolved.SMTP.User != "fallbackuser" {
+		t.Errorf("expected smtp user fallbackuser, got %s", resolved.SMTP.User)
+	}
+	if resolved.SMTP.Pass != "fallbackpass" {
+		t.Errorf("expected smtp pass fallbackpass, got %s", resolved.SMTP.Pass)
+	}
+	if resolved.SMTP.From != "fallback@local" {
+		t.Errorf("expected smtp from fallback@local, got %s", resolved.SMTP.From)
+	}
+}
+
+func TestResolvePrimaryOverridesFallbackEnvVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "precedence", "config.yaml")
+
+	// Both primary and fallback are set
+	t.Setenv("ORBIT_SERVER", "https://primary.server.local")
+	t.Setenv("ORBIT_SERVER_URL", "https://fallback.server.local")
+	t.Setenv("ORBIT_ADMIN_EMAIL", "primary.admin@local")
+	t.Setenv("ORBIT_OWNER_EMAIL", "fallback.owner@local")
+	t.Setenv("ORBIT_ADMIN_NAME", "PrimaryAdmin")
+	t.Setenv("ORBIT_OWNER_NAME", "FallbackOwner")
+	t.Setenv("ORBIT_SMTP_HOST", "primary.smtp.local")
+	t.Setenv("SMTP_HOST", "fallback.smtp.local")
+	t.Setenv("ORBIT_SMTP_PORT", "1587")
+	t.Setenv("SMTP_PORT", "2587")
+	t.Setenv("ORBIT_SMTP_USER", "primaryuser")
+	t.Setenv("SMTP_USER", "fallbackuser")
+	t.Setenv("ORBIT_SMTP_PASS", "primarypass")
+	t.Setenv("SMTP_PASS", "fallbackpass")
+	t.Setenv("ORBIT_SMTP_FROM", "primary@local")
+	t.Setenv("SMTP_FROM", "fallback@local")
+
+	resolved, err := Resolve(ResolveOptions{
+		ConfigPath: cfgPath,
+	})
+	if err != nil {
+		t.Fatalf("resolve failed: %v", err)
+	}
+
+	if resolved.Server.URL != "https://primary.server.local" {
+		t.Errorf("expected primary server URL, got %s", resolved.Server.URL)
+	}
+	if resolved.Admin.Email != "primary.admin@local" {
+		t.Errorf("expected primary admin email, got %s", resolved.Admin.Email)
+	}
+	if resolved.Admin.Name != "PrimaryAdmin" {
+		t.Errorf("expected primary admin name, got %s", resolved.Admin.Name)
+	}
+	if resolved.SMTP.Host != "primary.smtp.local" {
+		t.Errorf("expected primary smtp host, got %s", resolved.SMTP.Host)
+	}
+	if resolved.SMTP.Port != 1587 {
+		t.Errorf("expected primary smtp port, got %d", resolved.SMTP.Port)
+	}
+	if resolved.SMTP.User != "primaryuser" {
+		t.Errorf("expected primary smtp user, got %s", resolved.SMTP.User)
+	}
+	if resolved.SMTP.Pass != "primarypass" {
+		t.Errorf("expected primary smtp pass, got %s", resolved.SMTP.Pass)
+	}
+	if resolved.SMTP.From != "primary@local" {
+		t.Errorf("expected primary smtp from, got %s", resolved.SMTP.From)
+	}
+}
+
 func TestGetSetMasked(t *testing.T) {
 	cfg := DefaultConfig()
 	if err := cfg.Set("admin.email", "custom@example.com"); err != nil {
@@ -179,6 +289,9 @@ func TestGetSetMasked(t *testing.T) {
 		{"smtp.user", "smtpuser"},
 		{"smtp.pass", "secretpassword"},
 		{"smtp.from", "noreply@domain.com"},
+		{"defaults.scope", "extended"},
+		{"defaults.expiry_days", "14"},
+		{"defaults.expirydays", "30"},
 	}
 
 	for _, tc := range testCases {
@@ -210,6 +323,17 @@ func TestGetSetMasked(t *testing.T) {
 		t.Errorf("expected error for negative port")
 	}
 
+	// Invalid expiry_days
+	if err := cfg.Set("defaults.expiry_days", "not-a-number"); err == nil {
+		t.Errorf("expected error for non-integer expiry_days")
+	}
+	if err := cfg.Set("defaults.expiry_days", "-5"); err == nil {
+		t.Errorf("expected error for negative expiry_days")
+	}
+	if err := cfg.Set("defaults.expiry_days", "0"); err == nil {
+		t.Errorf("expected error for zero expiry_days")
+	}
+
 	cfg.SMTP.Pass = "supersecret"
 	masked := cfg.Masked()
 	if masked.SMTP.Pass != "********" {
@@ -217,6 +341,46 @@ func TestGetSetMasked(t *testing.T) {
 	}
 	if cfg.SMTP.Pass != "supersecret" {
 		t.Fatalf("original password was modified: %s", cfg.SMTP.Pass)
+	}
+}
+
+func TestLoadAutoTightensPermissions(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "insecure-config.yaml")
+
+	cfg := DefaultConfig()
+	if err := cfg.Save(cfgPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Deliberately make file world-readable (0644)
+	if err := os.Chmod(cfgPath, 0644); err != nil {
+		t.Fatalf("Chmod 0644 failed: %v", err)
+	}
+
+	fi, err := os.Stat(cfgPath)
+	if err != nil {
+		t.Fatalf("Stat failed: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0644 {
+		t.Fatalf("expected 0644 permissions before load, got %o", perm)
+	}
+
+	// Load should auto-tighten to 0600
+	loaded, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if loaded == nil {
+		t.Fatalf("expected loaded config, got nil")
+	}
+
+	fiAfter, err := os.Stat(cfgPath)
+	if err != nil {
+		t.Fatalf("Stat failed after load: %v", err)
+	}
+	if perm := fiAfter.Mode().Perm(); perm != 0600 {
+		t.Errorf("expected 0600 permissions after Load(), got %o", perm)
 	}
 }
 

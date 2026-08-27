@@ -21,10 +21,16 @@ type SMTPConfig struct {
 	TLS  bool   `yaml:"tls" json:"tls"`
 }
 
+type DefaultsConfig struct {
+	Scope      string `yaml:"scope" json:"scope"`
+	ExpiryDays int    `yaml:"expiry_days" json:"expiry_days"`
+}
+
 type Config struct {
-	Server ServerConfig `yaml:"server" json:"server"`
-	Admin  AdminConfig  `yaml:"admin" json:"admin"`
-	SMTP   SMTPConfig   `yaml:"smtp" json:"smtp"`
+	Server   ServerConfig   `yaml:"server" json:"server"`
+	Admin    AdminConfig    `yaml:"admin" json:"admin"`
+	SMTP     SMTPConfig     `yaml:"smtp" json:"smtp"`
+	Defaults DefaultsConfig `yaml:"defaults" json:"defaults"`
 }
 
 type ResolveOptions struct {
