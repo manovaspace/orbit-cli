@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -12,10 +13,34 @@ import (
 )
 
 var (
-	version = "dev"
+	version = "v0.1.0"
 	commit  = "none"
 	date    = "unknown"
 )
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if (version == "dev" || version == "") && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			version = info.Main.Version
+		}
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				if (commit == "none" || commit == "") && s.Value != "" {
+					if len(s.Value) > 7 {
+						commit = s.Value[:7]
+					} else {
+						commit = s.Value
+					}
+				}
+			case "vcs.time":
+				if (date == "unknown" || date == "") && s.Value != "" {
+					date = s.Value
+				}
+			}
+		}
+	}
+}
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{

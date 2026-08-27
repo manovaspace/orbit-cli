@@ -18,7 +18,7 @@ var (
 
 func init() {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		if (version == "dev" || version == "" || version == "v0.1.0") && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		if (version == "dev" || version == "") && info.Main.Version != "" && info.Main.Version != "(devel)" {
 			version = info.Main.Version
 		}
 		for _, s := range info.Settings {
