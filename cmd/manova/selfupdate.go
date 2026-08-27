@@ -77,6 +77,9 @@ func newSelfUpdateCmd() *cobra.Command {
 			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("Downloading and installing update..."))
 
 			if err := updater.SelfUpdate(version, "", nil); err != nil {
+				if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+					return fmt.Errorf("insufficient permissions to replace %s. Try running with sudo: sudo orbit self-update", execPath)
+				}
 				return fmt.Errorf("self-update failed: %w", err)
 			}
 
