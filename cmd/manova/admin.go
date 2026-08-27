@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/config"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
 )
@@ -105,18 +103,23 @@ master signing secret in the local owner vault (mode 0600).`,
 				return errors.New("--no-send requires an explicit verification code via --code")
 			}
 
-			serverURL := strings.TrimSpace(serverFlag)
-			if serverURL == "" {
-				serverURL = strings.TrimSpace(os.Getenv("ORBIT_SERVER"))
-			}
-
+			isHermetic := noSendFlag && strings.TrimSpace(codeFlag) != ""
 			var (
-				cm            *owner.ChallengeManager
-				challengeCode string
+				cm        *owner.ChallengeManager
+				apiClient *client.Client
 			)
 
-			if serverURL != "" && !noSendFlag && codeFlag == "" {
-				apiClient := client.NewClient(serverURL)
+			if isHermetic {
+				cm = owner.NewChallengeManager()
+				if _, err := cm.CreateChallengeWithCode(email, strings.TrimSpace(codeFlag), owner.DefaultChallengeTTL); err != nil {
+					return fmt.Errorf("failed to create challenge: %w", err)
+				}
+			} else {
+				serverURL := strings.TrimSpace(cfg.Server.URL)
+				if serverURL == "" {
+					serverURL = config.DefaultServerURL
+				}
+				apiClient = client.NewClient(serverURL)
 				fmt.Fprintf(out, "  %s  Connecting to Orbit server at %s...\n", iconArrow, codeStyle.Render(serverURL))
 				_, err := apiClient.InitiateOwnerChallenge(cmd.Context(), email)
 				if err != nil {
@@ -126,64 +129,6 @@ master signing secret in the local owner vault (mode 0600).`,
 					iconOK,
 					boldStyle.Render(email),
 				)
-			} else {
-				cm = owner.NewChallengeManager()
-				if codeFlag != "" {
-					if _, err := cm.CreateChallengeWithCode(email, codeFlag, owner.DefaultChallengeTTL); err != nil {
-						return fmt.Errorf("failed to create challenge: %w", err)
-					}
-					challengeCode = codeFlag
-				} else {
-					_, genCode, err := cm.CreateChallenge(email, owner.DefaultChallengeTTL)
-					if err != nil {
-						return fmt.Errorf("failed to generate verification challenge: %w", err)
-					}
-					challengeCode = genCode
-				}
-
-				if noSendFlag && codeFlag != "" {
-					// Hermetic testing bypass: skip email dispatch
-				} else {
-					mailer := invite.NewSMTPMailer(invite.MailerConfig{
-						Host: cfg.SMTP.Host,
-						Port: strconv.Itoa(cfg.SMTP.Port),
-						User: cfg.SMTP.User,
-						Pass: cfg.SMTP.Pass,
-						From: cfg.SMTP.From,
-					})
-
-					if !mailer.IsConfigured() {
-						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: Mail relay is not configured."))
-						fmt.Fprintf(cmd.ErrOrStderr(), "  Platform ownership requires out-of-band email OTP verification.\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "  To configure SMTP credentials, set the following environment variables or update ~/.config/orbit/config.yaml:\n\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_HOST=%s\n", cfg.SMTP.Host)
-						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_PORT=%d\n", cfg.SMTP.Port)
-						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_USER=\"<your-smtp-user>\"\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "    export ORBIT_SMTP_PASS=\"<your-smtp-password>\"\n\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "  Alternatively, run:\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "    orbit config set smtp.user <username>\n")
-						fmt.Fprintf(cmd.ErrOrStderr(), "    orbit config set smtp.pass <password>\n\n")
-						return errors.New("mail relay is not configured: pre-flight transport check failed")
-					}
-
-					emailData := invite.OwnerChallengeEmailData{
-						OwnerEmail:  email,
-						OTPCode:     challengeCode,
-						ExpiresIn:   "10 minutes",
-						GeneratedAt: time.Now().UTC(),
-					}
-
-					if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n\n", iconError, errorStyle.Render("Pre-flight Check Failed: Failed to dispatch challenge email via Mailcow"), err)
-						fmt.Fprintf(cmd.ErrOrStderr(), "  Please check your SMTP configuration and network connectivity.\n")
-						return fmt.Errorf("failed to dispatch challenge email: %w", err)
-					}
-
-					fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
-						iconOK,
-						boldStyle.Render(email),
-					)
-				}
 			}
 
 			// Acquire code from user if not passed via --code
@@ -198,19 +143,18 @@ master signing secret in the local owner vault (mode 0600).`,
 			}
 
 			// Verify code
-			if serverURL != "" && !noSendFlag && codeFlag == "" {
-				apiClient := client.NewClient(serverURL)
+			if isHermetic {
+				valid, err := cm.VerifyCode(email, inputCode)
+				if err != nil || !valid {
+					return fmt.Errorf("OTP verification failed: %w", err)
+				}
+			} else {
 				vResp, err := apiClient.VerifyOwnerChallenge(cmd.Context(), email, inputCode)
 				if err != nil {
 					return fmt.Errorf("remote OTP verification failed: %w", err)
 				}
 				if vResp.Status != "verified" {
 					return fmt.Errorf("server rejected OTP verification (status: %s)", vResp.Status)
-				}
-			} else if cm != nil {
-				valid, err := cm.VerifyCode(email, inputCode)
-				if err != nil || !valid {
-					return fmt.Errorf("OTP verification failed: %w", err)
 				}
 			}
 

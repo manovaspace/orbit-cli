@@ -1,38 +1,221 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
-	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 )
 
-func TestAdminInitFailsWithoutSMTP(t *testing.T) {
+func newMockAdminServer(t *testing.T, expectedEmail, validCode string) *httptest.Server {
+	t.Helper()
+	var challengeDispatched bool
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/admin/challenge", "/api/v1/system/ownership/challenge":
+			var req client.ChallengeRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid json"})
+				return
+			}
+			if req.Email != expectedEmail {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unexpected email"})
+				return
+			}
+			challengeDispatched = true
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(client.ChallengeResponse{
+				Status:    "pending",
+				Email:     req.Email,
+				ExpiresAt: time.Now().Add(10 * time.Minute),
+				Message:   "OTP challenge code dispatched via Mailcow",
+			})
+		case "/api/v1/admin/verify", "/api/v1/system/ownership/verify":
+			if !challengeDispatched {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "no active challenge"})
+				return
+			}
+			var req client.VerifyRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid json"})
+				return
+			}
+			if req.Email != expectedEmail || req.Code != validCode {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid or expired OTP code"})
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(client.VerifyResponse{
+				Status:     "verified",
+				Email:      req.Email,
+				VerifiedAt: time.Now().UTC(),
+				Message:    "Platform ownership verified",
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+		}
+	}))
+}
+
+func TestAdminInit_APIServer_Success(t *testing.T) {
+	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "748291")
+	defer ts.Close()
+
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
 	buf := new(bytes.Buffer)
-	errBuf := new(bytes.Buffer)
-	cmd := newAdminInitCmd()
+	cmd := newRootCmd()
 	cmd.SetOut(buf)
-	cmd.SetErr(errBuf)
-	cmd.SetArgs([]string{"--owner", "test@example.com", "--store", filepath.Join(t.TempDir(), "owner.json")})
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "init",
+		"--owner", "alirezaopmc@gmail.com",
+		"--name", "Alireza",
+		"--code", "748291",
+		"--server", ts.URL,
+		"--store", storePath,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("admin init via API server failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Connecting to Orbit server at "+ts.URL) {
+		t.Errorf("output missing server connection message: %s", out)
+	}
+	if !strings.Contains(out, "Verification challenge dispatched to alirezaopmc@gmail.com") {
+		t.Errorf("output missing challenge dispatch notice: %s", out)
+	}
+	if !strings.Contains(out, "Orbit Platform Ownership Verified") {
+		t.Errorf("output missing verification title: %s", out)
+	}
+	if !strings.Contains(out, "0600 sealed") {
+		t.Errorf("output missing vault sealed notice: %s", out)
+	}
+
+	store := owner.NewStore(storePath)
+	if !store.IsVerified() {
+		t.Fatalf("expected store to be verified")
+	}
+
+	rec, err := store.LoadOwner()
+	if err != nil {
+		t.Fatalf("LoadOwner failed: %v", err)
+	}
+	if rec.Email != "alirezaopmc@gmail.com" {
+		t.Errorf("expected email alirezaopmc@gmail.com, got %s", rec.Email)
+	}
+	if rec.DisplayName != "Alireza" {
+		t.Errorf("expected display name Alireza, got %s", rec.DisplayName)
+	}
+	if len(rec.RootSigningSecret) != 64 {
+		t.Errorf("expected 64-character hex secret, got len %d", len(rec.RootSigningSecret))
+	}
+}
+
+func TestAdminInit_APIServer_InteractiveCode(t *testing.T) {
+	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "883311")
+	defer ts.Close()
+
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	buf := new(bytes.Buffer)
+	in := bytes.NewBufferString("883311\n")
+
+	cmd := newRootCmd()
+	cmd.SetIn(in)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "init",
+		"--owner", "alirezaopmc@gmail.com",
+		"--server", ts.URL,
+		"--store", storePath,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("admin init with interactive code failed: %v", err)
+	}
+
+	store := owner.NewStore(storePath)
+	if !store.IsVerified() {
+		t.Fatalf("expected store to be verified")
+	}
+}
+
+func TestAdminInit_APIServer_ChallengeFails(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "mail relay connection timeout"})
+	}))
+	defer ts.Close()
+
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "init",
+		"--owner", "alirezaopmc@gmail.com",
+		"--server", ts.URL,
+		"--store", storePath,
+	})
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Fatal("expected admin init to fail when SMTP is unconfigured")
+		t.Fatal("expected admin init to fail when challenge endpoint returns 500")
 	}
+	if !strings.Contains(err.Error(), "failed to initiate challenge on server") {
+		t.Errorf("expected challenge initiation error, got: %v", err)
+	}
+}
 
-	combined := buf.String() + errBuf.String()
-	if strings.Contains(combined, "Verification OTP generated") {
-		t.Fatalf("security violation: OTP was printed to terminal: %s", combined)
+func TestAdminInit_APIServer_InvalidVerificationCode(t *testing.T) {
+	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "123456")
+	defer ts.Close()
+
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "init",
+		"--owner", "alirezaopmc@gmail.com",
+		"--code", "999999", // wrong code
+		"--server", ts.URL,
+		"--store", storePath,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected admin init to fail with invalid verification code")
 	}
-	if !strings.Contains(combined, "Mail relay is not configured") && !strings.Contains(combined, "Pre-flight Check Failed") {
-		t.Fatalf("expected pre-flight error message, got: %s", combined)
+	if !strings.Contains(err.Error(), "remote OTP verification failed") && !strings.Contains(err.Error(), "rejected") {
+		t.Errorf("expected remote OTP verification failure, got: %v", err)
 	}
 }
 
@@ -266,73 +449,11 @@ func TestAdminInit_InteractivePrompt(t *testing.T) {
 	}
 }
 
-func TestAdminInit_WithMockSMTPServer(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to start mock smtp listener: %v", err)
-	}
-	defer l.Close()
+func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
+	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "748291")
+	defer ts.Close()
 
-	var receivedEmail []string
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		conn, err := l.Accept()
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		r := bufio.NewReader(conn)
-		w := bufio.NewWriter(conn)
-		_, _ = w.WriteString("220 mock.smtp.orbit Service Ready\r\n")
-		_ = w.Flush()
-
-		for {
-			line, err := r.ReadString('\n')
-			if err != nil {
-				return
-			}
-			line = strings.TrimRight(line, "\r\n")
-			fields := strings.Fields(line)
-			if len(fields) == 0 {
-				continue
-			}
-			cmd := strings.ToUpper(fields[0])
-
-			switch cmd {
-			case "HELO", "EHLO":
-				_, _ = w.WriteString("250-mock.smtp.orbit\r\n250 HELP\r\n")
-				_ = w.Flush()
-			case "MAIL", "RCPT":
-				_, _ = w.WriteString("250 OK\r\n")
-				_ = w.Flush()
-			case "DATA":
-				_, _ = w.WriteString("354 Start mail input; end with <CRLF>.<CRLF>\r\n")
-				_ = w.Flush()
-				for {
-					dataLine, err := r.ReadString('\n')
-					if err != nil {
-						return
-					}
-					if dataLine == ".\r\n" || dataLine == ".\n" {
-						break
-					}
-					receivedEmail = append(receivedEmail, dataLine)
-				}
-				_, _ = w.WriteString("250 OK: queued\r\n")
-				_ = w.Flush()
-			case "QUIT":
-				_, _ = w.WriteString("221 Bye\r\n")
-				_ = w.Flush()
-				return
-			}
-		}
-	}()
-
-	host, port, _ := net.SplitHostPort(l.Addr().String())
-	t.Setenv("ORBIT_SMTP_HOST", host)
-	t.Setenv("ORBIT_SMTP_PORT", port)
+	t.Setenv("ORBIT_SERVER", ts.URL)
 
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
@@ -349,21 +470,12 @@ func TestAdminInit_WithMockSMTPServer(t *testing.T) {
 	})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("admin init with SMTP dispatch failed: %v", err)
+		t.Fatalf("admin init with ORBIT_SERVER env failed: %v", err)
 	}
 
 	out := buf.String()
 	if !strings.Contains(out, "Verification challenge dispatched to alirezaopmc@gmail.com") {
 		t.Errorf("output missing dispatch confirmation: %s", out)
-	}
-
-	<-done
-	payload := strings.Join(receivedEmail, "")
-	if !strings.Contains(payload, "748291") {
-		t.Errorf("dispatched email payload missing OTP code: %s", payload)
-	}
-	if !strings.Contains(payload, "alirezaopmc@gmail.com") {
-		t.Errorf("dispatched email payload missing recipient: %s", payload)
 	}
 }
 
