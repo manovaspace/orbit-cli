@@ -13,7 +13,7 @@ import (
 
 func TestHTTPProvisioner_Provision_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/onboard/claim" {
+		if r.Method != http.MethodPost || (r.URL.Path != "/api/v1/dev/onboard/claim" && r.URL.Path != "/api/v1/onboard/claim") {
 			t.Fatalf("unexpected method or path: %s %s", r.Method, r.URL.Path)
 		}
 
@@ -168,7 +168,7 @@ func TestHTTPProvisioner_Provision_ErrorMappings(t *testing.T) {
 func TestHTTPProvisioner_Rollback(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost || r.URL.Path != "/api/v1/onboard/rollback" {
+			if r.Method != http.MethodPost || (r.URL.Path != "/api/v1/dev/onboard/rollback" && r.URL.Path != "/api/v1/onboard/rollback") {
 				t.Fatalf("unexpected method or path: %s %s", r.Method, r.URL.Path)
 			}
 

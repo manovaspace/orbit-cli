@@ -66,8 +66,8 @@ func TestClient_InitiateOwnerChallenge(t *testing.T) {
 			if r.Method != http.MethodPost {
 				t.Fatalf("expected POST, got %s", r.Method)
 			}
-			if r.URL.Path != "/api/v1/admin/challenge" {
-				t.Fatalf("expected /api/v1/admin/challenge, got %s", r.URL.Path)
+			if r.URL.Path != "/api/v1/system/ownership/challenge" && r.URL.Path != "/api/v1/admin/challenge" {
+				t.Fatalf("expected challenge path, got %s", r.URL.Path)
 			}
 
 			var req ChallengeRequest
@@ -136,7 +136,7 @@ func TestClient_InitiateOwnerChallenge(t *testing.T) {
 func TestClient_VerifyOwnerChallenge(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost || r.URL.Path != "/api/v1/admin/verify" {
+			if r.Method != http.MethodPost || (r.URL.Path != "/api/v1/system/ownership/verify" && r.URL.Path != "/api/v1/admin/verify") {
 				t.Fatalf("unexpected method or path: %s %s", r.Method, r.URL.Path)
 			}
 
@@ -206,7 +206,7 @@ func TestClient_AdminStatus_And_RotateSecret(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		if r.URL.Path == "/api/v1/admin/status" && r.Method == http.MethodGet {
+		if (r.URL.Path == "/api/v1/system/ownership/status" || r.URL.Path == "/api/v1/admin/status") && r.Method == http.MethodGet {
 			_ = json.NewEncoder(w).Encode(AdminStatusResponse{
 				Verified:         true,
 				Email:            "owner@manova.space",
@@ -216,7 +216,7 @@ func TestClient_AdminStatus_And_RotateSecret(t *testing.T) {
 			return
 		}
 
-		if r.URL.Path == "/api/v1/admin/rotate-secret" && r.Method == http.MethodPost {
+		if (r.URL.Path == "/api/v1/system/ownership/rotate-secret" || r.URL.Path == "/api/v1/admin/rotate-secret") && r.Method == http.MethodPost {
 			_ = json.NewEncoder(w).Encode(RotateSecretResponse{
 				Status:         "success",
 				Email:          "owner@manova.space",
@@ -251,7 +251,7 @@ func TestClient_AdminStatus_And_RotateSecret(t *testing.T) {
 func TestClient_ClaimToken(t *testing.T) {
 	t.Run("success standard path", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost || r.URL.Path != "/api/v1/onboard/claim" {
+			if r.Method != http.MethodPost || (r.URL.Path != "/api/v1/dev/onboard/claim" && r.URL.Path != "/api/v1/onboard/claim") {
 				t.Fatalf("unexpected method or path: %s %s", r.Method, r.URL.Path)
 			}
 
@@ -373,7 +373,7 @@ func TestClient_ClaimToken(t *testing.T) {
 func TestClient_Rollback(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost || r.URL.Path != "/api/v1/onboard/rollback" {
+			if r.Method != http.MethodPost || (r.URL.Path != "/api/v1/dev/onboard/rollback" && r.URL.Path != "/api/v1/onboard/rollback") {
 				t.Fatalf("unexpected method/path: %s %s", r.Method, r.URL.Path)
 			}
 
