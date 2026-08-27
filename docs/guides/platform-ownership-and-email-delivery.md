@@ -1,63 +1,215 @@
 ---
 title: Platform Ownership Verification & Email Delivery
-description: How to manage Orbit CLI configuration, verify server ownership via strict out-of-band email OTP challenges, establish the admin root of trust, and configure production Mailcow email delivery for Orbit invitation emails.
+description: Complete guide to Orbit CLI pure API client architecture, server edge daemon (orbit serve), out-of-band email OTP challenges (/api/v1/admin/challenge), cryptographic root-of-trust vault sealing, and Mailcow delivery.
 ---
 
 # Platform Ownership Verification & Email Delivery
 
-This guide explains how to manage Orbit CLI configuration (`~/.config/orbit/config.yaml`), verify server ownership as `alirezaopmc@gmail.com` using strict out-of-band email OTP verification, establish the cryptographic root of trust (`~/.config/orbit/owner.json`), and configure Orbit to dispatch invitation emails through the production Mailcow relay (`mail.manova.space`) so they reach real developer inboxes (Gmail, etc.) with valid SPF/DKIM authentication.
+This guide explains the architecture and operation of Orbit's platform ownership verification system, the server-side edge daemon (`orbit serve` / `manova serve`), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Mailcow (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
 
 ---
 
-## 1. Why this matters & Architecture Overview
+## 1. Why This Matters & Architecture Overview
 
-By default in a local development environment, `orbit invite create` sends emails to **Mailpit** running on `localhost:10725` — a local mail catcher that prevents tokens from reaching external inboxes.
+Orbit decouples administrative client operations from direct mail infrastructure. Client workstations running `orbit` never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
 
-In production or staging environments:
-1. **Configuration Management**: Persistent settings (admin identity, Mailcow SMTP credentials, server endpoint) are stored in `~/.config/orbit/config.yaml` with strict `0600` permissions.
-2. **Strict Out-of-Band Ownership Verification**: Before developer invitations can be issued, the platform administrator must verify ownership via a 6-digit OTP challenge dispatched out-of-band to their email. Terminal bypasses are strictly prevented.
-3. **Pre-flight SMTP Validation**: `orbit admin init` performs transport pre-flight checks ensuring SMTP credentials and mail relays are fully configured and reachable before attempting OTP challenge delivery.
-4. **Root Cryptographic Trust**: On successful OTP verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
+### Architecture Highlights
 
-### Configuration Precedence Hierarchy
+1. **Pure API Client Architecture**: The CLI (`orbit admin init`, `orbit invite create`) communicates exclusively over HTTPS with the Orbit server API (`https://orbit.manova.space`).
+2. **Server Edge Daemon (`orbit serve`)**: Runs on production/staging infrastructure, holds backend Mailcow SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
+3. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
+4. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
 
-Orbit resolves settings using the following precedence order (highest to lowest):
+### End-to-End Ownership Verification Flow
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ 1. Command-Line Flags    (e.g., --owner, --smtp-host)   │
-├─────────────────────────────────────────────────────────┤
-│ 2. Environment Variables (e.g., ORBIT_ADMIN_EMAIL)      │
-├─────────────────────────────────────────────────────────┤
-│ 3. Configuration File    (~/.config/orbit/config.yaml)  │
-├─────────────────────────────────────────────────────────┤
-│ 4. Built-in Defaults     (mail.manova.space, port 587)  │
-└─────────────────────────────────────────────────────────┘
+┌──────────────┐         ┌───────────────┐         ┌──────────────┐         ┌───────────────┐
+│   Operator   │         │   Orbit CLI   │         │ Orbit Server │         │ Mailcow Relay │
+│  (Terminal)  │         │ (orbit admin) │         │(orbit serve) │         │ (SMTP :587)   │
+└──────┬───────┘         └───────┬───────┘         └──────┬───────┘         └───────┬───────┘
+       │                         │                        │                         │
+       │  orbit admin init       │                        │                         │
+       ├────────────────────────>│                        │                         │
+       │                         │ POST /api/v1/admin/    │                         │
+       │                         │ challenge {email}      │                         │
+       │                         ├───────────────────────>│                         │
+       │                         │                        │ Send OTP email          │
+       │                         │                        ├────────────────────────>│
+       │                         │                        │                         │────┐
+       │                         │                        │                         │    │ Dispatches
+       │                         │                        │                         │<───┘ to Operator
+       │                         │ 200 OK                 │                         │      Inbox
+       │                         │<───────────────────────┤                         │
+       │ Prompts for 6-digit OTP │                        │                         │
+       │<────────────────────────┤                        │                         │
+       │                         │                        │                         │
+       │ Enters code: "482910"   │                        │                         │
+       ├────────────────────────>│                        │                         │
+       │                         │ POST /api/v1/admin/    │                         │
+       │                         │ verify {email, code}   │                         │
+       │                         ├───────────────────────>│                         │
+       │                         │                        │ Validate code & attempt │
+       │                         │ 200 OK (verified)      │                         │
+       │                         │<───────────────────────┤                         │
+       │                         │                        │                         │
+       │                         │ Generate 32-byte key   │                         │
+       │                         │ & seal owner.json 0600 │                         │
+       │                         │────┐                   │                         │
+       │                         │    │                   │                         │
+       │                         │<───┘                   │                         │
+       │ Display Success Card    │                        │                         │
+       │<────────────────────────┤                        │                         │
 ```
 
 ---
 
-## 2. Configuration Management (`orbit config`)
+## 2. Server Edge Daemon (`orbit serve` / `manova serve`)
 
-Orbit provides the `orbit config` subcommand suite to inspect, initialize, and update persistent CLI configuration in `~/.config/orbit/config.yaml`.
+The server daemon runs the HTTP onboarding API, handles developer claim requests, manages challenge lifecycles, and dispatches transactional emails via SMTP.
 
-### Initializing Default Configuration
-
-To create the default configuration file:
+### Starting the Server Daemon
 
 ```bash
-orbit config init
+# Start server with default port (:8080)
+orbit serve
+
+# Or using the manova alias
+manova serve --addr :8080
+
+# With explicit SMTP credentials and custom signing secret
+orbit serve \
+  --addr :8080 \
+  --smtp-host mail.manova.space \
+  --smtp-port 587 \
+  --smtp-user noreply@manova.space \
+  --smtp-pass "$SMTP_PASSWORD" \
+  --smtp-from "Orbit Platform <noreply@manova.space>" \
+  --signing-secret "$ORBIT_SIGNING_SECRET"
 ```
 
-If the configuration file already exists, use `--force` to overwrite it:
+### Daemon Command-Line Flags
+
+| Flag | Shorthand | Description | Default |
+|---|---|---|---|
+| `--addr` | `-a` | HTTP server listen address | `:8080` |
+| `--smtp-host` | | SMTP mail relay host | `mail.manova.space` |
+| `--smtp-port` | | SMTP mail relay port | `587` |
+| `--smtp-user` | | SMTP authentication username | `""` |
+| `--smtp-pass` | | SMTP authentication password | `""` |
+| `--smtp-from` | | Outgoing email sender header | `Orbit Platform <noreply@manova.space>` |
+| `--signing-secret` | | Cryptographic secret for signing/verification | Sealed vault or env |
+| `--store` | | Path to invites storage JSON file | `~/.config/orbit/invites.json` |
+| `--owner-store` | | Path to owner vault JSON file | `~/.config/orbit/owner.json` |
+| `--config` | | Custom path to configuration file | `~/.config/orbit/config.yaml` |
+
+### Signing Secret Resolution Order
+
+The server resolves its cryptographic signing secret in the following priority:
+1. `--signing-secret` CLI flag
+2. Environment variables: `ORBIT_SIGNING_SECRET`, `ORBIT_INVITE_SECRET`, `MANOVA_INVITE_SECRET`, `ORBIT_JWT_SECRET`, `MANOVA_JWT_SECRET`
+3. Sealed owner vault (`~/.config/orbit/owner.json`)
+4. Development fallback secret (with security warning in logs)
+
+### Graceful Shutdown
+
+The daemon catches `SIGINT` (Ctrl+C) and `SIGTERM` signals, executing a 5-second graceful shutdown context to complete in-flight HTTP requests before closing listeners.
+
+---
+
+## 3. Server Admin API Endpoints
+
+The server exposes dedicated endpoints for platform ownership verification and developer onboarding.
+
+### 1. Initiate Admin Challenge (`POST /api/v1/admin/challenge`)
+
+Generates a cryptographically random 6-digit OTP code, stores it in memory (TTL: 10 minutes, max 3 attempts), and dispatches the challenge email via Mailcow.
+
+* **Path**: `/api/v1/admin/challenge` (alias: `/api/v1/system/ownership/challenge`)
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+**Request Body**:
+```json
+{
+  "email": "alirezaopmc@gmail.com"
+}
+```
+
+**Success Response (`200 OK`)**:
+```json
+{
+  "status": "challenge_sent",
+  "email": "alirezaopmc@gmail.com",
+  "expires_at": "2026-08-27T14:10:00Z",
+  "message": "verification OTP sent to alirezaopmc@gmail.com"
+}
+```
+
+**Error Responses**:
+* `400 Bad Request`: Missing or malformed email address.
+* `429 Too Many Requests`: IP rate limit exceeded (includes `Retry-After` header).
+* `500 Internal Server Error`: SMTP transport failure or mailer unconfigured.
+
+### 2. Verify Admin OTP (`POST /api/v1/admin/verify`)
+
+Validates the provided 6-digit OTP code against the active challenge for the email.
+
+* **Path**: `/api/v1/admin/verify` (alias: `/api/v1/system/ownership/verify`)
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+**Request Body**:
+```json
+{
+  "email": "alirezaopmc@gmail.com",
+  "code": "482910",
+  "display_name": "Alireza"
+}
+```
+
+**Success Response (`200 OK`)**:
+```json
+{
+  "status": "verified",
+  "email": "alirezaopmc@gmail.com",
+  "display_name": "Alireza",
+  "key_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "verified_at": "2026-08-27T14:00:00Z",
+  "message": "platform ownership successfully verified for alirezaopmc@gmail.com"
+}
+```
+
+**Error Responses**:
+* `400 Bad Request`: Incorrect OTP code, expired challenge, or exceeded max attempts (3).
+* `429 Too Many Requests`: Rate limit exceeded.
+
+### 3. Additional Server Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/healthz` or `/health` | `GET` | Server liveness and provisioner health probe |
+| `/v1/onboard/claim` | `POST` | Claim developer invitation token & provision workspace |
+| `/api/v1/dev/onboard/rollback` | `POST` | Rollback provisioned developer workspace |
+
+---
+
+## 4. Configuration Management (`orbit config`)
+
+Orbit manages client-side settings in `~/.config/orbit/config.yaml` with strict `0600` permissions.
+
+### Initializing Configuration
 
 ```bash
+# Initialize default configuration
+orbit config init
+
+# Overwrite existing config
 orbit config init --force
 ```
 
 ### Inspecting Active Configuration
 
-View all configuration settings with sensitive credentials (such as `smtp.pass`) automatically masked:
+View all configuration settings (sensitive fields like `smtp.pass` are automatically masked):
 
 ```bash
 orbit config show
@@ -81,95 +233,75 @@ defaults:
   expiry_days: 7
 ```
 
-To format output as JSON:
-
+To output in JSON format:
 ```bash
 orbit config show --format json
 ```
 
-### Reading Individual Settings
-
-Retrieve any configuration key value:
+### Reading and Updating Individual Settings
 
 ```bash
-orbit config get admin.email
-orbit config get smtp.host
+# Read values
 orbit config get server.url
-```
+orbit config get admin.email
 
-### Updating Configuration Settings
+# Update server endpoint
+orbit config set server.url https://orbit.manova.space
 
-Update specific settings in `~/.config/orbit/config.yaml`:
-
-```bash
-# Configure administrator identity
+# Update administrator identity
 orbit config set admin.email alirezaopmc@gmail.com
 orbit config set admin.name "Alireza"
 
-# Configure Mailcow SMTP credentials
-orbit config set smtp.host mail.manova.space
-orbit config set smtp.port 587
-orbit config set smtp.user noreply@manova.space
-orbit config set smtp.pass "YourSecureMailcowPassword"
-orbit config set smtp.from "Orbit Platform <noreply@manova.space>"
-
-# Configure default invite parameters
-orbit config set defaults.scope core
-orbit config set defaults.expiry_days 7
-```
-
-### Locating Configuration File
-
-To view the filesystem path to the active configuration file:
-
-```bash
+# Inspect active file path
 orbit config path
 # Output: /home/opmc/.config/orbit/config.yaml
 ```
 
-### Supported Configuration Keys
+### Configuration Keys Reference
 
-| Key | Description | Default |
-|---|---|---|
-| `server.url` | Orbit server API endpoint | `https://orbit.manova.space` |
-| `admin.email` | Platform administrator email address | `alirezaopmc@gmail.com` |
-| `admin.name` | Platform administrator display name | `Alireza` |
-| `smtp.host` | Mailcow SMTP server hostname | `mail.manova.space` |
-| `smtp.port` | SMTP port (`587` for STARTTLS, `465` for SMTPS) | `587` |
-| `smtp.user` | SMTP authentication username | `""` |
-| `smtp.pass` | SMTP authentication password (masked in output) | `""` |
-| `smtp.from` | Outgoing email sender header | `Orbit Platform <noreply@manova.space>` |
-| `defaults.scope` | Default scope for invitation tokens | `core` |
-| `defaults.expiry_days` | Default token TTL in days | `7` |
+| Key | Scope | Description | Default |
+|---|---|---|---|
+| `server.url` | Client | Orbit API server endpoint | `https://orbit.manova.space` |
+| `admin.email` | Client | Platform administrator email | `alirezaopmc@gmail.com` |
+| `admin.name` | Client | Platform administrator display name | `Alireza` |
+| `smtp.host` | Daemon | Mailcow SMTP hostname | `mail.manova.space` |
+| `smtp.port` | Daemon | SMTP port (`587` STARTTLS, `465` SMTPS) | `587` |
+| `smtp.user` | Daemon | SMTP authentication user | `""` |
+| `smtp.pass` | Daemon | SMTP authentication password (masked) | `""` |
+| `smtp.from` | Daemon | Outgoing email sender header | `Orbit Platform <noreply@manova.space>` |
+| `defaults.scope` | Client | Default scope for invitation tokens | `core` |
+| `defaults.expiry_days` | Client | Default invite TTL in days | `7` |
 
 ---
 
-## 3. Initializing Server Ownership (`orbit admin init`)
+## 5. Initializing Platform Ownership (`orbit admin init`)
 
-Run this command to establish the platform root of trust:
+Run `orbit admin init` to establish the platform root of cryptographic trust.
 
 ```bash
 orbit admin init --owner alirezaopmc@gmail.com
 ```
 
-### Pre-flight Checks & Strict Out-of-Band Delivery
+### Execution Steps
 
-1. **Pre-flight SMTP Validation**: Orbit validates that the SMTP mail relay is configured with valid credentials (`ORBIT_SMTP_USER` / `ORBIT_SMTP_PASS` or `smtp.user` / `smtp.pass` in `config.yaml`). If credentials are missing, initialization aborts immediately with instructions to configure SMTP.
-2. **OTP Challenge Generation**: A cryptographically random 6-digit verification code is generated (TTL: 10 minutes, max 3 attempts).
-3. **Out-of-Band Dispatch**: The OTP challenge is dispatched strictly out-of-band via Mailcow to `alirezaopmc@gmail.com`. The OTP code is **never** printed to the console/terminal.
-4. **Interactive Verification**: Orbit prompts the operator to input the 6-digit code received in their inbox.
-5. **Vault Sealing**: Upon verification, Orbit generates a 32-byte cryptographic master signing secret and seals the platform vault at `~/.config/orbit/owner.json` with strict `0600` permissions.
+1. **Server API Connection**: Resolves the API endpoint (`cfg.Server.URL`, `--server`, or `ORBIT_SERVER`).
+2. **Challenge Request**: Calls `POST /api/v1/admin/challenge` on the server.
+3. **Out-of-Band Dispatch**: The server generates an OTP and dispatches it via Mailcow to `alirezaopmc@gmail.com`.
+4. **Interactive Code Entry**: Orbit prompts the operator in the terminal for the 6-digit OTP.
+5. **API Verification**: Calls `POST /api/v1/admin/verify` to validate the code with the server.
+6. **Local Vault Sealing**: Orbit generates a 32-byte cryptographic master signing secret and seals it into `~/.config/orbit/owner.json` (mode `0600`).
 
-Example console session:
+### Interactive Console Session Example
 
-```
+```text
 Orbit Platform Administration Initialization
 
-  ✔  Validated owner email: alirezaopmc@gmail.com
-  ✔  Verification code dispatched to alirezaopmc@gmail.com via mail.manova.space:587
+  ➜  Connecting to Orbit server at https://orbit.manova.space...
+  ✔  Verification challenge dispatched to alirezaopmc@gmail.com via Mailcow
 
   Enter 6-digit verification code: 482910
 
+Orbit Platform Ownership Verified
   ✔  Platform owner alirezaopmc@gmail.com verified and root cryptographic vault sealed.
 
   Owner Email:       alirezaopmc@gmail.com
@@ -185,29 +317,29 @@ Orbit Platform Administration Initialization
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Non-Interactive / CI Hermetic Testing Mode
+### Non-Interactive / CI Hermetic Test Mode
 
-For automated continuous integration tests where real email dispatch is not desired, pass both `--no-send` and an explicit `--code`:
+For offline development, unit tests, or CI pipelines where remote API calls or email dispatch are not desired:
 
 ```bash
 orbit admin init --owner test@example.com --no-send --code 123456
 ```
 
 > [!NOTE]
-> Passing `--no-send` without `--code` will fail pre-flight validation to prevent unintentional unverified vault generation.
+> Passing `--no-send` without an explicit `--code` will fail immediately to prevent unintentional unverified vault generation.
 
 ---
 
-## 4. Checking Ownership Status (`orbit admin status`)
+## 6. Checking Ownership Status (`orbit admin status`)
 
-To check the verification status of the server and inspect vault integrity:
+Inspect whether platform ownership is verified, verify vault file permissions, and check active server settings:
 
 ```bash
 orbit admin status
 ```
 
 Output:
-```
+```text
 Orbit Server Ownership Status
 
   ✔  Platform ownership is VERIFIED.
@@ -221,9 +353,7 @@ Orbit Server Ownership Status
   Mail Gateway:      mail.manova.space:587
 ```
 
-### JSON Output Format
-
-For scripting or monitoring automation:
+### Scripting & Monitoring (JSON Format)
 
 ```bash
 orbit admin status --format json
@@ -246,9 +376,9 @@ Output:
 
 ---
 
-## 5. Completing Verification Separately (`orbit admin verify`)
+## 7. Completing Verification Separately (`orbit admin verify`)
 
-If you requested an OTP code separately or wish to verify an in-flight challenge:
+If you requested an OTP challenge separately or wish to verify an in-flight code directly:
 
 ```bash
 orbit admin verify alirezaopmc@gmail.com 482910
@@ -256,16 +386,15 @@ orbit admin verify alirezaopmc@gmail.com 482910
 
 ---
 
-## 6. Rotating Master Signing Secret (`orbit admin rotate-secret`)
+## 8. Rotating Master Signing Secret (`orbit admin rotate-secret`)
 
-If the root signing secret needs rotation (e.g. key lifecycle policy or suspected key compromise), run:
+To rotate the cryptographic root signing key (e.g. key lifecycle policy or suspected key compromise):
 
 ```bash
 orbit admin rotate-secret
 ```
 
-Orbit will prompt for confirmation. For non-interactive execution:
-
+For non-interactive automation:
 ```bash
 orbit admin rotate-secret --yes
 ```
@@ -275,7 +404,7 @@ orbit admin rotate-secret --yes
 
 ---
 
-## 7. Issuing Developer Invitations (`orbit invite create`)
+## 9. Issuing Developer Invitations (`orbit invite create`)
 
 Once ownership is verified, invitations dispatched via `orbit invite create` are automatically:
 - **Signed with the master root signing key** from `~/.config/orbit/owner.json`.
@@ -287,7 +416,7 @@ orbit invite create hardkoding@gmail.com --name "Hard"
 ```
 
 Output:
-```
+```text
 Orbit Developer Invitation Generated
 
   ✔  Signed invitation token created for hardkoding@gmail.com
@@ -318,28 +447,37 @@ This bypasses ownership checks and routes outgoing mail to `localhost:10725` (Ma
 
 ---
 
-## 8. Environment Variables Reference
+## 10. Environment Variables Reference
 
-While `~/.config/orbit/config.yaml` is recommended for persistent configuration, the following environment variables are supported and take precedence over the configuration file:
+Environment variables take precedence over configuration file settings:
 
-| Variable | Fallback Variable | Description |
-|---|---|---|
-| `ORBIT_CONFIG` | — | Path to custom YAML configuration file |
-| `ORBIT_SERVER` | `ORBIT_SERVER_URL` | Orbit API server URL |
-| `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email |
-| `ORBIT_ADMIN_NAME` | `ORBIT_OWNER_NAME` | Administrator display name |
-| `ORBIT_SMTP_HOST` | `SMTP_HOST` | Mailcow SMTP host (`mail.manova.space`) |
-| `ORBIT_SMTP_PORT` | `SMTP_PORT` | SMTP port (`587` or `465`) |
-| `ORBIT_SMTP_USER` | `SMTP_USER` | SMTP authentication username |
-| `ORBIT_SMTP_PASS` | `SMTP_PASS` | SMTP authentication password |
-| `ORBIT_SMTP_FROM` | `SMTP_FROM` | Outgoing sender email header |
+### Client Environment Variables
+
+| Variable | Fallback Variable | Description | Default |
+|---|---|---|---|
+| `ORBIT_CONFIG` | — | Path to custom YAML configuration file | `~/.config/orbit/config.yaml` |
+| `ORBIT_SERVER` | `ORBIT_SERVER_URL` | Orbit API server URL | `https://orbit.manova.space` |
+| `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email | `alirezaopmc@gmail.com` |
+| `ORBIT_ADMIN_NAME` | `ORBIT_OWNER_NAME` | Administrator display name | `Alireza` |
+
+### Server Daemon Environment Variables
+
+| Variable | Fallback Variable | Description | Default |
+|---|---|---|---|
+| `ORBIT_SIGNING_SECRET` | `ORBIT_INVITE_SECRET`, `MANOVA_INVITE_SECRET` | Master cryptographic signing secret | Sealed vault |
+| `ORBIT_SMTP_HOST` | `SMTP_HOST` | Mailcow SMTP host | `mail.manova.space` |
+| `ORBIT_SMTP_PORT` | `SMTP_PORT` | SMTP port (`587` or `465`) | `587` |
+| `ORBIT_SMTP_USER` | `SMTP_USER` | SMTP authentication username | `""` |
+| `ORBIT_SMTP_PASS` | `SMTP_PASS` | SMTP authentication password | `""` |
+| `ORBIT_SMTP_FROM` | `SMTP_FROM` | Outgoing sender email header | `Orbit Platform <noreply@manova.space>` |
 
 ---
 
-## 9. Security Best Practices & Hardening
+## 11. Security Best Practices & Hardening
 
-1. **Vault File Permissions**: Orbit enforces `0600` permissions on `~/.config/orbit/owner.json` and `~/.config/orbit/config.yaml`. Orbit will issue warnings or block execution if vault files are world-readable or group-readable.
-2. **Strict Out-of-Band OTP**: Verification codes are never displayed in CLI terminal stdout/stderr during standard initialization to prevent local terminal sniffing attacks.
-3. **Challenge Expiration & Rate Limiting**: OTP challenges expire after 10 minutes and are locked after 3 failed verification attempts.
-4. **Credential Masking**: The `orbit config show` command masks all sensitive passwords and secrets by default.
-5. **No Production Insecure Flag**: The `--insecure` flag should only be used in isolated development environments. In production, verified ownership and authenticated Mailcow SMTP are required.
+1. **Zero Client SMTP Exposure**: Developer and admin CLI clients do not require SMTP credentials, preventing credential leakage across developer machines.
+2. **Vault File Permissions**: Orbit enforces `0600` permissions on `~/.config/orbit/owner.json` and `~/.config/orbit/config.yaml`. Orbit will issue warnings or block execution if vault files are world-readable or group-readable.
+3. **Strict Out-of-Band OTP**: Verification codes are never displayed in CLI terminal stdout/stderr during standard initialization to prevent local terminal sniffing attacks.
+4. **Challenge Expiration & Rate Limiting**: OTP challenges expire after 10 minutes and are locked after 3 failed verification attempts. The server enforces sliding window rate limiting (10 req/min default per IP).
+5. **Credential Masking**: The `orbit config show` command masks all sensitive passwords and secrets by default.
+6. **No Production Insecure Flag**: The `--insecure` flag should only be used in isolated development environments. In production, verified ownership and authenticated Mailcow SMTP are required.
