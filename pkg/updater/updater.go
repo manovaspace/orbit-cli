@@ -107,6 +107,60 @@ func ResolveAPIEndpoint(apiURL, repoSlug string) string {
 	return fmt.Sprintf("%s/api/v1/repos/%s/releases/latest", trimmed, repoSlug)
 }
 
+// ExtractReleaseHighlights parses markdown release notes body and returns up to maxCount
+// clean summary bullet points for CLI display.
+func ExtractReleaseHighlights(body string, maxCount int) []string {
+	if maxCount <= 0 {
+		maxCount = 5
+	}
+	var highlights []string
+	lines := strings.Split(body, "\n")
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "---") {
+			continue
+		}
+
+		var item string
+		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "+ ") {
+			item = strings.TrimSpace(trimmed[2:])
+		} else if strings.HasPrefix(trimmed, "• ") {
+			item = strings.TrimSpace(strings.TrimPrefix(trimmed, "• "))
+		}
+
+		if item != "" {
+			// Clean up markdown formatting for clean terminal rendering
+			item = strings.ReplaceAll(item, "**", "")
+			item = strings.ReplaceAll(item, "__", "")
+			item = strings.ReplaceAll(item, "`", "")
+			highlights = append(highlights, item)
+			if len(highlights) >= maxCount {
+				break
+			}
+		}
+	}
+
+	// Fallback if no bullet items found: extract first non-header paragraphs
+	if len(highlights) == 0 {
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "```") {
+				continue
+			}
+			clean := strings.ReplaceAll(trimmed, "**", "")
+			clean = strings.ReplaceAll(clean, "__", "")
+			clean = strings.ReplaceAll(clean, "`", "")
+			highlights = append(highlights, clean)
+			if len(highlights) >= maxCount {
+				break
+			}
+		}
+	}
+
+	return highlights
+}
+
 // GetAuthToken resolves a GitHub API token from standard environment variables.
 func GetAuthToken() string {
 	for _, envKey := range []string{"GITHUB_TOKEN", "GH_TOKEN", "ORBIT_GITHUB_TOKEN"} {

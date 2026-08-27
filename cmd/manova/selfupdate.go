@@ -19,13 +19,12 @@ func newSelfUpdateCmd() *cobra.Command {
 		Use:     "self-update",
 		Aliases: []string{"selfupdate"},
 		Short:   "Update the Orbit CLI binary to the latest release",
-		Long:    "Checks GitHub releases for the latest Orbit CLI binary, displays release info with confirmation, and performs atomic binary replacement.",
+		Long:    "Checks GitHub releases for the latest Orbit CLI binary, displays release highlights, and performs atomic binary replacement.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
 			curVer := "v" + strings.TrimPrefix(version, "v")
 			fmt.Fprintln(out, titleStyle.Render("Orbit CLI Self-Update"))
-			fmt.Fprintf(out, "  Current Version: %s\n\n", codeStyle.Render(curVer))
 
 			res, err := updater.CheckUpdate(version, "", "")
 			if err != nil {
@@ -35,10 +34,10 @@ func newSelfUpdateCmd() *cobra.Command {
 			latestVer := "v" + strings.TrimPrefix(res.LatestVersion, "v")
 
 			if !res.HasUpdate {
-				fmt.Fprintf(out, "  %s  %s (Latest: %s)\n",
+				fmt.Fprintf(out, "  %s  %s (Current: %s)\n",
 					iconOK,
 					successStyle.Render("Orbit CLI is already up to date!"),
-					codeStyle.Render(latestVer),
+					codeStyle.Render(curVer),
 				)
 				return nil
 			}
@@ -48,27 +47,32 @@ func newSelfUpdateCmd() *cobra.Command {
 				execPath = "/usr/local/bin/orbit"
 			}
 
-			fmt.Fprintf(out, "  %s  %s\n\n",
+			fmt.Fprintf(out, "  %s  %s %s %s\n",
 				iconInfo,
-				boldStyle.Render(fmt.Sprintf("New release available: %s %s %s", curVer, iconArrow, latestVer)),
+				codeStyle.Render(curVer),
+				iconArrow,
+				successStyle.Render(latestVer),
 			)
 
-			updateSummary := fmt.Sprintf("  %-18s %s %s %s\n  %-18s %s\n  %-18s %s\n  %-18s %s",
-				headerStyle.Render("Version:"), codeStyle.Render(curVer), iconArrow, successStyle.Render(latestVer),
-				headerStyle.Render("Channel:"), subtleStyle.Render("GitHub Releases (manovaspace/orbit-cli)"),
-				headerStyle.Render("Target Binary:"), subtleStyle.Render(execPath),
-				headerStyle.Render("Release Notes:"), subtleStyle.Render(fmt.Sprintf("https://github.com/manovaspace/orbit-cli/releases/tag/%s", latestVer)),
-			)
-			fmt.Fprintln(out, renderCard("UPDATE DETAILS", updateSummary))
+			// Display top 5 release highlights if present
+			if res.Release != nil && res.Release.ReleaseNotes != "" {
+				highlights := updater.ExtractReleaseHighlights(res.Release.ReleaseNotes, 5)
+				if len(highlights) > 0 {
+					fmt.Fprintf(out, "\n  %s\n", boldStyle.Render("Highlights in "+latestVer+":"))
+					for _, h := range highlights {
+						fmt.Fprintf(out, "    %s %s\n", subtleStyle.Render("•"), h)
+					}
+				}
+			}
 			fmt.Fprintln(out)
 
 			if checkOnly {
-				fmt.Fprintln(out, "  Run 'orbit self-update' without --check to apply this update.")
+				fmt.Fprintf(out, "  Run '%s' to install.\n", boldStyle.Render("orbit self-update"))
 				return nil
 			}
 
 			if !yesFlag {
-				if !promptConfirm(in, out, fmt.Sprintf("Proceed with updating Orbit to %s?", latestVer), true) {
+				if !promptConfirm(in, out, fmt.Sprintf("Update Orbit to %s?", latestVer), true) {
 					fmt.Fprintf(out, "\n  %s  Update cancelled.\n", iconInfo)
 					return nil
 				}

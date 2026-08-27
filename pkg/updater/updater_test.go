@@ -464,3 +464,27 @@ func TestSelfUpdate_WithMockSource(t *testing.T) {
 		t.Error("expected error from failing source, got nil")
 	}
 }
+
+func TestExtractReleaseHighlights(t *testing.T) {
+	markdownBody := `### Orbit v0.2.1 Release Notes
+
+#### Hardened Update Pipeline & Architecture Improvements
+- **Cryptographic Asset Verification:** Release assets now publish checksums.txt.
+- **Symlink-Agnostic Asset Resolution:** Asset filters explicitly match orbit-*.
+- **Passive Background Update Reminders:** Non-blocking 24-hour cache notifier.
+- **GitHub API Rate Limit Bypass:** Automatically attaches GITHUB_TOKEN.
+- **Actionable Permission Guidance:** Provides clean sudo instructions.
+- **Extra Feature 6:** This item should be ignored because max is 5.
+`
+
+	highlights := ExtractReleaseHighlights(markdownBody, 5)
+	if len(highlights) != 5 {
+		t.Fatalf("expected 5 highlights, got %d", len(highlights))
+	}
+	if !strings.Contains(highlights[0], "Cryptographic Asset Verification") {
+		t.Errorf("expected clean bold-stripped text in highlight 0, got: %q", highlights[0])
+	}
+	if strings.Contains(highlights[0], "**") {
+		t.Errorf("expected markdown asterisks to be stripped, got: %q", highlights[0])
+	}
+}
