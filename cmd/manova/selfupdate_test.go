@@ -51,6 +51,10 @@ func TestSubcommandRegistration(t *testing.T) {
 			t.Errorf("expected subcommand %q to be registered in root command", name)
 		}
 	}
+
+	if registered["serve"] {
+		t.Errorf("expected subcommand 'serve' NOT to be registered in root command")
+	}
 }
 
 func TestSelfUpdateCheckUpToDate(t *testing.T) {

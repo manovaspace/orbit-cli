@@ -109,7 +109,6 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newConfigCmd())
-	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
@@ -130,7 +129,6 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"purge":       true,
 		"init":        true,
 		"onboard":     true,
-		"serve":       true,
 		"version":     true,
 		"self-update": true,
 		"selfupdate":  true,

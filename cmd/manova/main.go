@@ -59,7 +59,7 @@ schema-driven environment management, 50-port block allocations, and container o
 			}
 
 			// Check for pending onboarding session and notify user (only in human-readable output)
-			if cmdName != "onboard" && cmdName != "version" && cmdName != "serve" && cmdName != "self-update" && cmdName != "selfupdate" && cmdName != "help" && cmdName != "config" {
+			if cmdName != "onboard" && cmdName != "version" && cmdName != "self-update" && cmdName != "selfupdate" && cmdName != "help" && cmdName != "config" {
 				if sm, err := session.NewSessionManager(""); err == nil && sm.HasPendingSession() {
 					if sess, err := sm.LoadSession(); err == nil && sess != nil {
 						fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup.\n",
@@ -73,7 +73,7 @@ schema-driven environment management, 50-port block allocations, and container o
 			}
 
 			// Skip passive update check for version and self-update commands
-			if cmdName == "version" || cmdName == "serve" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" || cmdName == "config" {
+			if cmdName == "version" || cmdName == "self-update" || cmdName == "selfupdate" || cmdName == "help" || cmdName == "config" {
 				return
 			}
 
@@ -119,7 +119,6 @@ schema-driven environment management, 50-port block allocations, and container o
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newConfigCmd())
-	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
