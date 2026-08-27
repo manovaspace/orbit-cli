@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
@@ -84,53 +85,73 @@ master signing secret in the local owner vault (mode 0600).`,
 				}
 			}
 
-			cm := owner.NewChallengeManager()
-			var challengeCode string
-
-			if codeFlag != "" {
-				if _, err := cm.CreateChallengeWithCode(email, codeFlag, owner.DefaultChallengeTTL); err != nil {
-					return fmt.Errorf("failed to create challenge: %w", err)
-				}
-				challengeCode = codeFlag
-			} else {
-				_, genCode, err := cm.CreateChallenge(email, owner.DefaultChallengeTTL)
-				if err != nil {
-					return fmt.Errorf("failed to generate verification challenge: %w", err)
-				}
-				challengeCode = genCode
+			serverURL := strings.TrimSpace(serverFlag)
+			if serverURL == "" {
+				serverURL = strings.TrimSpace(os.Getenv("ORBIT_SERVER"))
 			}
 
-			// Send verification email via Mailcow mailer unless --no-send
-			if !noSendFlag {
-				mailer := invite.NewMailerFromEnv()
-				emailData := invite.OwnerChallengeEmailData{
-					OwnerEmail:  email,
-					OTPCode:     challengeCode,
-					ExpiresIn:   "10 minutes",
-					GeneratedAt: time.Now().UTC(),
+			var (
+				cm            *owner.ChallengeManager
+				challengeCode string
+			)
+
+			if serverURL != "" && !noSendFlag && codeFlag == "" {
+				apiClient := client.NewClient(serverURL)
+				fmt.Fprintf(out, "  %s  Connecting to Orbit server at %s...\n", iconArrow, codeStyle.Render(serverURL))
+				_, err := apiClient.InitiateOwnerChallenge(cmd.Context(), email)
+				if err != nil {
+					return fmt.Errorf("failed to initiate challenge on server %s: %w", serverURL, err)
+				}
+				fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
+					iconOK,
+					boldStyle.Render(email),
+				)
+			} else {
+				cm = owner.NewChallengeManager()
+				if codeFlag != "" {
+					if _, err := cm.CreateChallengeWithCode(email, codeFlag, owner.DefaultChallengeTTL); err != nil {
+						return fmt.Errorf("failed to create challenge: %w", err)
+					}
+					challengeCode = codeFlag
+				} else {
+					_, genCode, err := cm.CreateChallenge(email, owner.DefaultChallengeTTL)
+					if err != nil {
+						return fmt.Errorf("failed to generate verification challenge: %w", err)
+					}
+					challengeCode = genCode
 				}
 
-				if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n", iconWarn, warningStyle.Render("Failed to dispatch challenge email via Mailcow"), err)
-					if codeFlag == "" {
-						fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
-							iconInfo,
+				mailer := invite.NewMailerFromEnv()
+				if !noSendFlag && mailer.IsConfigured() {
+					emailData := invite.OwnerChallengeEmailData{
+						OwnerEmail:  email,
+						OTPCode:     challengeCode,
+						ExpiresIn:   "10 minutes",
+						GeneratedAt: time.Now().UTC(),
+					}
+
+					if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n", iconWarn, warningStyle.Render("Failed to dispatch challenge email via Mailcow"), err)
+						if codeFlag == "" {
+							fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
+								iconInfo,
+								boldStyle.Render(email),
+								codeStyle.Render(challengeCode),
+							)
+						}
+					} else {
+						fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
+							iconOK,
 							boldStyle.Render(email),
-							codeStyle.Render(challengeCode),
 						)
 					}
-				} else {
-					fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
-						iconOK,
+				} else if codeFlag == "" {
+					fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
+						iconInfo,
 						boldStyle.Render(email),
+						codeStyle.Render(challengeCode),
 					)
 				}
-			} else if codeFlag == "" {
-				fmt.Fprintf(out, "  %s  Verification OTP generated for %s: %s (expires in 10m)\n",
-					iconInfo,
-					boldStyle.Render(email),
-					codeStyle.Render(challengeCode),
-				)
 			}
 
 			// Acquire code from user if not passed via --code
@@ -145,9 +166,20 @@ master signing secret in the local owner vault (mode 0600).`,
 			}
 
 			// Verify code
-			valid, err := cm.VerifyCode(email, inputCode)
-			if err != nil || !valid {
-				return fmt.Errorf("OTP verification failed: %w", err)
+			if serverURL != "" && !noSendFlag && codeFlag == "" {
+				apiClient := client.NewClient(serverURL)
+				vResp, err := apiClient.VerifyOwnerChallenge(cmd.Context(), email, inputCode)
+				if err != nil {
+					return fmt.Errorf("remote OTP verification failed: %w", err)
+				}
+				if vResp.Status != "verified" {
+					return fmt.Errorf("server rejected OTP verification (status: %s)", vResp.Status)
+				}
+			} else if cm != nil {
+				valid, err := cm.VerifyCode(email, inputCode)
+				if err != nil || !valid {
+					return fmt.Errorf("OTP verification failed: %w", err)
+				}
 			}
 
 			// Generate 32-byte master signing secret

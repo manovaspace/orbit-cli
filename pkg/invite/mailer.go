@@ -34,6 +34,15 @@ type SMTPMailer struct {
 	cfg MailerConfig
 }
 
+// IsConfigured returns true if SMTP user and password credentials are provided,
+// or if the host is a local test/dev server (localhost / 127.0.0.1 / Mailpit).
+func (m *SMTPMailer) IsConfigured() bool {
+	if m.cfg.Host == "localhost" || m.cfg.Host == "127.0.0.1" || strings.HasPrefix(m.cfg.Host, "127.") {
+		return true
+	}
+	return strings.TrimSpace(m.cfg.User) != "" && strings.TrimSpace(m.cfg.Pass) != ""
+}
+
 // NewSMTPMailer constructs a new SMTPMailer with the specified configuration.
 // Defaults Host to "mail.manova.space", Port to "587", and From to "Orbit Platform <noreply@manova.space>".
 func NewSMTPMailer(cfg MailerConfig) *SMTPMailer {
