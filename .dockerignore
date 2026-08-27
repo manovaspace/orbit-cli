@@ -1,0 +1,6 @@
+.git
+.superpowers
+bin
+dist
+tmp
+*.tar.gz

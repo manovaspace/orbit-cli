@@ -1,31 +1,35 @@
 ---
 title: Platform Ownership Verification & Email Delivery
-description: Complete guide to Orbit CLI pure API client architecture, server edge daemon (orbit serve), out-of-band email OTP challenges (/api/v1/admin/challenge), cryptographic root-of-trust vault sealing, and Mailcow delivery.
+description: Complete guide to Orbit dual-binary architecture (orbit client vs orbit-server daemon), pure API client workflow, out-of-band email OTP challenges (/api/v1/admin/challenge), cryptographic root-of-trust vault sealing, and container/systemd deployments.
 ---
 
 # Platform Ownership Verification & Email Delivery
 
-This guide explains the architecture and operation of Orbit's platform ownership verification system, the server-side edge daemon (`orbit serve` / `manova serve`), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Mailcow (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
+This guide explains the architecture and operation of Orbit's platform ownership verification system, the dual-binary model (`orbit` client on developer workstations vs `orbit-server` daemon on infrastructure), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Mailcow (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
 
 ---
 
 ## 1. Why This Matters & Architecture Overview
 
-Orbit decouples administrative client operations from direct mail infrastructure. Client workstations running `orbit` never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
+Orbit uses a **dual-binary architecture** that decouples developer workstation tools from server infrastructure:
+
+- **Developer Workstations (`orbit` / `manova`)**: The pure client CLI tool used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), and platform administrative initialization (`orbit admin init`). Workstations never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
+- **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Mailcow SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
 
 ### Architecture Highlights
 
-1. **Pure API Client Architecture**: The CLI (`orbit admin init`, `orbit invite create`) communicates exclusively over HTTPS with the Orbit server API (`https://orbit.manova.space`).
-2. **Server Edge Daemon (`orbit serve`)**: Runs on production/staging infrastructure, holds backend Mailcow SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
-3. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
-4. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
+1. **Dual-Binary Separation**: Workstations run `orbit` (pure API client); servers run `orbit-server` (infrastructure daemon).
+2. **Pure API Client Architecture**: Client commands (`orbit admin init`, `orbit invite create`) communicate exclusively over HTTPS with the Orbit server API (`https://orbit.manova.space`).
+3. **Dedicated Server Daemon (`orbit-server`)**: Runs on production/staging infrastructure, holds backend Mailcow SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
+4. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
+5. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
 
 ### End-to-End Ownership Verification Flow
 
 ```text
 ┌──────────────┐         ┌───────────────┐         ┌──────────────┐         ┌───────────────┐
 │   Operator   │         │   Orbit CLI   │         │ Orbit Server │         │ Mailcow Relay │
-│  (Terminal)  │         │ (orbit admin) │         │(orbit serve) │         │ (SMTP :587)   │
+│  (Terminal)  │         │ (orbit admin) │         │(orbit-server)│         │ (SMTP :587)   │
 └──────┬───────┘         └───────┬───────┘         └──────┬───────┘         └───────┬───────┘
        │                         │                        │                         │
        │  orbit admin init       │                        │                         │
@@ -63,21 +67,21 @@ Orbit decouples administrative client operations from direct mail infrastructure
 
 ---
 
-## 2. Server Edge Daemon (`orbit serve` / `manova serve`)
+## 2. Server Edge Daemon (`orbit-server`)
 
-The server daemon runs the HTTP onboarding API, handles developer claim requests, manages challenge lifecycles, and dispatches transactional emails via SMTP.
+The `orbit-server` daemon runs the HTTP onboarding API, handles developer claim requests, manages challenge lifecycles, and dispatches transactional emails via SMTP.
 
-### Starting the Server Daemon
+### Starting the Server Daemon Directly
 
 ```bash
 # Start server with default port (:8080)
-orbit serve
+orbit-server
 
-# Or using the manova alias
-manova serve --addr :8080
+# With custom listen address
+orbit-server --addr :8080
 
 # With explicit SMTP credentials and custom signing secret
-orbit serve \
+orbit-server \
   --addr :8080 \
   --smtp-host mail.manova.space \
   --smtp-port 587 \
@@ -85,6 +89,117 @@ orbit serve \
   --smtp-pass "$SMTP_PASSWORD" \
   --smtp-from "Orbit Platform <noreply@manova.space>" \
   --signing-secret "$ORBIT_SIGNING_SECRET"
+```
+
+### Running as a systemd Service
+
+For persistent VPS and production server deployments, manage `orbit-server` via systemd:
+
+1. Create `/etc/systemd/system/orbit-server.service`:
+
+```ini
+[Unit]
+Description=Orbit Platform Infrastructure Daemon
+Documentation=https://orbit.manova.space/docs
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orbit
+Group=orbit
+EnvironmentFile=-/etc/orbit/orbit-server.env
+ExecStart=/usr/local/bin/orbit-server --addr :8080
+Restart=always
+RestartSec=5s
+LimitNOFILE=65535
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
+```
+
+2. Configure environment file at `/etc/orbit/orbit-server.env`:
+
+```bash
+ORBIT_SIGNING_SECRET=your-32-byte-master-signing-secret
+ORBIT_SMTP_HOST=mail.manova.space
+ORBIT_SMTP_PORT=587
+ORBIT_SMTP_USER=noreply@manova.space
+ORBIT_SMTP_PASS=your-smtp-password
+ORBIT_SMTP_FROM=Orbit Platform <noreply@manova.space>
+```
+
+3. Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now orbit-server
+sudo systemctl status orbit-server
+```
+
+### Running via Docker and Docker Compose
+
+Orbit provides an official multi-stage `Dockerfile` producing a minimal, secure Alpine container runtime for `orbit-server`.
+
+#### Direct Docker Run
+
+```bash
+# Build the image
+docker build -t orbit-server:latest -f Dockerfile .
+
+# Run the container
+docker run -d \
+  --name orbit-server \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e ORBIT_SIGNING_SECRET="$ORBIT_SIGNING_SECRET" \
+  -e ORBIT_SMTP_HOST="mail.manova.space" \
+  -e ORBIT_SMTP_PORT="587" \
+  -e ORBIT_SMTP_USER="noreply@manova.space" \
+  -e ORBIT_SMTP_PASS="$SMTP_PASSWORD" \
+  -e ORBIT_SMTP_FROM="Orbit Platform <noreply@manova.space>" \
+  orbit-server:latest
+```
+
+#### Docker Compose Deployment
+
+Add `orbit-server` to your `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  orbit-server:
+    image: ghcr.io/manovaspace/orbit-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orbit-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ORBIT_SIGNING_SECRET=${ORBIT_SIGNING_SECRET}
+      - ORBIT_SMTP_HOST=mail.manova.space
+      - ORBIT_SMTP_PORT=587
+      - ORBIT_SMTP_USER=noreply@manova.space
+      - ORBIT_SMTP_PASS=${SMTP_PASSWORD}
+      - ORBIT_SMTP_FROM=Orbit Platform <noreply@manova.space>
+    volumes:
+      - orbit-data:/root/.config/orbit
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  orbit-data:
+    driver: local
 ```
 
 ### Daemon Command-Line Flags
