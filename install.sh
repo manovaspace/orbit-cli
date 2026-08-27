@@ -27,6 +27,11 @@ case "$OS" in
     ;;
 esac
 
+EXT=""
+if [ "$OS" = "windows" ]; then
+  EXT=".exe"
+fi
+
 # Detect Architecture
 ARCH="$(uname -m)"
 case "$ARCH" in
@@ -119,11 +124,6 @@ fi
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
-
-EXT=""
-if [ "$OS" = "windows" ]; then
-  EXT=".exe"
-fi
 
 ORBIT_BIN="orbit-${OS}-${ARCH}${EXT}"
 MANOVA_BIN="manova-${OS}-${ARCH}${EXT}"
