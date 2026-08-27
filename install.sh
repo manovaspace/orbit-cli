@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="manovaspace/orbit-cli"
-VERSION="${ORBIT_VERSION:-v0.1.0}"
+VERSION="${ORBIT_VERSION:-v0.2.0}"
 INSTALL_DIR="${ORBIT_INSTALL_DIR:-/usr/local/bin}"
 
 # Detect OS
