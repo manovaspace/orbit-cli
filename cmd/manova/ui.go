@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,4 +153,24 @@ func padRight(s string, width int) string {
 		return s
 	}
 	return s + strings.Repeat(" ", width-length)
+}
+
+// promptConfirm displays an interactive confirmation prompt defaulting to true (Y/n) or false (y/N).
+func promptConfirm(in io.Reader, out io.Writer, prompt string, defaultVal bool) bool {
+	suffix := " (Y/n) [Y]: "
+	if !defaultVal {
+		suffix = " (y/N) [N]: "
+	}
+	fmt.Fprint(out, boldStyle.Render(prompt)+subtleStyle.Render(suffix))
+
+	reader := bufio.NewReader(in)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return defaultVal
+	}
+	line = strings.TrimSpace(strings.ToLower(line))
+	if line == "" {
+		return defaultVal
+	}
+	return line == "y" || line == "yes"
 }

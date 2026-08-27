@@ -75,6 +75,48 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
 fi
 
+# Process flags
+YES_FLAG=false
+for arg in "$@"; do
+  if [ "$arg" = "-y" ] || [ "$arg" = "--yes" ]; then
+    YES_FLAG=true
+  fi
+done
+
+# Colors
+BOLD="\033[1m"
+BLUE="\033[34m"
+CYAN="\033[36m"
+GREEN="\033[32m"
+GRAY="\033[90m"
+RESET="\033[0m"
+
+if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
+  BOLD=""
+  BLUE=""
+  CYAN=""
+  GREEN=""
+  GRAY=""
+  RESET=""
+fi
+
+echo -e "\n${BOLD}${BLUE}Orbit Platform CLI Installer${RESET}\n"
+echo -e "  ${BOLD}Version:${RESET}      ${CYAN}${VERSION}${RESET}"
+echo -e "  ${BOLD}Platform:${RESET}     ${OS} / ${ARCH}"
+echo -e "  ${BOLD}Destination:${RESET}  ${INSTALL_DIR}/orbit${EXT}"
+echo -e "  ${BOLD}Shortcuts:${RESET}    ${INSTALL_DIR}/o${EXT} ${GRAY}(alias o=\"orbit\")${RESET}\n"
+
+# Interactive confirmation prompt if terminal is available
+if [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ] && [ "${CI:-}" != "true" ] && [ -c /dev/tty ]; then
+  echo -ne "  ${BOLD}Proceed with installation?${RESET} (Y/n) [Y]: "
+  read -r CONFIRM </dev/tty || CONFIRM="y"
+  if [[ "$CONFIRM" =~ ^[Nn] ]]; then
+    echo -e "\n  ${GRAY}Installation cancelled by user.${RESET}\n"
+    exit 0
+  fi
+  echo ""
+fi
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -87,7 +129,8 @@ ORBIT_BIN="orbit-${OS}-${ARCH}${EXT}"
 MANOVA_BIN="manova-${OS}-${ARCH}${EXT}"
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
-# Download binaries silently
+# Download binaries
+echo -e "  ${GRAY}↓ Downloading release binaries from GitHub...${RESET}"
 download "${BASE_URL}/${ORBIT_BIN}" "${TMP_DIR}/orbit${EXT}"
 chmod +x "${TMP_DIR}/orbit${EXT}"
 
@@ -133,26 +176,25 @@ for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
   fi
 done
 
-# Direct execution if arguments passed
-if [ $# -gt 0 ]; then
-  exec "${INSTALL_DIR}/orbit${EXT}" "$@"
+# Direct execution if non-flag arguments passed
+NON_FLAG_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" != "-y" ] && [ "$arg" != "--yes" ]; then
+    NON_FLAG_ARGS+=("$arg")
+  fi
+done
+
+if [ ${#NON_FLAG_ARGS[@]} -gt 0 ]; then
+  exec "${INSTALL_DIR}/orbit${EXT}" "${NON_FLAG_ARGS[@]}"
 fi
 
-# Minimalist confirmation
-GREEN="\033[32m"
-RESET="\033[0m"
-
-if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
-  GREEN=""
-  RESET=""
-fi
-
-echo ""
-echo -e "  ${GREEN}✔${RESET} orbit ${VERSION} installed (${INSTALL_DIR}/orbit${EXT})"
-echo ""
-echo "  Get started:"
-echo "    orbit onboard"
-echo ""
+echo -e "  ${GREEN}✔${RESET} ${BOLD}Orbit ${VERSION} installed successfully!${RESET}\n"
+echo -e "  ${BOLD}Installed to:${RESET}  ${INSTALL_DIR}/orbit${EXT}"
+echo -e "  ${BOLD}Commands:${RESET}      ${CYAN}orbit${RESET}, ${CYAN}o${RESET}, ${CYAN}manova${RESET}\n"
+echo -e "  ${BOLD}Get started:${RESET}"
+echo -e "    ${CYAN}o onboard${RESET}    ${GRAY}# Interactive onboarding wizard${RESET}"
+echo -e "    ${CYAN}o doctor${RESET}     ${GRAY}# Verify system prerequisites${RESET}"
+echo -e "    ${CYAN}o version${RESET}    ${GRAY}# Check installed version${RESET}\n"
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;

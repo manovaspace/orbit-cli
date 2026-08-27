@@ -18,7 +18,7 @@ func TestSelfUpdateHelp(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "CLI") && !strings.Contains(output, "self-update") {
+	if !strings.Contains(output, "Orbit CLI") && !strings.Contains(output, "self-update") {
 		t.Errorf("expected help description in output, got: %s", output)
 	}
 }
