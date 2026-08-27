@@ -109,6 +109,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd

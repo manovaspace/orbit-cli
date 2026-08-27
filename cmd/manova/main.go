@@ -119,6 +119,7 @@ schema-driven environment management, 50-port block allocations, and container o
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
