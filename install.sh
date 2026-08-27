@@ -2,8 +2,18 @@
 set -euo pipefail
 
 REPO="manovaspace/orbit-cli"
-VERSION="${ORBIT_VERSION:-v0.2.0}"
 INSTALL_DIR="${ORBIT_INSTALL_DIR:-/usr/local/bin}"
+
+if [ -z "${ORBIT_VERSION:-}" ]; then
+  LATEST_TAG="$(curl -fsSL https://api.github.com/repos/${REPO}/releases/latest 2>/dev/null | grep '"tag_name":' | head -n 1 | cut -d '"' -f 4 || true)"
+  if [ -n "$LATEST_TAG" ]; then
+    VERSION="$LATEST_TAG"
+  else
+    VERSION="v0.2.0"
+  fi
+else
+  VERSION="$ORBIT_VERSION"
+fi
 
 # Detect OS
 OS="$(uname -s)"
