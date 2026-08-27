@@ -12,7 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 )
 
@@ -22,6 +24,8 @@ type ServerConfig struct {
 	Secret           []byte
 	Provisioner      provisioner.Provisioner
 	InviteStore      *invite.Store
+	ChallengeManager *owner.ChallengeManager
+	Mailer           invite.Mailer
 	RateLimit        int           // Maximum requests per window per IP (default 10)
 	RateInterval     time.Duration // Sliding window duration (default 1 minute)
 	IdempotencyTTL   time.Duration // Retention time for cached claims (default 24h)
@@ -172,6 +176,12 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if cfg.WriteTimeout <= 0 {
 		cfg.WriteTimeout = 15 * time.Second
 	}
+	if cfg.ChallengeManager == nil {
+		cfg.ChallengeManager = owner.NewChallengeManager()
+	}
+	if cfg.Mailer == nil {
+		cfg.Mailer = invite.NewMailerFromEnv()
+	}
 
 	s := &Server{
 		config:    cfg,
@@ -189,6 +199,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/onboard/claim", s.handleClaim)
+	s.mux.HandleFunc("POST /api/v1/admin/challenge", s.handleAdminChallenge)
+	s.mux.HandleFunc("POST /api/v1/system/ownership/challenge", s.handleAdminChallenge)
+	s.mux.HandleFunc("POST /api/v1/admin/verify", s.handleAdminVerify)
+	s.mux.HandleFunc("POST /api/v1/system/ownership/verify", s.handleAdminVerify)
 }
 
 // Handler returns the http.Handler for embedding or testing.
@@ -322,6 +336,136 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
+	// 1. Rate Limiting
+	if !s.config.DisableRateLimit {
+		ip := s.getClientIP(r)
+		allowed, retryAfter := s.limiter.Allow(ip)
+		if !allowed {
+			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", int(retryAfter.Seconds())+1)
+			return
+		}
+	}
+
+	// 2. Request body parsing
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req client.ChallengeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("malformed request JSON: %v", err), 0)
+		return
+	}
+
+	normEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	if normEmail == "" {
+		writeJSONError(w, http.StatusBadRequest, "email cannot be empty", 0)
+		return
+	}
+	if !strings.Contains(normEmail, "@") || !strings.Contains(normEmail, ".") {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("invalid email address %q", req.Email), 0)
+		return
+	}
+
+	// 3. Create Challenge
+	if s.config.ChallengeManager == nil {
+		writeJSONError(w, http.StatusInternalServerError, "challenge manager not initialized", 0)
+		return
+	}
+
+	ch, otp, err := s.config.ChallengeManager.CreateChallenge(normEmail, owner.DefaultChallengeTTL)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to generate verification challenge: %v", err), 0)
+		return
+	}
+
+	// 4. Dispatch Email via Mailer
+	if s.config.Mailer == nil {
+		writeJSONError(w, http.StatusInternalServerError, "mailer service not configured", 0)
+		return
+	}
+
+	emailData := invite.OwnerChallengeEmailData{
+		OwnerEmail:  normEmail,
+		OTPCode:     otp,
+		ExpiresIn:   "10 minutes",
+		ServerHost:  r.Host,
+		GeneratedAt: time.Now().UTC(),
+	}
+
+	if err := s.config.Mailer.SendOwnerChallenge(r.Context(), normEmail, emailData); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to send challenge email: %v", err), 0)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, client.ChallengeResponse{
+		Status:    "challenge_sent",
+		Email:     normEmail,
+		ExpiresAt: ch.ExpiresAt,
+		Message:   fmt.Sprintf("verification OTP sent to %s", normEmail),
+	})
+}
+
+func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
+	// 1. Rate Limiting
+	if !s.config.DisableRateLimit {
+		ip := s.getClientIP(r)
+		allowed, retryAfter := s.limiter.Allow(ip)
+		if !allowed {
+			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", int(retryAfter.Seconds())+1)
+			return
+		}
+	}
+
+	// 2. Request body parsing
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req client.VerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("malformed request JSON: %v", err), 0)
+		return
+	}
+
+	normEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	cleanCode := strings.TrimSpace(req.Code)
+
+	if normEmail == "" {
+		writeJSONError(w, http.StatusBadRequest, "email cannot be empty", 0)
+		return
+	}
+	if cleanCode == "" {
+		writeJSONError(w, http.StatusBadRequest, "verification code cannot be empty", 0)
+		return
+	}
+
+	if s.config.ChallengeManager == nil {
+		writeJSONError(w, http.StatusInternalServerError, "challenge manager not initialized", 0)
+		return
+	}
+
+	// 3. Verify OTP code
+	ok, err := s.config.ChallengeManager.VerifyCode(normEmail, cleanCode)
+	if err != nil || !ok {
+		msg := "invalid verification code"
+		if err != nil {
+			msg = err.Error()
+		}
+		writeJSONError(w, http.StatusBadRequest, msg, 0)
+		return
+	}
+
+	// 4. Generate Key Fingerprint & Respond
+	keyFingerprint := owner.ComputeFingerprint(string(s.config.Secret))
+
+	writeJSON(w, http.StatusOK, client.VerifyResponse{
+		Status:         "verified",
+		Email:          normEmail,
+		DisplayName:    strings.TrimSpace(req.DisplayName),
+		KeyFingerprint: keyFingerprint,
+		VerifiedAt:     time.Now().UTC(),
+		Message:        fmt.Sprintf("platform ownership successfully verified for %s", normEmail),
+	})
 }
 
 func (s *Server) getClientIP(r *http.Request) string {

@@ -5,14 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 )
 
@@ -496,6 +500,205 @@ func TestServer_StartAndShutdown(t *testing.T) {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		t.Errorf("Shutdown on inactive server should not error, got: %v", err)
+	}
+}
+
+type mockMailer struct {
+	sentInvites    []invite.EmailData
+	sentChallenges []invite.OwnerChallengeEmailData
+	sendInviteErr  error
+	sendOwnerErr   error
+}
+
+func (m *mockMailer) SendInvite(ctx context.Context, to string, data invite.EmailData) error {
+	if m.sendInviteErr != nil {
+		return m.sendInviteErr
+	}
+	m.sentInvites = append(m.sentInvites, data)
+	return nil
+}
+
+func (m *mockMailer) SendOwnerChallenge(ctx context.Context, to string, data invite.OwnerChallengeEmailData) error {
+	if m.sendOwnerErr != nil {
+		return m.sendOwnerErr
+	}
+	m.sentChallenges = append(m.sentChallenges, data)
+	return nil
+}
+
+func TestServer_AdminChallengeAndVerify(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("test-secret-12345678901234567890"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Request challenge
+	reqBody := `{"email":"alirezaopmc@gmail.com"}`
+	resp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(reqBody))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("challenge request failed: status %d, err %v", resp.StatusCode, err)
+	}
+
+	if len(mockMailer.sentChallenges) != 1 {
+		t.Fatalf("expected 1 sent challenge email, got %d", len(mockMailer.sentChallenges))
+	}
+	otp := mockMailer.sentChallenges[0].OTPCode
+
+	// 2. Verify with invalid code
+	badVerify := `{"email":"alirezaopmc@gmail.com","code":"000000"}`
+	vResp, err := http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(badVerify))
+	if err != nil || vResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad OTP, got %d", vResp.StatusCode)
+	}
+
+	// 3. Verify with valid code
+	goodVerify := fmt.Sprintf(`{"email":"alirezaopmc@gmail.com","code":"%s"}`, otp)
+	vResp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(goodVerify))
+	if err != nil || vResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid OTP, got %d", vResp.StatusCode)
+	}
+
+	var verifyResp client.VerifyResponse
+	if err := json.NewDecoder(vResp.Body).Decode(&verifyResp); err != nil {
+		t.Fatalf("failed to decode verify response: %v", err)
+	}
+	if verifyResp.Status != "verified" {
+		t.Errorf("expected status 'verified', got %q", verifyResp.Status)
+	}
+	if verifyResp.Email != "alirezaopmc@gmail.com" {
+		t.Errorf("expected email alirezaopmc@gmail.com, got %q", verifyResp.Email)
+	}
+	if verifyResp.KeyFingerprint == "" {
+		t.Errorf("expected non-empty key fingerprint")
+	}
+}
+
+func TestServer_AdminChallengeAndVerify_Aliases(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("test-secret-12345678901234567890"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Request challenge via system alias
+	reqBody := `{"email":"admin@manova.space"}`
+	resp, err := http.Post(ts.URL+"/api/v1/system/ownership/challenge", "application/json", strings.NewReader(reqBody))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("system challenge request failed: status %d, err %v", resp.StatusCode, err)
+	}
+
+	if len(mockMailer.sentChallenges) != 1 {
+		t.Fatalf("expected 1 sent challenge email, got %d", len(mockMailer.sentChallenges))
+	}
+	otp := mockMailer.sentChallenges[0].OTPCode
+
+	// 2. Verify via system alias
+	goodVerify := fmt.Sprintf(`{"email":"admin@manova.space","code":"%s","display_name":"Admin"}`, otp)
+	vResp, err := http.Post(ts.URL+"/api/v1/system/ownership/verify", "application/json", strings.NewReader(goodVerify))
+	if err != nil || vResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid system OTP, got %d", vResp.StatusCode)
+	}
+}
+
+func TestServer_AdminChallenge_Errors(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("test-secret-12345678901234567890"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Malformed JSON
+	resp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader("{invalid-json"))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for malformed JSON, got %d", resp.StatusCode)
+	}
+
+	// 2. Empty email
+	resp, err = http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(`{"email":""}`))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty email, got %d", resp.StatusCode)
+	}
+
+	// 3. Invalid email format
+	resp, err = http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(`{"email":"notanemail"}`))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid email format, got %d", resp.StatusCode)
+	}
+
+	// 4. Mailer error
+	mockMailer.sendOwnerErr = errors.New("smtp connection refused")
+	resp, err = http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(`{"email":"admin@manova.space"}`))
+	if err != nil || resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("expected 500 for mailer error, got %d", resp.StatusCode)
+	}
+}
+
+func TestServer_AdminVerify_Errors(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("test-secret-12345678901234567890"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Malformed JSON
+	resp, err := http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader("{invalid-json"))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for malformed JSON, got %d", resp.StatusCode)
+	}
+
+	// 2. Empty email
+	resp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(`{"email":"","code":"123456"}`))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty email, got %d", resp.StatusCode)
+	}
+
+	// 3. Empty code
+	resp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(`{"email":"admin@manova.space","code":""}`))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty code, got %d", resp.StatusCode)
+	}
+
+	// 4. Challenge not found
+	resp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(`{"email":"unknown@manova.space","code":"123456"}`))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-existent challenge, got %d", resp.StatusCode)
 	}
 }
 
