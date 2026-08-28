@@ -200,8 +200,6 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /", s.handleInstallScript)
-	s.mux.HandleFunc("GET /install", s.handleInstallScript)
-	s.mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 	s.mux.HandleFunc("GET /v1/onboard/health", s.handleHealth)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
@@ -218,7 +216,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/install" && r.URL.Path != "/install.sh" {
+	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}

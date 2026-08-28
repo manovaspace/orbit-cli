@@ -709,41 +709,40 @@ func TestServer_InstallScript(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	validPaths := []string{"/", "/install", "/install.sh"}
-	for _, path := range validPaths {
-		t.Run("Valid_"+path, func(t *testing.T) {
-			resp, err := http.Get(ts.URL + path)
-			if err != nil {
-				t.Fatalf("GET %s failed: %v", path, err)
-			}
-			defer resp.Body.Close()
+	// 1. Valid root route GET /
+	t.Run("Valid_Root", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/")
+		if err != nil {
+			t.Fatalf("GET / failed: %v", err)
+		}
+		defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
-				t.Errorf("GET %s: expected status 200, got %d", path, resp.StatusCode)
-			}
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET /: expected status 200, got %d", resp.StatusCode)
+		}
 
-			contentType := resp.Header.Get("Content-Type")
-			if contentType != "text/x-shellscript; charset=utf-8" {
-				t.Errorf("GET %s: expected Content-Type 'text/x-shellscript; charset=utf-8', got %q", path, contentType)
-			}
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/x-shellscript; charset=utf-8" {
+			t.Errorf("GET /: expected Content-Type 'text/x-shellscript; charset=utf-8', got %q", contentType)
+		}
 
-			cacheControl := resp.Header.Get("Cache-Control")
-			if cacheControl != "no-cache, no-store, must-revalidate" {
-				t.Errorf("GET %s: expected Cache-Control 'no-cache, no-store, must-revalidate', got %q", path, cacheControl)
-			}
+		cacheControl := resp.Header.Get("Cache-Control")
+		if cacheControl != "no-cache, no-store, must-revalidate" {
+			t.Errorf("GET /: expected Cache-Control 'no-cache, no-store, must-revalidate', got %q", cacheControl)
+		}
 
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("failed to read response body: %v", err)
-			}
-			body := string(bodyBytes)
-			if !strings.Contains(body, "Do you want to proceed with the installation") {
-				t.Errorf("GET %s: body missing confirmation prompt text", path)
-			}
-		})
-	}
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("failed to read response body: %v", err)
+		}
+		body := string(bodyBytes)
+		if !strings.Contains(body, "Do you want to proceed with the installation") {
+			t.Errorf("GET /: body missing confirmation prompt text")
+		}
+	})
 
-	invalidPaths := []string{"/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
+	// 2. Unmapped routes (including /install and /install.sh) return 404
+	invalidPaths := []string{"/install", "/install.sh", "/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
 	for _, path := range invalidPaths {
 		t.Run("Invalid_"+path, func(t *testing.T) {
 			resp, err := http.Get(ts.URL + path)
