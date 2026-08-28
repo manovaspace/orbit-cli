@@ -115,25 +115,55 @@ echo -e "  ${BOLD}Platform:${RESET}     ${OS} / ${ARCH}"
 echo -e "  ${BOLD}Destination:${RESET}  ${INSTALL_DIR}/orbit${EXT}"
 echo -e "  ${BOLD}Shortcuts:${RESET}    ${INSTALL_DIR}/o${EXT} ${GRAY}(alias o=\"orbit\")${RESET}\n"
 
-# Interactive confirmation prompt if terminal is available
-if [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ] && [ "${CI:-}" != "true" ] && [ -c /dev/tty ]; then
-  echo -ne "  ${BOLD}Proceed with installation?${RESET} (Y/n) [Y]: "
-  read -r CONFIRM </dev/tty || CONFIRM="y"
-  if [[ "$CONFIRM" =~ ^[Nn] ]]; then
-    echo -e "\n  ${GRAY}Installation cancelled by user.${RESET}\n"
+# Prompt confirmation helper reading strictly from /dev/tty
+prompt_confirm() {
+  local prompt_msg="$1"
+
+  if [ "$YES_FLAG" = true ] || [ "${ORBIT_YES:-}" = "1" ]; then
+    return 0
+  fi
+
+  if ! (exec 2>/dev/null 3</dev/tty); then
+    echo "Error: Non-interactive environment detected without -y / --yes flag. Use -y or --yes to proceed non-interactively." >&2
+    exit 1
+  fi
+
+  echo -ne "$prompt_msg"
+  local response=""
+  if read -r response </dev/tty; then
+    case "$response" in
+      [yY]|[yY][eE][sS])
+        return 0
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  fi
+  return 1
+}
+
+# Interactive confirmation prompt
+if [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ]; then
+  if ! prompt_confirm "  ${BOLD}Do you want to proceed with the installation?${RESET} (y/N) [n]: "; then
+    echo -e "\n  ${GRAY}Installation cancelled. No changes were made to your system.${RESET}\n"
     exit 0
   fi
   echo ""
 fi
 
-# Interactive alias configuration prompt if terminal is available
-CONFIGURE_ALIAS=true
+# Interactive alias configuration prompt
+CONFIGURE_ALIAS=false
 if [ "$NO_ALIAS_FLAG" = true ] || [ "${ORBIT_NO_ALIAS:-}" = "1" ] || [ "${ORBIT_ALIAS:-}" = "0" ]; then
   CONFIGURE_ALIAS=false
-elif [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ] && [ "${CI:-}" != "true" ] && [ -c /dev/tty ]; then
-  echo -ne "  ${BOLD}Configure 'o=orbit' shortcut alias in your shell profiles?${RESET} (Y/n) [Y]: "
-  read -r ALIAS_CONFIRM </dev/tty || ALIAS_CONFIRM="y"
-  if [[ "$ALIAS_CONFIRM" =~ ^[Nn] ]]; then
+elif [ "${ORBIT_ALIAS:-}" = "1" ]; then
+  CONFIGURE_ALIAS=true
+elif [ "$YES_FLAG" = true ] || [ "${ORBIT_YES:-}" = "1" ]; then
+  CONFIGURE_ALIAS=true
+else
+  if prompt_confirm "  ${BOLD}Configure 'o=orbit' shortcut alias in your shell profiles?${RESET} (y/N) [n]: "; then
+    CONFIGURE_ALIAS=true
+  else
     CONFIGURE_ALIAS=false
   fi
   echo ""
