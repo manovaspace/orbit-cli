@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -243,15 +242,29 @@ func TestResolveSigningSecret(t *testing.T) {
 		t.Errorf("expected flag secret, got %s (%s)", sec, src)
 	}
 
-	// Case 2: Env var
-	t.Setenv("ORBIT_SIGNING_SECRET", "env-secret-123456789012345678901234")
-	sec, src = resolveSigningSecret("", "")
-	if sec != "env-secret-123456789012345678901234" || !strings.Contains(src, "ORBIT_SIGNING_SECRET") {
-		t.Errorf("expected env secret, got %s (%s)", sec, src)
+	// Case 2: Env vars (ORBIT_SIGNING_SECRET, ORBIT_INVITE_SECRET, ORBIT_JWT_SECRET)
+	for _, envKey := range []string{"ORBIT_SIGNING_SECRET", "ORBIT_INVITE_SECRET", "ORBIT_JWT_SECRET"} {
+		t.Run(envKey, func(t *testing.T) {
+			t.Setenv(envKey, "env-secret-123456789012345678901234")
+			s, srcInfo := resolveSigningSecret("", "")
+			if s != "env-secret-123456789012345678901234" || !strings.Contains(srcInfo, envKey) {
+				t.Errorf("expected %s secret, got %s (%s)", envKey, s, srcInfo)
+			}
+		})
 	}
-	_ = os.Unsetenv("ORBIT_SIGNING_SECRET")
 
-	// Case 3: Owner store
+	// Case 3: Legacy MANOVA_* env vars are ignored
+	for _, legacyEnv := range []string{"MANOVA_INVITE_SECRET", "MANOVA_JWT_SECRET"} {
+		t.Run("ignore_"+legacyEnv, func(t *testing.T) {
+			t.Setenv(legacyEnv, "legacy-secret-12345678901234567890")
+			s, srcInfo := resolveSigningSecret("", "")
+			if s == "legacy-secret-12345678901234567890" || strings.Contains(srcInfo, legacyEnv) {
+				t.Errorf("expected %s to be ignored, got %s (%s)", legacyEnv, s, srcInfo)
+			}
+		})
+	}
+
+	// Case 4: Owner store
 	tmpDir := t.TempDir()
 	ownerPath := filepath.Join(tmpDir, "owner.json")
 	store := owner.NewStore(ownerPath)
@@ -269,7 +282,7 @@ func TestResolveSigningSecret(t *testing.T) {
 		t.Errorf("expected owner vault secret, got %s (%s)", sec, src)
 	}
 
-	// Case 4: Fallback
+	// Case 5: Fallback
 	sec, src = resolveSigningSecret("", filepath.Join(tmpDir, "nonexistent.json"))
 	if sec != DefaultFallbackSecret || !strings.Contains(src, "fallback") {
 		t.Errorf("expected fallback secret, got %s (%s)", sec, src)

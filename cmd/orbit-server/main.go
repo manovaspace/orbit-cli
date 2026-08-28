@@ -300,9 +300,7 @@ func resolveSigningSecret(flagSecret, ownerStorePath string) (string, string) {
 	for _, envKey := range []string{
 		"ORBIT_SIGNING_SECRET",
 		"ORBIT_INVITE_SECRET",
-		"MANOVA_INVITE_SECRET",
 		"ORBIT_JWT_SECRET",
-		"MANOVA_JWT_SECRET",
 	} {
 		if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
 			return val, fmt.Sprintf("loaded from $%s", envKey)
