@@ -72,8 +72,10 @@ func newUninstallCmd() *cobra.Command {
 			home, _ := os.UserHomeDir()
 			candidates := []string{
 				"/usr/local/bin/orbit",
+				"/usr/local/bin/o",
 				"/usr/local/bin/manova",
 				filepath.Join(home, ".local", "bin", "orbit"),
+				filepath.Join(home, ".local", "bin", "o"),
 				filepath.Join(home, ".local", "bin", "manova"),
 			}
 
