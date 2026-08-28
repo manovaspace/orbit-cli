@@ -13,7 +13,7 @@ This guide explains the architecture and operation of Orbit's platform ownership
 
 Orbit uses a **dual-binary architecture** that decouples developer workstation tools from server infrastructure:
 
-- **Developer Workstations (`orbit` / `manova`)**: The pure client CLI tool used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), and platform administrative initialization (`orbit admin init`). Workstations never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
+- **Developer Workstations (`orbit`)**: The pure client CLI tool used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), and platform administrative initialization (`orbit admin init`). Workstations never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
 - **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Mailcow SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
 
 ### Architecture Highlights
@@ -221,7 +221,7 @@ volumes:
 
 The server resolves its cryptographic signing secret in the following priority:
 1. `--signing-secret` CLI flag
-2. Environment variables: `ORBIT_SIGNING_SECRET`, `ORBIT_INVITE_SECRET`, `MANOVA_INVITE_SECRET`, `ORBIT_JWT_SECRET`, `MANOVA_JWT_SECRET`
+2. Environment variables: `ORBIT_SIGNING_SECRET`, `ORBIT_INVITE_SECRET`, `ORBIT_JWT_SECRET`
 3. Sealed owner vault (`~/.config/orbit/owner.json`)
 4. Development fallback secret (with security warning in logs)
 
@@ -579,7 +579,7 @@ Environment variables take precedence over configuration file settings:
 
 | Variable | Fallback Variable | Description | Default |
 |---|---|---|---|
-| `ORBIT_SIGNING_SECRET` | `ORBIT_INVITE_SECRET`, `MANOVA_INVITE_SECRET` | Master cryptographic signing secret | Sealed vault |
+| `ORBIT_SIGNING_SECRET` | `ORBIT_INVITE_SECRET`, `ORBIT_JWT_SECRET` | Master cryptographic signing secret | Sealed vault |
 | `ORBIT_SMTP_HOST` | `SMTP_HOST` | Mailcow SMTP host | `mail.manova.space` |
 | `ORBIT_SMTP_PORT` | `SMTP_PORT` | SMTP port (`587` or `465`) | `587` |
 | `ORBIT_SMTP_USER` | `SMTP_USER` | SMTP authentication username | `""` |
