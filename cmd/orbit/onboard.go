@@ -246,7 +246,7 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 					_ = sm.SaveSession(s)
 					fmt.Fprintf(out, "  %s  Session checkpoint discarded. To automate starting fresh next time, use:\n     %s\n\n",
 						iconOK,
-						codeStyle.Render("manova onboard --ignore-and-remove-checkpoint"),
+						codeStyle.Render("orbit onboard --ignore-and-remove-checkpoint"),
 					)
 					emitter.Emit(session.StageInit, "started", "Starting fresh onboarding session", s)
 				}
@@ -294,7 +294,7 @@ Actions that will be executed during onboarding:
   3. WireGuard VPN: Configure local VPN profile for access to dev services
   4. Repositories: Clone core workspace repositories from workspace.yaml
   5. Cursor IDE & MCP: Configure .cursor/mcp.env and link workspace agent rules
-  6. Dev Stack: Optionally start local Docker containers (manova dev up)
+  6. Dev Stack: Optionally start local Docker containers (orbit dev up)
 `
 				fmt.Fprintln(out, renderCard("DRY-RUN PREVIEW", preview))
 			}
@@ -588,7 +588,7 @@ Actions that will be executed during onboarding:
 
 		shouldStart := opts.startStack
 		if !shouldStart && !opts.skipStack && !opts.nonInteractive {
-			shouldStart = promptYesNo(in, out, "Would you like to start the local dev stack now (manova dev up)?", true)
+			shouldStart = promptYesNo(in, out, "Would you like to start the local dev stack now (orbit dev up)?", true)
 		}
 
 		if shouldStart {
@@ -600,7 +600,7 @@ Actions that will be executed during onboarding:
 				_ = runInInfra("docker", "compose", "up", "-d")
 			}
 		} else if !opts.json {
-			fmt.Fprintf(out, "  %s  Skipped dev stack startup (start later with %s)\n", iconInfo, codeStyle.Render("manova dev up"))
+			fmt.Fprintf(out, "  %s  Skipped dev stack startup (start later with %s)\n", iconInfo, codeStyle.Render("orbit dev up"))
 		}
 
 		s.CurrentStage = session.StageDevStackReady
@@ -630,10 +630,10 @@ Actions that will be executed during onboarding:
 			subtleStyle.Render(s.Email),
 			subtleStyle.Render(workspaceRoot),
 			successStyle.Render(".cursor/mcp.env (configured)"),
-			infoStyle.Render("~/.config/manova/wg0.conf"),
+			infoStyle.Render("~/.config/orbit/wg0.conf"),
 			codeStyle.Render("cursor "+workspaceRoot),
-			codeStyle.Render("manova status"),
-			codeStyle.Render("manova dev portal"),
+			codeStyle.Render("orbit status"),
+			codeStyle.Render("orbit dev portal"),
 		)
 		fmt.Fprintln(out, renderCard("ONBOARDING COMPLETE", summaryText))
 	}

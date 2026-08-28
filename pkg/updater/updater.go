@@ -18,7 +18,7 @@ import (
 const (
 	// DefaultReleaseURL is the primary release repository base URL.
 	DefaultReleaseURL = "https://api.github.com"
-	// DefaultRepoSlug is the default repository slug for manova/orbit CLI releases.
+	// DefaultRepoSlug is the default repository slug for Orbit CLI releases.
 	DefaultRepoSlug = "manovaspace/orbit-cli"
 	// DefaultCacheFile is the default file path for caching update checks.
 	DefaultCacheFile = "~/.orbit/update-check.json"
@@ -186,7 +186,7 @@ func CheckUpdate(currentVersion, apiURL, repoSlug string) (*UpdateCheckResult, e
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "manova-cli-updater")
+	req.Header.Set("User-Agent", "orbit-cli-updater")
 	if token := GetAuthToken(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -349,10 +349,10 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 	}
 
 	// Explicitly configure filters so that regardless of whether the executable
-	// was invoked via symlink "o" or "m", or "orbit" or "manova", it matches release assets.
+	// was invoked via symlink "o" or "orbit", it matches release assets.
 	cfg := selfupdate.Config{
 		Source:  source,
-		Filters: []string{"^orbit[-_]", "^manova[-_]"},
+		Filters: []string{"^orbit[-_]"},
 	}
 
 	// Configure SHA-256 checksums.txt validator
@@ -375,7 +375,7 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 		if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "checksum") {
 			fallbackUpdater, fErr := selfupdate.NewUpdater(selfupdate.Config{
 				Source:  source,
-				Filters: []string{"^orbit[-_]", "^manova[-_]"},
+				Filters: []string{"^orbit[-_]"},
 			})
 			if fErr == nil {
 				release, err = fallbackUpdater.UpdateSelf(context.Background(), verToCompare, repo)

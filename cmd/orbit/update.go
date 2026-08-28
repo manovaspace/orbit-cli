@@ -27,7 +27,7 @@ func newUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Unified workspace update (CLI, git branches, migrations, and env validation)",
 		Long: `Performs a full workspace synchronization and verification:
-  1. Checks for manova CLI updates
+  1. Checks for Orbit CLI updates
   2. Synchronizes all clean default git branches from origin
   3. Executes pending workspace migrations (.manova/state.json)
   4. Validates project .env files against .env.schema.yaml contracts`,
@@ -36,7 +36,7 @@ func newUpdateCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Unified Workspace Update"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Unified Workspace Update"))
 			fmt.Fprintf(out, "  Workspace Root: %s\n\n", subtleStyle.Render(workspaceRoot))
 
 			// Phase 1: CLI Version Check
@@ -48,12 +48,12 @@ func newUpdateCmd() *cobra.Command {
 				} else if res.HasUpdate {
 					fmt.Fprintf(out, "  %s  %s (Current: %s %s Latest: %s)\n     %s Run %s to upgrade.\n",
 						iconInfo,
-						warningStyle.Render("A newer version of manova CLI is available!"),
+						warningStyle.Render("A newer version of Orbit CLI is available!"),
 						codeStyle.Render(version),
 						iconArrow,
 						codeStyle.Render(res.LatestVersion),
 						iconArrow,
-						boldStyle.Render("manova self-update"),
+						boldStyle.Render("orbit self-update"),
 					)
 				} else {
 					fmt.Fprintf(out, "  %s  CLI is up to date (%s)\n", iconOK, subtleStyle.Render("v"+version))
@@ -154,7 +154,7 @@ func newUpdateCmd() *cobra.Command {
 					if envErrors == 0 {
 						fmt.Fprintf(out, "  %s  All %d environment files valid against schemas\n", iconOK, validSchemas)
 					} else {
-						fmt.Fprintf(out, "  %s  %d environment validation error(s) detected. Run 'manova env check' for details.\n", iconWarn, envErrors)
+						fmt.Fprintf(out, "  %s  %d environment validation error(s) detected. Run 'orbit env check' for details.\n", iconWarn, envErrors)
 					}
 				}
 				fmt.Fprintln(out)
