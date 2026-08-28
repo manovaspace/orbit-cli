@@ -82,9 +82,13 @@ fi
 
 # Process flags
 YES_FLAG=false
+NO_ALIAS_FLAG=false
 for arg in "$@"; do
   if [ "$arg" = "-y" ] || [ "$arg" = "--yes" ]; then
     YES_FLAG=true
+  fi
+  if [ "$arg" = "--no-alias" ]; then
+    NO_ALIAS_FLAG=true
   fi
 done
 
@@ -122,6 +126,19 @@ if [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ] && [ "${CI:-}" != "tru
   echo ""
 fi
 
+# Interactive alias configuration prompt if terminal is available
+CONFIGURE_ALIAS=true
+if [ "$NO_ALIAS_FLAG" = true ] || [ "${ORBIT_NO_ALIAS:-}" = "1" ] || [ "${ORBIT_ALIAS:-}" = "0" ]; then
+  CONFIGURE_ALIAS=false
+elif [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ] && [ "${CI:-}" != "true" ] && [ -c /dev/tty ]; then
+  echo -ne "  ${BOLD}Configure 'o=orbit' shortcut alias in your shell profiles?${RESET} (Y/n) [Y]: "
+  read -r ALIAS_CONFIRM </dev/tty || ALIAS_CONFIRM="y"
+  if [[ "$ALIAS_CONFIRM" =~ ^[Nn] ]]; then
+    CONFIGURE_ALIAS=false
+  fi
+  echo ""
+fi
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -151,19 +168,57 @@ else
   ln -sf "orbit${EXT}" "${INSTALL_DIR}/o${EXT}" 2>/dev/null || true
 fi
 
-# Configure shell shortcut alias in ~/.bashrc and ~/.zshrc
-for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-  if [ -f "$rc" ] && [ -w "$rc" ]; then
-    if ! grep -q "alias o=" "$rc" 2>/dev/null; then
-      echo -e "\n# Orbit CLI shortcut\nalias o=\"orbit\"" >> "$rc"
+# Configure shell shortcut alias in shell profiles if enabled
+CONFIGURED_PROFILES=()
+ALREADY_CONFIGURED=()
+
+if [ "$CONFIGURE_ALIAS" = true ]; then
+  TARGET_PROFILES=(
+    "${HOME}/.bashrc"
+    "${HOME}/.bash_profile"
+    "${HOME}/.zshrc"
+    "${HOME}/.profile"
+    "${HOME}/.config/fish/config.fish"
+  )
+
+  ANY_FOUND=false
+  for rc in "${TARGET_PROFILES[@]}"; do
+    if [ -f "$rc" ]; then
+      ANY_FOUND=true
+      if [ -w "$rc" ]; then
+        if grep -q -E "alias o(=|[[:space:]])" "$rc" 2>/dev/null; then
+          ALREADY_CONFIGURED+=("$rc")
+        else
+          printf "\n# Orbit CLI shortcut\nalias o=\"orbit\"\n" >> "$rc"
+          CONFIGURED_PROFILES+=("$rc")
+        fi
+      fi
+    fi
+  done
+
+  # If none of the standard profile files exist, create profile for current shell
+  if [ "$ANY_FOUND" = false ] && [ -w "$HOME" ]; then
+    FALLBACK_PROFILE=""
+    case "${SHELL:-}" in
+      */zsh)  FALLBACK_PROFILE="${HOME}/.zshrc" ;;
+      */bash) FALLBACK_PROFILE="${HOME}/.bashrc" ;;
+      */fish)
+        mkdir -p "${HOME}/.config/fish" 2>/dev/null || true
+        FALLBACK_PROFILE="${HOME}/.config/fish/config.fish"
+        ;;
+      *)      FALLBACK_PROFILE="${HOME}/.profile" ;;
+    esac
+    if [ -n "$FALLBACK_PROFILE" ]; then
+      printf "\n# Orbit CLI shortcut\nalias o=\"orbit\"\n" >> "$FALLBACK_PROFILE"
+      CONFIGURED_PROFILES+=("$FALLBACK_PROFILE")
     fi
   fi
-done
+fi
 
 # Direct execution if non-flag arguments passed
 NON_FLAG_ARGS=()
 for arg in "$@"; do
-  if [ "$arg" != "-y" ] && [ "$arg" != "--yes" ]; then
+  if [ "$arg" != "-y" ] && [ "$arg" != "--yes" ] && [ "$arg" != "--no-alias" ]; then
     NON_FLAG_ARGS+=("$arg")
   fi
 done
@@ -175,6 +230,29 @@ fi
 echo -e "  ${GREEN}✔${RESET} ${BOLD}Orbit ${VERSION} installed successfully!${RESET}\n"
 echo -e "  ${BOLD}Installed to:${RESET}  ${INSTALL_DIR}/orbit${EXT}"
 echo -e "  ${BOLD}Commands:${RESET}      ${CYAN}orbit${RESET}, ${CYAN}o${RESET}\n"
+
+if [ ${#CONFIGURED_PROFILES[@]} -gt 0 ]; then
+  echo -e "  ${BOLD}Configured shell aliases:${RESET}"
+  for p in "${CONFIGURED_PROFILES[@]}"; do
+    echo -e "    ${GREEN}✔${RESET} ${GRAY}${p/#$HOME/\~}${RESET}"
+  done
+  echo ""
+  echo -e "  ${BOLD}To activate in current session:${RESET}"
+  if [[ "${SHELL:-}" =~ zsh ]] && [[ " ${CONFIGURED_PROFILES[*]} " =~ "${HOME}/.zshrc" ]]; then
+    echo -e "    ${CYAN}source ~/.zshrc${RESET}"
+  elif [[ "${SHELL:-}" =~ bash ]] && [[ " ${CONFIGURED_PROFILES[*]} " =~ "${HOME}/.bashrc" ]]; then
+    echo -e "    ${CYAN}source ~/.bashrc${RESET}"
+  elif [[ "${SHELL:-}" =~ fish ]] && [[ " ${CONFIGURED_PROFILES[*]} " =~ "${HOME}/.config/fish/config.fish" ]]; then
+    echo -e "    ${CYAN}source ~/.config/fish/config.fish${RESET}"
+  else
+    first_prof="${CONFIGURED_PROFILES[0]}"
+    echo -e "    ${CYAN}source ${first_prof/#$HOME/\~}${RESET}"
+  fi
+  echo ""
+elif [ "$CONFIGURE_ALIAS" = true ] && [ ${#ALREADY_CONFIGURED[@]} -gt 0 ]; then
+  echo -e "  ${BOLD}Shell alias:${RESET}   ${GRAY}Already configured in profile(s)${RESET}\n"
+fi
+
 echo -e "  ${BOLD}Get started:${RESET}"
 echo -e "    ${CYAN}o onboard${RESET}    ${GRAY}# Interactive onboarding wizard${RESET}"
 echo -e "    ${CYAN}o doctor${RESET}     ${GRAY}# Verify system prerequisites${RESET}"
