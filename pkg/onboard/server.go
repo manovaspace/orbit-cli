@@ -2,6 +2,7 @@ package onboard
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,9 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 )
+
+//go:embed install.sh
+var canonicalInstallScript []byte
 
 // ServerConfig configures the onboard edge HTTP server.
 type ServerConfig struct {
@@ -195,6 +199,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /", s.handleInstallScript)
+	s.mux.HandleFunc("GET /install", s.handleInstallScript)
+	s.mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 	s.mux.HandleFunc("GET /v1/onboard/health", s.handleHealth)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
@@ -208,6 +215,17 @@ func (s *Server) routes() {
 // Handler returns the http.Handler for embedding or testing.
 func (s *Server) Handler() http.Handler {
 	return s.mux
+}
+
+func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" && r.URL.Path != "/install" && r.URL.Path != "/install.sh" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(canonicalInstallScript)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

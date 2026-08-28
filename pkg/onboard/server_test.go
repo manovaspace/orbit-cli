@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -699,6 +700,62 @@ func TestServer_AdminVerify_Errors(t *testing.T) {
 	resp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(`{"email":"unknown@manova.space","code":"123456"}`))
 	if err != nil || resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400 for non-existent challenge, got %d", resp.StatusCode)
+	}
+}
+
+func TestServer_InstallScript(t *testing.T) {
+	prov := provisioner.NewDevProvisioner()
+	srv, _ := setupTestServer(t, prov, nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	validPaths := []string{"/", "/install", "/install.sh"}
+	for _, path := range validPaths {
+		t.Run("Valid_"+path, func(t *testing.T) {
+			resp, err := http.Get(ts.URL + path)
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", path, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("GET %s: expected status 200, got %d", path, resp.StatusCode)
+			}
+
+			contentType := resp.Header.Get("Content-Type")
+			if contentType != "text/x-shellscript; charset=utf-8" {
+				t.Errorf("GET %s: expected Content-Type 'text/x-shellscript; charset=utf-8', got %q", path, contentType)
+			}
+
+			cacheControl := resp.Header.Get("Cache-Control")
+			if cacheControl != "no-cache, no-store, must-revalidate" {
+				t.Errorf("GET %s: expected Cache-Control 'no-cache, no-store, must-revalidate', got %q", path, cacheControl)
+			}
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+			body := string(bodyBytes)
+			if !strings.Contains(body, "Do you want to proceed with the installation") {
+				t.Errorf("GET %s: body missing confirmation prompt text", path)
+			}
+		})
+	}
+
+	invalidPaths := []string{"/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
+	for _, path := range invalidPaths {
+		t.Run("Invalid_"+path, func(t *testing.T) {
+			resp, err := http.Get(ts.URL + path)
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", path, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusNotFound {
+				t.Errorf("GET %s: expected status 404, got %d", path, resp.StatusCode)
+			}
+		})
 	}
 }
 
