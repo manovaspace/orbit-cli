@@ -100,7 +100,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 	if !strings.Contains(out, "Connecting to Orbit server at "+ts.URL) {
 		t.Errorf("output missing server connection message: %s", out)
 	}
-	if !strings.Contains(out, "Verification challenge dispatched to alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "Challenge accepted for alirezaopmc@gmail.com") {
 		t.Errorf("output missing challenge dispatch notice: %s", out)
 	}
 	if !strings.Contains(out, "Orbit Platform Ownership Verified") {
@@ -474,7 +474,7 @@ func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "Verification challenge dispatched to alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "Challenge accepted for alirezaopmc@gmail.com") {
 		t.Errorf("output missing dispatch confirmation: %s", out)
 	}
 }

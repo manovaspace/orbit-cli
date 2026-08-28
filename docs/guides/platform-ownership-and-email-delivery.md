@@ -7,6 +7,20 @@ description: Complete guide to Orbit dual-binary architecture (orbit client vs o
 
 This guide explains the architecture and operation of Orbit's platform ownership verification system, the dual-binary model (`orbit` client on developer workstations vs `orbit-server` daemon on infrastructure), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Mailcow (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
 
+**Staff runbook (matches current code):** `handbook/docs/orbit/guides/orbit-admin-init.md`.
+
+### Current implementation (code vs this page)
+
+Treat sections below as the **intended** `orbit-server` design. As of this writing:
+
+| Topic | What the code does |
+| --- | --- |
+| Default URL `https://orbit.manova.space` | Caddy → **`orbit-api-gateway:10120`**, not `orbit-server` |
+| Gateway `POST …/ownership/challenge` | In-memory OTP only — **no Mailcow / no notifications** |
+| `orbit admin init` after verify | Generates a **new** local secret; does not import the server fingerprint |
+| `orbit admin status` / `rotate-secret` / `verify` | Local vault only (`verify` is hermetic; it does not call the API) |
+| `orbit invite create` | Signs locally from `owner.json` and SMTP-sends from the workstation (not the Orbit HTTPS API) |
+
 ---
 
 ## 1. Why This Matters & Architecture Overview
@@ -412,7 +426,7 @@ orbit admin init --owner alirezaopmc@gmail.com
 Orbit Platform Administration Initialization
 
   ➜  Connecting to Orbit server at https://orbit.manova.space...
-  ✔  Verification challenge dispatched to alirezaopmc@gmail.com via Mailcow
+  ✔  Challenge accepted for alirezaopmc@gmail.com (OTP is emailed only when the server is orbit-server with SMTP)
 
   Enter 6-digit verification code: 482910
 

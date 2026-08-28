@@ -85,7 +85,8 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | Development workflow | `handbook/docs/orbit/guides/development-workflow.md` |
 | Dev port allocation | `handbook/docs/orbit/architecture/orbit-dev-ports.md` |
 | Module catalog | `handbook/docs/orbit/architecture/module-catalog.md` |
-| Ownership & email delivery | `orbit/orbit-cli/docs/guides/platform-ownership-and-email-delivery.md` |
+| Staff admin init runbook | `handbook/docs/orbit/guides/orbit-admin-init.md` |
+| Ownership & email delivery (repo) | `orbit/orbit-cli/docs/guides/platform-ownership-and-email-delivery.md` |
 
 ## Do / don't
 

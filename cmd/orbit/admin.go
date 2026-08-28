@@ -45,9 +45,10 @@ func newAdminInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [email]",
 		Short: "Initialize and verify platform server ownership via email OTP challenge",
-		Long: `Initiates server ownership verification. Dispatches a 6-digit OTP challenge to the
-owner's email address via Mailcow, prompts for verification, and seals a 32-byte cryptographic
-master signing secret in the local owner vault (mode 0600).`,
+		Long: `Initiates server ownership verification. Requests a 6-digit OTP challenge from the Orbit
+server, prompts for the code, and seals a 32-byte cryptographic master signing secret in the local
+owner vault (mode 0600). Email delivery happens only when the server is orbit-server with SMTP;
+orbit-api-gateway stores the OTP in memory and does not send mail.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
@@ -125,7 +126,7 @@ master signing secret in the local owner vault (mode 0600).`,
 				if err != nil {
 					return fmt.Errorf("failed to initiate challenge on server %s: %w", serverURL, err)
 				}
-				fmt.Fprintf(out, "  %s  Verification challenge dispatched to %s via Mailcow\n",
+				fmt.Fprintf(out, "  %s  Challenge accepted for %s (OTP is emailed only when the server is orbit-server with SMTP)\n",
 					iconOK,
 					boldStyle.Render(email),
 				)
