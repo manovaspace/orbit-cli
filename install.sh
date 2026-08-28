@@ -126,7 +126,6 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 ORBIT_BIN="orbit-${OS}-${ARCH}${EXT}"
-MANOVA_BIN="manova-${OS}-${ARCH}${EXT}"
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 
 # Download binaries
@@ -134,37 +133,22 @@ echo -e "  ${GRAY}↓ Downloading release binaries from GitHub...${RESET}"
 download "${BASE_URL}/${ORBIT_BIN}" "${TMP_DIR}/orbit${EXT}"
 chmod +x "${TMP_DIR}/orbit${EXT}"
 
-download "${BASE_URL}/${MANOVA_BIN}" "${TMP_DIR}/manova${EXT}" 2>/dev/null || true
-if [ -f "${TMP_DIR}/manova${EXT}" ]; then
-  chmod +x "${TMP_DIR}/manova${EXT}"
-fi
-
 # Install binaries
 if [ "$USE_SUDO" = true ]; then
   sudo mkdir -p "$INSTALL_DIR"
   sudo cp "${TMP_DIR}/orbit${EXT}" "${INSTALL_DIR}/orbit${EXT}"
   sudo chmod 755 "${INSTALL_DIR}/orbit${EXT}"
-  if [ -f "${TMP_DIR}/manova${EXT}" ]; then
-    sudo cp "${TMP_DIR}/manova${EXT}" "${INSTALL_DIR}/manova${EXT}"
-    sudo chmod 755 "${INSTALL_DIR}/manova${EXT}"
-  fi
 else
   mkdir -p "$INSTALL_DIR"
   cp "${TMP_DIR}/orbit${EXT}" "${INSTALL_DIR}/orbit${EXT}"
   chmod 755 "${INSTALL_DIR}/orbit${EXT}"
-  if [ -f "${TMP_DIR}/manova${EXT}" ]; then
-    cp "${TMP_DIR}/manova${EXT}" "${INSTALL_DIR}/manova${EXT}"
-    chmod 755 "${INSTALL_DIR}/manova${EXT}"
-  fi
 fi
 
-# Create shortcut symlinks (o -> orbit, m -> manova)
+# Create shortcut symlinks (o -> orbit)
 if [ "$USE_SUDO" = true ]; then
   sudo ln -sf "orbit${EXT}" "${INSTALL_DIR}/o${EXT}" 2>/dev/null || true
-  sudo ln -sf "orbit${EXT}" "${INSTALL_DIR}/m${EXT}" 2>/dev/null || true
 else
   ln -sf "orbit${EXT}" "${INSTALL_DIR}/o${EXT}" 2>/dev/null || true
-  ln -sf "orbit${EXT}" "${INSTALL_DIR}/m${EXT}" 2>/dev/null || true
 fi
 
 # Configure shell shortcut alias in ~/.bashrc and ~/.zshrc
@@ -190,7 +174,7 @@ fi
 
 echo -e "  ${GREEN}✔${RESET} ${BOLD}Orbit ${VERSION} installed successfully!${RESET}\n"
 echo -e "  ${BOLD}Installed to:${RESET}  ${INSTALL_DIR}/orbit${EXT}"
-echo -e "  ${BOLD}Commands:${RESET}      ${CYAN}orbit${RESET}, ${CYAN}o${RESET}, ${CYAN}manova${RESET}\n"
+echo -e "  ${BOLD}Commands:${RESET}      ${CYAN}orbit${RESET}, ${CYAN}o${RESET}\n"
 echo -e "  ${BOLD}Get started:${RESET}"
 echo -e "    ${CYAN}o onboard${RESET}    ${GRAY}# Interactive onboarding wizard${RESET}"
 echo -e "    ${CYAN}o doctor${RESET}     ${GRAY}# Verify system prerequisites${RESET}"
