@@ -13,6 +13,7 @@ Orbit CLI follows a dual-binary architecture:
 ### Core Capabilities
 
 - **Workspace Management**: `orbit init`, `orbit sync`, `orbit status`, `orbit update` — parses `workspace.yaml` manifest and orchestrates git repositories and dependencies.
+- **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
 - **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/pnpm, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
 - **50-Port Allocation**: `orbit port list`, `orbit port check` — manages 50-port block allocations per ADR-006 (`1nxxx` range).
@@ -45,6 +46,8 @@ orbit migrate run         # run pending workspace migrations
 orbit dev                 # start local dev stack services
 orbit invite create <email> # issue HMAC-signed onboarding invite
 orbit onboard             # interactive onboarding wizard
+orbit assets pull         # download gitignored media from R2
+orbit assets add <path>   # upload a file, update orbit-assets.yaml + .gitignore
 orbit admin init          # initiate platform ownership verification
 ```
 
@@ -71,6 +74,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | `pkg/updater/` | Binary self-update mechanisms and background version checks |
 | `pkg/client/` | HTTP client for interacting with Orbit server and gateway APIs |
 | `pkg/orchestrator/` | Local process and container runner for `orbit dev` |
+| `pkg/assets/` | `orbit-assets.yaml` index, gitignore helper, R2 S3 client, pull/push/add/status |
 | `pkg/tui/` | Lipgloss styles, icons, and terminal UI formatting |
 
 ## Documentation

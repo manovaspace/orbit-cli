@@ -109,11 +109,11 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newAssetsCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
 }
-
 
 func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 	if cmd == nil {

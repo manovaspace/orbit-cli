@@ -134,6 +134,14 @@ Scopes:
 				return fmt.Errorf("clone completed with %d error(s)", failCount)
 			}
 
+			var rels []string
+			for _, t := range targets {
+				rels = append(rels, t.Path)
+			}
+			if err := pullWorkspaceAssets(cmd.Context(), workspaceRoot, rels, false); err != nil {
+				fmt.Fprintf(out, "  %s  Assets: %s\n", iconWarn, err.Error())
+			}
+
 			return nil
 		},
 	}

@@ -32,6 +32,7 @@ func newDoctorCmd() *cobra.Command {
 			ctx := cmd.Context()
 
 			report := doctor.RunDiagnostics()
+			addAssetDiagnostics(cmd.Context(), report, fix)
 
 			if jsonOutput {
 				if fix {
@@ -40,6 +41,7 @@ func newDoctorCmd() *cobra.Command {
 					if len(healables) > 0 {
 						_, _ = reg.Run(ctx, report.Results, nil)
 						report = doctor.RunDiagnostics()
+						addAssetDiagnostics(ctx, report, true)
 					}
 				}
 
@@ -85,6 +87,7 @@ func newDoctorCmd() *cobra.Command {
 
 				// Re-evaluate diagnostics after auto-healing
 				report = doctor.RunDiagnostics()
+				addAssetDiagnostics(ctx, report, false)
 				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Healing Diagnostic Report ─────────────────────────"))
 				renderDoctorReport(out, report)
 			}

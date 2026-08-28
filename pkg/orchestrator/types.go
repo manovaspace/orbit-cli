@@ -29,4 +29,5 @@ type SyncResult struct {
 	FastForwarded bool   `json:"fast_forwarded" yaml:"fast_forwarded"`
 	SkippedReason string `json:"skipped_reason,omitempty" yaml:"skipped_reason,omitempty"`
 	Error         string `json:"error,omitempty" yaml:"error,omitempty"`
+	AssetError    string `json:"asset_error,omitempty" yaml:"asset_error,omitempty"`
 }

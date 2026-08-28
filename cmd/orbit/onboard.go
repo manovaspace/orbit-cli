@@ -540,6 +540,13 @@ Actions that will be executed during onboarding:
 							s.ClonedRepos = append(s.ClonedRepos, r.Path)
 						}
 					}
+					var rels []string
+					for _, t := range targets {
+						rels = append(rels, t.Path)
+					}
+					if err := pullWorkspaceAssets(cmd.Context(), workspaceRoot, rels, false); err != nil && !opts.json {
+						fmt.Fprintf(out, "    %s  Assets: %s\n", iconWarn, err.Error())
+					}
 				}
 			}
 		}

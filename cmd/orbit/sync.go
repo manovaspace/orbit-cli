@@ -80,6 +80,15 @@ func newSyncCmd() *cobra.Command {
 				}
 			}
 
+			var rels []string
+			for _, t := range targets {
+				rels = append(rels, t.Path)
+			}
+			if err := pullWorkspaceAssets(cmd.Context(), workspaceRoot, rels, false); err != nil {
+				errorCount++
+				fmt.Fprintf(out, "  %s  %s\n", iconError, errorStyle.Render("Assets: "+err.Error()))
+			}
+
 			// Summary footer
 			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
 				successStyle.Render(fmt.Sprintf("✔ %d updated", updatedCount)),
