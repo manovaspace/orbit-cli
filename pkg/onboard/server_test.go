@@ -741,6 +741,60 @@ func TestServer_InstallScript(t *testing.T) {
 		}
 	})
 
+	t.Run("Browser_HTML", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, ts.URL+"/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Accept", "text/html,application/xhtml+xml")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET / (browser) failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET / (browser): expected status 200, got %d", resp.StatusCode)
+		}
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/html; charset=utf-8" {
+			t.Errorf("GET / (browser): expected Content-Type text/html, got %q", contentType)
+		}
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("failed to read response body: %v", err)
+		}
+		body := string(bodyBytes)
+		if !strings.Contains(body, "copy-btn") || !strings.Contains(body, "curl -fsSL orbit.manova.space") {
+			t.Errorf("GET / (browser): body missing copy-button landing page")
+		}
+		if strings.HasPrefix(strings.TrimSpace(body), "#!/") {
+			t.Errorf("GET / (browser): got shellscript instead of HTML")
+		}
+	})
+
+	t.Run("Curl_HTML_Accept_Still_Script", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, ts.URL+"/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Accept", "text/html")
+		req.Header.Set("User-Agent", "curl/8.5.0")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET / (curl) failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/x-shellscript; charset=utf-8" {
+			t.Errorf("GET / (curl+html): expected shellscript, got %q", contentType)
+		}
+	})
+
 	// 2. Unmapped routes (including /install and /install.sh) return 404
 	invalidPaths := []string{"/install", "/install.sh", "/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
 	for _, path := range invalidPaths {
@@ -755,6 +809,24 @@ func TestServer_InstallScript(t *testing.T) {
 				t.Errorf("GET %s: expected status 404, got %d", path, resp.StatusCode)
 			}
 		})
+	}
+}
+
+func TestServer_ClaimPathAliases(t *testing.T) {
+	prov := provisioner.NewDevProvisioner()
+	srv, _ := setupTestServer(t, prov, nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	for _, path := range []string{"/v1/onboard/claim", "/api/v1/onboard/claim", "/api/v1/dev/onboard/claim"} {
+		resp, err := http.Post(ts.URL+path, "application/json", strings.NewReader(`{}`))
+		if err != nil {
+			t.Fatalf("POST %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			t.Errorf("POST %s: got 404, alias missing", path)
+		}
 	}
 }
 

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orbit CLI — Developer Orchestrator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030712;
+      --card-bg: #0b0f19;
+      --card-border: #1e293b;
+      --primary: #38bdf8;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --code-bg: #020617;
+      --code-border: #1e293b;
+      --badge-bg: #0f172a;
+      --badge-border: #334155;
+      --badge-text: #38bdf8;
+      --accent: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 580px;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 36px 32px 28px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .logo-group { display: flex; align-items: center; gap: 10px; }
+    .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .logo-icon { color: var(--primary); }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Fira Code', monospace;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: var(--badge-text);
+      padding: 2px 7px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .badge::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .icon-link {
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease, transform 0.15s ease;
+      text-decoration: none;
+    }
+    .icon-link:hover { color: var(--text); transform: scale(1.08); }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+    .platform-hint {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .cmd-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .cmd-box {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 10px;
+      padding: 13px 16px;
+      font-family: 'Fira Code', monospace;
+      font-size: 13.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: all;
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+    .cmd-box:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: #060b19;
+    }
+    .cmd-label {
+      font-size: 11px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .cmd-text { color: #e2e8f0; overflow-x: auto; white-space: nowrap; }
+    .cmd-kw { color: #38bdf8; }
+    .cmd-pipe { color: #94a3b8; }
+    .copy-btn {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(51, 65, 85, 0.4);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      margin-left: 12px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .cmd-box:hover .copy-btn {
+      color: var(--text);
+      background: rgba(51, 65, 85, 0.8);
+    }
+    .features { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .feature-tag {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(51, 65, 85, 0.35);
+      border-radius: 6px;
+      padding: 4px 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .feature-tag span { color: var(--primary); }
+    footer {
+      border-top: 1px solid rgba(51, 65, 85, 0.3);
+      padding-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    footer a:hover { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-group">
+        <div class="logo-text">
+          <span class="logo-icon">⬡</span>
+          <span>orbit</span>
+        </div>
+        <span class="badge">install</span>
+      </div>
+      <a href="https://github.com/manovaspace/orbit-cli" target="_blank" rel="noopener" class="icon-link" title="GitHub Repository" aria-label="GitHub">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+      </a>
+    </div>
+
+    <div class="subtitle">Orbit developer onboarding, multi-repo sync, and dev stack orchestrator.</div>
+
+    <div class="platform-hint">Linux (Ubuntu 24.04 / 26.04 LTS &amp; WSL) / macOS</div>
+
+    <div class="cmd-group">
+      <div>
+        <div class="cmd-label">One-liner install</div>
+        <div class="cmd-box" onclick="copyCmd(this, 'curl -fsSL orbit.manova.space | bash')">
+          <span class="cmd-text"><span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span></span>
+          <button type="button" class="copy-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feature-tag"><span>●</span> Interactive safety prompts</div>
+      <div class="feature-tag"><span>●</span> 'o' shortcut alias</div>
+      <div class="feature-tag"><span>●</span> Shell autocompletion</div>
+      <div class="feature-tag"><span>●</span> Multi-repo sync</div>
+    </div>
+
+    <footer>
+      <span>MIT © <a href="https://manova.space">Manova Space</a></span>
+      <a href="https://github.com/manovaspace/orbit-cli" target="_blank" rel="noopener">Source ↗</a>
+    </footer>
+  </div>
+
+  <script>
+    function copyCmd(el, text) {
+      navigator.clipboard.writeText(text);
+      const btn = el.querySelector('.copy-btn');
+      const orig = btn.innerText;
+      btn.innerText = 'Copied!';
+      btn.style.color = '#6ee7b7';
+      btn.style.borderColor = '#10b981';
+      setTimeout(() => {
+        btn.innerText = orig;
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 1800);
+    }
+  </script>
+</body>
+</html>

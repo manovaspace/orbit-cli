@@ -22,6 +22,9 @@ import (
 //go:embed install.sh
 var canonicalInstallScript []byte
 
+//go:embed landing.html
+var installLandingHTML []byte
+
 // ServerConfig configures the onboard edge HTTP server.
 type ServerConfig struct {
 	Addr             string
@@ -204,6 +207,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/onboard/claim", s.handleClaim)
+	s.mux.HandleFunc("POST /api/v1/onboard/claim", s.handleClaim)
+	s.mux.HandleFunc("POST /api/v1/dev/onboard/claim", s.handleClaim)
 	s.mux.HandleFunc("POST /api/v1/admin/challenge", s.handleAdminChallenge)
 	s.mux.HandleFunc("POST /api/v1/system/ownership/challenge", s.handleAdminChallenge)
 	s.mux.HandleFunc("POST /api/v1/admin/verify", s.handleAdminVerify)
@@ -220,8 +225,15 @@ func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Vary", "Accept, User-Agent")
+	if wantsInstallHTML(r) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(installLandingHTML)
+		return
+	}
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(canonicalInstallScript)
 }
