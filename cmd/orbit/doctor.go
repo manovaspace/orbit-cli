@@ -24,7 +24,7 @@ func newDoctorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "doctor",
 		Short:        "Run pre-flight system diagnostics and environment health checks",
-		Long:         "Executes comprehensive diagnostics across OS, Go compiler, Node/pnpm, Docker, SSH keys, dev ports, and optional tools.",
+		Long:         "Executes comprehensive diagnostics across OS, Go compiler, Node/Bun, Docker, SSH keys, dev ports, and optional tools.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

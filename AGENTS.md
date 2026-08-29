@@ -14,7 +14,7 @@ Orbit CLI follows a dual-binary architecture:
 
 - **Workspace Management**: `orbit init`, `orbit sync`, `orbit status`, `orbit update` — parses `workspace.yaml` manifest and orchestrates git repositories and dependencies.
 - **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
-- **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/pnpm, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
+- **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/Bun, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
 - **50-Port Allocation**: `orbit port list`, `orbit port check` — manages 50-port block allocations per ADR-006 (`1nxxx` range).
 - **Workspace Migrations**: `orbit migrate` — automated schema, configuration, and workspace version transitions.
