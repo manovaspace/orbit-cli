@@ -57,12 +57,12 @@ groups:
           - name: "fryto-infra"
           - name: "frynext"
           - name: "fryvoice"
-      kaazhe:
-        path: "clients/kaazhe"
+      jtash:
+        path: "clients/jtash"
         repositories:
-          - name: "kaazhe-infra"
+          - name: "jtash-infra"
             remote: "forgejo"
-          - name: "buildings"
+          - name: "frontend"
             remote: "forgejo"
 `
 
@@ -187,13 +187,13 @@ func TestParseAndResolveScope(t *testing.T) {
 
 	// 6. Test clients scope (all clients)
 	allClientsRepos := m.ResolveScope("clients")
-	if len(allClientsRepos) != 5 { // 3 fryto + 2 kaazhe
+	if len(allClientsRepos) != 5 { // 3 fryto + 2 jtash
 		t.Fatalf("expected 5 client repos, got %d", len(allClientsRepos))
 	}
 
 	// 7. Test all scope
 	allRepos := m.ResolveScope("all")
-	// 1 handbook + 3 orbit + 3 manovaspace + 3 fryto + 2 kaazhe = 12 repos
+	// 1 handbook + 3 orbit + 3 manovaspace + 3 fryto + 2 jtash = 12 repos
 	if len(allRepos) != 12 {
 		t.Fatalf("expected 12 total repos, got %d", len(allRepos))
 	}

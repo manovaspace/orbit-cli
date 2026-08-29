@@ -230,7 +230,7 @@ func (m *WorkspaceManifest) ResolveScope(scope string) []RepoTarget {
 		return matched
 	}
 
-	// 4. Group prefix match (e.g. "clients" matching "clients/fryto", "clients/kaazhe")
+	// 4. Group prefix match (e.g. "clients" matching "clients/fryto", "clients/jtash")
 	for _, r := range all {
 		if strings.HasPrefix(strings.ToLower(r.Scope), s+"/") {
 			matched = append(matched, r)

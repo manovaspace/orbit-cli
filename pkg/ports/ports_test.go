@@ -14,7 +14,7 @@ func TestBasePort(t *testing.T) {
 		{projectID: 0, expectedPort: 10000}, // Orbit Platform
 		{projectID: 1, expectedPort: 10050}, // Orbit Core Services
 		{projectID: 2, expectedPort: 10100}, // Client: Fryto
-		{projectID: 3, expectedPort: 10150}, // Client: Kaazhe
+		{projectID: 3, expectedPort: 10150}, // unused block
 		{projectID: 4, expectedPort: 10200}, // Client: Jtash
 		{projectID: 5, expectedPort: 10250},
 		{projectID: 10, expectedPort: 10500},
@@ -248,7 +248,6 @@ func TestResolveProjectID(t *testing.T) {
 		{"orbit-platform", 0, true},
 		{"orbit-services", 1, true},
 		{"fryto", 2, true},
-		{"kaazhe", 3, true},
 		{"jtash", 4, true},
 		{"unknown-project", 0, false},
 	}
