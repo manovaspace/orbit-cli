@@ -39,7 +39,7 @@ func newMockAdminServer(t *testing.T, expectedEmail, validCode string) *httptest
 				Status:    "pending",
 				Email:     req.Email,
 				ExpiresAt: time.Now().Add(10 * time.Minute),
-				Message:   "OTP challenge code dispatched via Mailcow",
+				Message:   "OTP challenge code dispatched via SMTP",
 			})
 		case "/api/v1/admin/verify", "/api/v1/system/ownership/verify":
 			if !challengeDispatched {

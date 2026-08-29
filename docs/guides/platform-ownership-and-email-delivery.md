@@ -5,7 +5,7 @@ description: Complete guide to Orbit dual-binary architecture (orbit client vs o
 
 # Platform Ownership Verification & Email Delivery
 
-This guide explains the architecture and operation of Orbit's platform ownership verification system, the dual-binary model (`orbit` client on developer workstations vs `orbit-server` daemon on infrastructure), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Mailcow (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
+This guide explains the architecture and operation of Orbit's platform ownership verification system, the dual-binary model (`orbit` client on developer workstations vs `orbit-server` daemon on infrastructure), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Stalwart (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
 
 **Staff runbook (matches current code):** `handbook/docs/orbit/guides/orbit-admin-init.md`.
 
@@ -16,7 +16,7 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 | Topic | What the code does |
 | --- | --- |
 | Default URL `https://orbit.manova.space` | Caddy → **`orbit-api-gateway:10120`**, not `orbit-server` |
-| Gateway `POST …/ownership/challenge` | In-memory OTP only — **no Mailcow / no notifications** |
+| Gateway `POST …/ownership/challenge` | In-memory OTP only — **no SMTP / no notifications** |
 | `orbit admin init` after verify | Generates a **new** local secret; does not import the server fingerprint |
 | `orbit admin status` / `rotate-secret` / `verify` | Local vault only (`verify` is hermetic; it does not call the API) |
 | `orbit invite create` | Signs locally from `owner.json` and SMTP-sends from the workstation (not the Orbit HTTPS API) |
@@ -28,13 +28,13 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 Orbit uses a **dual-binary architecture** that decouples developer workstation tools from server infrastructure:
 
 - **Developer Workstations (`orbit`)**: The pure client CLI tool used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), and platform administrative initialization (`orbit admin init`). Workstations never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
-- **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Mailcow SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
+- **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Stalwart SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
 
 ### Architecture Highlights
 
 1. **Dual-Binary Separation**: Workstations run `orbit` (pure API client); servers run `orbit-server` (infrastructure daemon).
 2. **Pure API Client Architecture**: Client commands (`orbit admin init`, `orbit invite create`) communicate exclusively over HTTPS with the Orbit server API (`https://orbit.manova.space`).
-3. **Dedicated Server Daemon (`orbit-server`)**: Runs on production/staging infrastructure, holds backend Mailcow SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
+3. **Dedicated Server Daemon (`orbit-server`)**: Runs on production/staging infrastructure, holds backend Stalwart SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
 4. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
 5. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
 
@@ -42,7 +42,7 @@ Orbit uses a **dual-binary architecture** that decouples developer workstation t
 
 ```text
 ┌──────────────┐         ┌───────────────┐         ┌──────────────┐         ┌───────────────┐
-│   Operator   │         │   Orbit CLI   │         │ Orbit Server │         │ Mailcow Relay │
+│   Operator   │         │   Orbit CLI   │         │ Orbit Server │         │ Stalwart Relay │
 │  (Terminal)  │         │ (orbit admin) │         │(orbit-server)│         │ (SMTP :587)   │
 └──────┬───────┘         └───────┬───────┘         └──────┬───────┘         └───────┬───────┘
        │                         │                        │                         │
@@ -251,7 +251,7 @@ The server exposes dedicated endpoints for platform ownership verification and d
 
 ### 1. Initiate Admin Challenge (`POST /api/v1/admin/challenge`)
 
-Generates a cryptographically random 6-digit OTP code, stores it in memory (TTL: 10 minutes, max 3 attempts), and dispatches the challenge email via Mailcow.
+Generates a cryptographically random 6-digit OTP code, stores it in memory (TTL: 10 minutes, max 3 attempts), and dispatches the challenge email via Stalwart.
 
 * **Path**: `/api/v1/admin/challenge` (alias: `/api/v1/system/ownership/challenge`)
 * **Method**: `POST`
@@ -393,7 +393,7 @@ orbit config path
 | `server.url` | Client | Orbit API server endpoint | `https://orbit.manova.space` |
 | `admin.email` | Client | Platform administrator email | `alirezaopmc@gmail.com` |
 | `admin.name` | Client | Platform administrator display name | `Alireza` |
-| `smtp.host` | Daemon | Mailcow SMTP hostname | `mail.manova.space` |
+| `smtp.host` | Daemon | Stalwart SMTP hostname | `mail.manova.space` |
 | `smtp.port` | Daemon | SMTP port (`587` STARTTLS, `465` SMTPS) | `587` |
 | `smtp.user` | Daemon | SMTP authentication user | `""` |
 | `smtp.pass` | Daemon | SMTP authentication password (masked) | `""` |
@@ -415,7 +415,7 @@ orbit admin init --owner alirezaopmc@gmail.com
 
 1. **Server API Connection**: Resolves the API endpoint (`cfg.Server.URL`, `--server`, or `ORBIT_SERVER`).
 2. **Challenge Request**: Calls `POST /api/v1/admin/challenge` on the server.
-3. **Out-of-Band Dispatch**: The server generates an OTP and dispatches it via Mailcow to `alirezaopmc@gmail.com`.
+3. **Out-of-Band Dispatch**: The server generates an OTP and dispatches it via Stalwart to `alirezaopmc@gmail.com`.
 4. **Interactive Code Entry**: Orbit prompts the operator in the terminal for the 6-digit OTP.
 5. **API Verification**: Calls `POST /api/v1/admin/verify` to validate the code with the server.
 6. **Local Vault Sealing**: Orbit generates a 32-byte cryptographic master signing secret and seals it into `~/.config/orbit/owner.json` (mode `0600`).
@@ -538,7 +538,7 @@ orbit admin rotate-secret --yes
 Once ownership is verified, invitations dispatched via `orbit invite create` are automatically:
 - **Signed with the master root signing key** from `~/.config/orbit/owner.json`.
 - **Stamped with provenance metadata** (`created_by: alirezaopmc@gmail.com`).
-- **Dispatched via Mailcow** (`mail.manova.space:587`) directly to the developer's real inbox with HTML and plaintext multipart rendering.
+- **Dispatched via Stalwart** (`mail.manova.space:587`) directly to the developer's real inbox with HTML and plaintext multipart rendering.
 
 ```bash
 orbit invite create hardkoding@gmail.com --name "Hard"
@@ -566,7 +566,7 @@ orbit invite create hardkoding@gmail.com --no-send
 
 ### Local Mailpit Development Mode
 
-For local development without Mailcow credentials or verified ownership:
+For local development without Stalwart credentials or verified ownership:
 
 ```bash
 orbit invite create test@example.com --insecure
@@ -594,7 +594,7 @@ Environment variables take precedence over configuration file settings:
 | Variable | Fallback Variable | Description | Default |
 |---|---|---|---|
 | `ORBIT_SIGNING_SECRET` | `ORBIT_INVITE_SECRET`, `ORBIT_JWT_SECRET` | Master cryptographic signing secret | Sealed vault |
-| `ORBIT_SMTP_HOST` | `SMTP_HOST` | Mailcow SMTP host | `mail.manova.space` |
+| `ORBIT_SMTP_HOST` | `SMTP_HOST` | Stalwart SMTP host | `mail.manova.space` |
 | `ORBIT_SMTP_PORT` | `SMTP_PORT` | SMTP port (`587` or `465`) | `587` |
 | `ORBIT_SMTP_USER` | `SMTP_USER` | SMTP authentication username | `""` |
 | `ORBIT_SMTP_PASS` | `SMTP_PASS` | SMTP authentication password | `""` |
@@ -609,4 +609,4 @@ Environment variables take precedence over configuration file settings:
 3. **Strict Out-of-Band OTP**: Verification codes are never displayed in CLI terminal stdout/stderr during standard initialization to prevent local terminal sniffing attacks.
 4. **Challenge Expiration & Rate Limiting**: OTP challenges expire after 10 minutes and are locked after 3 failed verification attempts. The server enforces sliding window rate limiting (10 req/min default per IP).
 5. **Credential Masking**: The `orbit config show` command masks all sensitive passwords and secrets by default.
-6. **No Production Insecure Flag**: The `--insecure` flag should only be used in isolated development environments. In production, verified ownership and authenticated Mailcow SMTP are required.
+6. **No Production Insecure Flag**: The `--insecure` flag should only be used in isolated development environments. In production, verified ownership and authenticated Stalwart SMTP are required.

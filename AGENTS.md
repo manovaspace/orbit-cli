@@ -8,7 +8,7 @@ Status: `beta`.
 
 Orbit CLI follows a dual-binary architecture:
 - **Workstation CLI (`orbit`)**: Pure client tool for developers and administrators. Handles multi-repo workspace management, environment validation, diagnostics, local dev orchestration, and invitation management. Workstation commands use pure API client workflows and never require direct SMTP credentials or raw infrastructure access.
-- **Infrastructure Daemon (`orbit-server`)**: Standalone edge HTTP daemon running on server infrastructure. Manages Mailcow SMTP gateways, out-of-band OTP challenges, administrator ownership verification, and developer claim provisioning.
+- **Infrastructure Daemon (`orbit-server`)**: Standalone edge HTTP daemon running on server infrastructure. Manages Stalwart SMTP gateways, out-of-band OTP challenges, administrator ownership verification, and developer claim provisioning.
 
 ### Core Capabilities
 

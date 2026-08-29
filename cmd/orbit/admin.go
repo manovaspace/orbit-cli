@@ -236,7 +236,7 @@ func newAdminStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Display platform ownership verification status, vault integrity, and mail config",
-		Long:  "Reports whether platform ownership has been verified, vault file path and permissions, and active Mailcow gateway.",
+		Long:  "Reports whether platform ownership has been verified, vault file path and permissions, and active SMTP gateway.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
