@@ -1,0 +1,39 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-invite-list - List active and stored developer onboarding invitations
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit invite list [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Displays a table or JSON array of all stored invitations with their status, scope, and expiration.
+
+
+.SH OPTIONS
+.PP
+\fB-a\fP, \fB--all\fP[=true]
+	Include revoked and expired invitations
+
+.PP
+\fB-f\fP, \fB--format\fP="table"
+	Output format (table or json)
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for list
+
+.PP
+\fB--store-file\fP=""
+	Custom path to invites storage file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-invite(1)\fP

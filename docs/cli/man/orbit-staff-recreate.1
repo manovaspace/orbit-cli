@@ -1,0 +1,61 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-staff-recreate - Delete then create a staff member (fresh SSO + mailbox)
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit staff recreate [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.
+
+
+.SH OPTIONS
+.PP
+\fB--forward\fP=""
+	personal forward email (required)
+
+.PP
+\fB--groups\fP=""
+	comma-separated groups (default server-side: dev)
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for recreate
+
+.PP
+\fB--idempotency-key\fP=""
+	idempotency key for create (generated if empty)
+
+.PP
+\fB--name\fP=""
+	display name
+
+.PP
+\fB--totp\fP[=false]
+	enroll Authelia TOTP after recreate
+
+.PP
+\fB--uid\fP=""
+	staff uid (required)
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+.PP
+\fB--owner-store\fP=""
+	path to owner.json vault
+
+.PP
+\fB--server\fP=""
+	staff server URL (or ORBIT_STAFF_URL)
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-staff(1)\fP

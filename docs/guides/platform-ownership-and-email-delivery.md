@@ -7,7 +7,7 @@ description: Complete guide to Orbit dual-binary architecture (orbit client vs o
 
 This guide explains the architecture and operation of Orbit's platform ownership verification system, the dual-binary model (`orbit` client on developer workstations vs `orbit-server` daemon on infrastructure), the pure API client workflow in `orbit admin init`, out-of-band email OTP challenges dispatched via Stalwart (`mail.manova.space`), and cryptographic root vault management (`~/.config/orbit/owner.json`).
 
-**Staff runbook (matches current code):** `handbook/docs/orbit/guides/orbit-admin-init.md`.
+**Platform owner runbook (matches current code):** `handbook/docs/orbit/guides/orbit-admin-init.md`. Staff directory CLI: `handbook/docs/orbit/guides/staff-lifecycle.md`.
 
 ### Current implementation (code vs this page)
 
@@ -20,6 +20,7 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 | `orbit admin init` after verify | Generates a **new** local secret; does not import the server fingerprint |
 | `orbit admin status` / `rotate-secret` / `verify` | Local vault only (`verify` is hermetic; it does not call the API) |
 | `orbit invite create` | Signs locally from `owner.json` and SMTP-sends from the workstation (not the Orbit HTTPS API) |
+| `orbit staff` | HMAC client to `https://staff.dev.manova.space` (`ORBIT_STAFF_URL`); needs verified `owner.json`. Includes `recreate` and `reset-password --totp`. Server not live. |
 
 ---
 
@@ -27,57 +28,44 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 
 Orbit uses a **dual-binary architecture** that decouples developer workstation tools from server infrastructure:
 
-- **Developer Workstations (`orbit`)**: The pure client CLI tool used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), and platform administrative initialization (`orbit admin init`). Workstations never need direct SMTP credentials, mail server network access, or outbound port 587/465 connectivity.
+- **Developer Workstations (`orbit`)**: The CLI used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), staff directory (`orbit staff`), and platform administrative initialization (`orbit admin init`). Workstations do not hold lldap or Stalwart *admin* credentials. **Exception:** `orbit invite create` SMTP-sends from this machine unless `--no-send`.
 - **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Stalwart SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
 
 ### Architecture Highlights
 
 1. **Dual-Binary Separation**: Workstations run `orbit` (pure API client); servers run `orbit-server` (infrastructure daemon).
-2. **Pure API Client Architecture**: Client commands (`orbit admin init`, `orbit invite create`) communicate exclusively over HTTPS with the Orbit server API (`https://orbit.manova.space`).
+2. **Pure API Client Architecture**: `orbit admin init` talks HTTPS to the Orbit API for the ownership challenge. `orbit staff` talks HMAC HTTPS to orbit-staff. `orbit invite create` is **not** an API client — it signs locally and may SMTP-send from the workstation.
 3. **Dedicated Server Daemon (`orbit-server`)**: Runs on production/staging infrastructure, holds backend Stalwart SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
 4. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
 5. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
 
 ### End-to-End Ownership Verification Flow
 
+**Today (code):** Caddy on `https://orbit.manova.space` terminates at **orbit-api-gateway**. The challenge OTP is **in-memory on the gateway** — it is not emailed. `orbit admin verify` is hermetic/local and does not call the API. After a successful local verify, the CLI seals a **new** `owner.json` secret.
+
 ```text
-┌──────────────┐         ┌───────────────┐         ┌──────────────┐         ┌───────────────┐
-│   Operator   │         │   Orbit CLI   │         │ Orbit Server │         │ Stalwart Relay │
-│  (Terminal)  │         │ (orbit admin) │         │(orbit-server)│         │ (SMTP :587)   │
-└──────┬───────┘         └───────┬───────┘         └──────┬───────┘         └───────┬───────┘
-       │                         │                        │                         │
-       │  orbit admin init       │                        │                         │
-       ├────────────────────────>│                        │                         │
-       │                         │ POST /api/v1/admin/    │                         │
-       │                         │ challenge {email}      │                         │
-       │                         ├───────────────────────>│                         │
-       │                         │                        │ Send OTP email          │
-       │                         │                        ├────────────────────────>│
-       │                         │                        │                         │────┐
-       │                         │                        │                         │    │ Dispatches
-       │                         │                        │                         │<───┘ to Operator
-       │                         │ 200 OK                 │                         │      Inbox
-       │                         │<───────────────────────┤                         │
-       │ Prompts for 6-digit OTP │                        │                         │
-       │<────────────────────────┤                        │                         │
-       │                         │                        │                         │
-       │ Enters code: "482910"   │                        │                         │
-       ├────────────────────────>│                        │                         │
-       │                         │ POST /api/v1/admin/    │                         │
-       │                         │ verify {email, code}   │                         │
-       │                         ├───────────────────────>│                         │
-       │                         │                        │ Validate code & attempt │
-       │                         │ 200 OK (verified)      │                         │
-       │                         │<───────────────────────┤                         │
-       │                         │                        │                         │
-       │                         │ Generate 32-byte key   │                         │
-       │                         │ & seal owner.json 0600 │                         │
-       │                         │────┐                   │                         │
-       │                         │    │                   │                         │
-       │                         │<───┘                   │                         │
-       │ Display Success Card    │                        │                         │
-       │<────────────────────────┤                        │                         │
+┌──────────────┐         ┌───────────────┐         ┌─────────────────────────┐
+│   Operator   │         │   Orbit CLI   │         │ orbit.manova.space      │
+│  (Terminal)  │         │ (orbit admin) │         │ (api-gateway, in-memory │
+└──────┬───────┘         └───────┬───────┘         │  OTP — no SMTP)         │
+       │                         │                 └────────────┬────────────┘
+       │  orbit admin init       │                              │
+       ├────────────────────────>│                              │
+       │                         │ POST …/ownership/challenge   │
+       │                         ├─────────────────────────────>│
+       │                         │ 200 OK (OTP stored in RAM)   │
+       │                         │<─────────────────────────────┤
+       │ Prompts for 6-digit OTP │                              │
+       │<────────────────────────┤                              │
+       │ Enters code             │                              │
+       ├────────────────────────>│                              │
+       │                         │ local hermetic verify        │
+       │                         │ (no API) + seal owner.json   │
+       │ Display Success Card    │                              │
+       │<────────────────────────┤                              │
 ```
+
+**Intended later:** `orbit-server` holds Stalwart SMTP and emails the OTP (`POST /api/v1/admin/challenge` → mail). Until that ships, do not expect a challenge email.
 
 ---
 
@@ -507,7 +495,7 @@ Output:
 
 ## 7. Completing Verification Separately (`orbit admin verify`)
 
-If you requested an OTP challenge separately or wish to verify an in-flight code directly:
+This command is **hermetic**: it does not call `orbit.manova.space`. Any well-formed 6-digit code is accepted in-process, then a **new** local secret is sealed. Use it to finish a local vault when you are not relying on emailed OTP.
 
 ```bash
 orbit admin verify alirezaopmc@gmail.com 482910
@@ -588,6 +576,7 @@ Environment variables take precedence over configuration file settings:
 | `ORBIT_SERVER` | `ORBIT_SERVER_URL` | Orbit API server URL | `https://orbit.manova.space` |
 | `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email | `alirezaopmc@gmail.com` |
 | `ORBIT_ADMIN_NAME` | `ORBIT_OWNER_NAME` | Administrator display name | `Alireza` |
+| `ORBIT_STAFF_URL` | — | orbit-staff HMAC API (`orbit staff --server`) | `https://staff.dev.manova.space` |
 
 ### Server Daemon Environment Variables
 
@@ -604,7 +593,7 @@ Environment variables take precedence over configuration file settings:
 
 ## 11. Security Best Practices & Hardening
 
-1. **Zero Client SMTP Exposure**: Developer and admin CLI clients do not require SMTP credentials, preventing credential leakage across developer machines.
+1. **Zero Client SMTP Exposure for admin credentials**: Developer machines do not store Stalwart *admin* passwords. `orbit invite create` still SMTP-sends from the workstation unless `--no-send`.
 2. **Vault File Permissions**: Orbit enforces `0600` permissions on `~/.config/orbit/owner.json` and `~/.config/orbit/config.yaml`. Orbit will issue warnings or block execution if vault files are world-readable or group-readable.
 3. **Strict Out-of-Band OTP**: Verification codes are never displayed in CLI terminal stdout/stderr during standard initialization to prevent local terminal sniffing attacks.
 4. **Challenge Expiration & Rate Limiting**: OTP challenges expire after 10 minutes and are locked after 3 failed verification attempts. The server enforces sliding window rate limiting (10 req/min default per IP).

@@ -1,0 +1,25 @@
+## orbit invite list
+
+List active and stored developer onboarding invitations
+
+### Synopsis
+
+Displays a table or JSON array of all stored invitations with their status, scope, and expiration.
+
+```
+orbit invite list [flags]
+```
+
+### Options
+
+```
+  -a, --all                 Include revoked and expired invitations (default true)
+  -f, --format string       Output format (table or json) (default "table")
+  -h, --help                help for list
+      --store-file string   Custom path to invites storage file
+```
+
+### SEE ALSO
+
+* [orbit invite](orbit_invite.md)	 - Manage developer onboarding invite tokens
+

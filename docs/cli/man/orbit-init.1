@@ -1,0 +1,50 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-init - Clone and initialize workspace repositories
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit init [scope] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Resolves repository targets from workspace.yaml and clones them concurrently.
+Scopes:
+  core            - Clones essential core baseline (default)
+  all / *         - Clones all repositories in the manifest
+  orbit           - Clones Orbit platform toolkit
+  manovaspace     - Clones open-source commons
+  clients/  - Clones a specific client cluster
+       - Clones an individual repository
+
+
+.SH OPTIONS
+.PP
+\fB--bootstrap\fP[=false]
+	Bootstrap workspace without failing if workspace.yaml is not yet cloned
+
+.PP
+\fB--concurrency\fP=4
+	Number of concurrent clone workers
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for init
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml (default: /workspace.yaml)
+
+.PP
+\fB--skip-hooks\fP[=false]
+	Skip post-clone workspace hooks and migrations
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

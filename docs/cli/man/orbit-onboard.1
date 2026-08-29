@@ -1,0 +1,121 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-onboard - Interactive onboarding wizard with resume, claims, and stack provisioning
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit onboard [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Interactive onboarding wizard that sets up developer identity, SSH keys,
+repository clones, Cursor MCP integrations, and local development infrastructure.
+
+.PP
+Pro capabilities:
+  --resume                          Resume an interrupted onboarding session
+  --ignore-and-remove-checkpoint    Discard saved incomplete session checkpoint and start fresh
+  --rollback                        Revert cloned repositories and provisioned credentials
+  --diag-bundle                     Generate a sanitized diagnostic bundle for troubleshooting
+  --auto-fix                        Automatically remediate missing prerequisites and toolchains
+  --dry-run                         Run pre-flight diagnostics and preview onboarding actions
+
+
+.SH OPTIONS
+.PP
+\fB-f\fP, \fB--auto-fix\fP[=false]
+	Automatically install missing prerequisites and toolchain dependencies
+
+.PP
+\fB--diag-bundle\fP[=""]
+	Generate a sanitized diagnostic tar.gz bundle (optional filename)
+
+.PP
+\fB--dry-run\fP[=false]
+	Run pre-flight check and preview onboarding actions without making changes
+
+.PP
+\fB--edge-url\fP=""
+	Onboarding edge gateway URL (default: $ORBIT_SERVER or https://orbit.manova.space)
+
+.PP
+\fB--email\fP=""
+	Developer email address
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for onboard
+
+.PP
+\fB--ignore-and-remove-checkpoint\fP[=false]
+	Discard saved incomplete session checkpoint and start fresh
+
+.PP
+\fB--json\fP[=false]
+	Output JSON progress event stream
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml manifest
+
+.PP
+\fB-n\fP, \fB--name\fP=""
+	Developer display name
+
+.PP
+\fB--non-interactive\fP[=false]
+	Run in non-interactive mode without prompting
+
+.PP
+\fB--resume\fP[=false]
+	Resume interrupted onboarding session from saved checkpoint
+
+.PP
+\fB--rollback\fP[=false]
+	Rollback provisioned resources and clear session
+
+.PP
+\fB-s\fP, \fB--server\fP=""
+	Orbit server URL (alias for --edge-url)
+
+.PP
+\fB--session-file\fP=""
+	Custom path to session persistence file
+
+.PP
+\fB--skip-stack\fP[=false]
+	Skip local dev stack initialization
+
+.PP
+\fB--ssh-dir\fP=""
+	Custom SSH directory path (default: ~/.ssh)
+
+.PP
+\fB--start-stack\fP[=false]
+	Automatically start local dev stack without prompting
+
+.PP
+\fB-t\fP, \fB--token\fP=""
+	Cryptographically signed onboarding invite token
+
+.PP
+\fB-u\fP, \fB--uid\fP=""
+	Desired username / UID
+
+.PP
+\fB--workspace\fP=""
+	Target workspace root directory
+
+.PP
+\fB-y\fP, \fB--yes\fP[=false]
+	Skip interactive confirmation prompts and automatically proceed
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

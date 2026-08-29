@@ -69,7 +69,7 @@ func newEnvCheckCmd() *cobra.Command {
 				}
 			}
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Environment Validator"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Validator"))
 			fmt.Fprintf(out, "  Search Path: %s\n\n", subtleStyle.Render(targetPath))
 
 			schemas := findSchemaFiles(targetPath)
@@ -184,7 +184,7 @@ func newEnvSetupCmd() *cobra.Command {
 				}
 			}
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Environment Setup"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Setup"))
 
 			schemas := findSchemaFiles(targetPath)
 			createdCount := 0

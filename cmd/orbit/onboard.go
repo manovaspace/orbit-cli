@@ -193,7 +193,7 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 		}
 		emitter.Emit(session.StageInit, "completed", fmt.Sprintf("Bundle generated: %s", bundlePath), map[string]string{"bundle_path": bundlePath})
 		if !opts.json {
-			fmt.Fprintln(out, titleStyle.Render("Manova Diagnostic Bundle Generated"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Diagnostic Bundle Generated"))
 			fmt.Fprintf(out, "  %s  Sanitized diagnostic archive created at:\n     %s\n\n",
 				iconOK,
 				codeStyle.Render(bundlePath),
@@ -207,7 +207,7 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 	if !opts.json {
 		banner := `
 ╔══════════════════════════════════════════════════════════════╗
-║                 MANOVA DEVELOPER WIZARD                      ║
+║                  ORBIT DEVELOPER WIZARD                      ║
 ║         Zero-Leak Production Onboarding & Dev Stack          ║
 ╚══════════════════════════════════════════════════════════════╝`
 		fmt.Fprintln(out, titleStyle.Render(banner))
@@ -418,7 +418,7 @@ Actions that will be executed during onboarding:
 				emitter.Emit(session.StageTokenClaimed, "failed", "Invite token required in non-interactive mode", nil)
 				return errors.New("missing required invite token (--token)")
 			}
-			token = promptString(in, out, "Enter your Manova onboarding invite token", "")
+			token = promptString(in, out, "Enter your Orbit onboarding invite token", "")
 			if token == "" {
 				return errors.New("invite token cannot be empty")
 			}

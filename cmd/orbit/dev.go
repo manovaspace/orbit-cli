@@ -77,7 +77,7 @@ func newDevUpCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			infraDir := findOrbitInfraDir(workspaceRoot)
 
-			fmt.Println(titleStyle.Render("Starting Manova Dev Stack..."))
+			fmt.Println(titleStyle.Render("Starting Orbit Dev Stack..."))
 
 			startScript := filepath.Join(infraDir, "scripts", "start-dev-stack.sh")
 			if _, err := os.Stat(startScript); err == nil {
@@ -102,7 +102,7 @@ func newDevDownCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			infraDir := findOrbitInfraDir(workspaceRoot)
 
-			fmt.Println(titleStyle.Render("Stopping Manova Dev Stack..."))
+			fmt.Println(titleStyle.Render("Stopping Orbit Dev Stack..."))
 
 			composeScript := filepath.Join(infraDir, "compose.sh")
 			if _, err := os.Stat(composeScript); err == nil {
@@ -173,7 +173,7 @@ func newDevPortalCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			portalURL := "http://localhost:10007"
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Local Developer Portal"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Local Developer Portal"))
 			fmt.Fprintf(out, "  %s  Portal URL: %s\n", iconOK, boldStyle.Render(portalURL))
 			fmt.Fprintf(out, "  %s  Identity / Auth: %s\n", iconInfo, subtleStyle.Render("http://auth.dev.manova.space:10000"))
 			fmt.Fprintf(out, "  %s  Forgejo Git:    %s\n", iconInfo, subtleStyle.Render("http://git.dev.manova.space:10000"))

@@ -1,0 +1,62 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-admin-init - Initialize and verify platform server ownership via email OTP challenge
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit admin init [email] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Initiates server ownership verification. Requests a 6-digit OTP challenge from the Orbit
+server, prompts for the code, and seals a 32-byte cryptographic master signing secret in the local
+owner vault (mode 0600). Email delivery happens only when the server is orbit-server with SMTP;
+orbit-api-gateway stores the OTP in memory and does not send mail.
+
+
+.SH OPTIONS
+.PP
+\fB-c\fP, \fB--code\fP=""
+	6-digit verification code (for non-interactive execution)
+
+.PP
+\fB--config\fP=""
+	Custom path to configuration file
+
+.PP
+\fB-f\fP, \fB--force\fP[=false]
+	Force re-initialization even if already verified
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for init
+
+.PP
+\fB-n\fP, \fB--name\fP=""
+	Owner display name (e.g. 'Alireza')
+
+.PP
+\fB--no-send\fP[=false]
+	Suppress dispatching challenge email
+
+.PP
+\fB-o\fP, \fB--owner\fP=""
+	Owner email address (e.g. alirezaopmc@gmail.com)
+
+.PP
+\fB-s\fP, \fB--server\fP=""
+	Orbit server URL (e.g. https://orbit.manova.space)
+
+.PP
+\fB--store\fP=""
+	Custom path to owner storage vault file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-admin(1)\fP

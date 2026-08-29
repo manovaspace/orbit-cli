@@ -20,7 +20,7 @@ func TestDoctorCmdExecution(t *testing.T) {
 	_ = rootCmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "Manova System Doctor") {
+	if !strings.Contains(output, "Orbit System Doctor") {
 		t.Errorf("expected doctor output to contain header, got: %s", output)
 	}
 
@@ -116,7 +116,7 @@ func TestDoctorCmdFixFlagExecution(t *testing.T) {
 	_ = rootCmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "Manova System Doctor") {
+	if !strings.Contains(output, "Orbit System Doctor") {
 		t.Errorf("expected doctor output to contain header, got: %s", output)
 	}
 }
@@ -132,7 +132,7 @@ func TestDoctorCmdFixFlagShorthandExecution(t *testing.T) {
 	_ = rootCmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "Manova System Doctor") {
+	if !strings.Contains(output, "Orbit System Doctor") {
 		t.Errorf("expected doctor output to contain header, got: %s", output)
 	}
 }
@@ -173,7 +173,7 @@ func TestDoctorCmdInteractivePromptDecline(t *testing.T) {
 	_ = rootCmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "Manova System Doctor") {
+	if !strings.Contains(output, "Orbit System Doctor") {
 		t.Errorf("expected doctor output to contain header, got: %s", output)
 	}
 }

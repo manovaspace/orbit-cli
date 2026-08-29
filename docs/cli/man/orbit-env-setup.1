@@ -1,0 +1,31 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-env-setup - Generate .env files from schemas and initialize .cursor/mcp.env
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit env setup [path] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Scans for .env.schema.yaml contracts and generates .env files populated with default values and strict 0600 permissions.
+
+
+.SH OPTIONS
+.PP
+\fB--force\fP[=false]
+	Overwrite existing .env files with schema defaults
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for setup
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-env(1)\fP

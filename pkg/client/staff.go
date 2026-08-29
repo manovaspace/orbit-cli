@@ -59,10 +59,11 @@ type StaffUpdateInput struct {
 	Groups          []string `json:"groups"`
 }
 
-// StaffResetResult holds rotated passwords.
+// StaffResetResult holds rotated passwords and optional TOTP URI.
 type StaffResetResult struct {
 	LDAPPassword string `json:"ldap_password"`
 	MailPassword string `json:"mail_password"`
+	OTPAuth      string `json:"otpauth,omitempty"`
 }
 
 // NewStaffClient builds a client for the staff control plane.
@@ -137,14 +138,17 @@ func (c *StaffClient) Delete(ctx context.Context, uid string) error {
 	return c.do(ctx, http.MethodDelete, staffPath(uid), nil, nil, nil)
 }
 
-// ResetPassword POSTs reset-password with targets ldap/mailbox.
-func (c *StaffClient) ResetPassword(ctx context.Context, uid string, ldap, mailbox bool) (*StaffResetResult, error) {
-	targets := make([]string, 0, 2)
+// ResetPassword POSTs reset-password with targets ldap/mailbox/totp.
+func (c *StaffClient) ResetPassword(ctx context.Context, uid string, ldap, mailbox, totp bool) (*StaffResetResult, error) {
+	targets := make([]string, 0, 3)
 	if ldap {
 		targets = append(targets, "ldap")
 	}
 	if mailbox {
 		targets = append(targets, "mailbox")
+	}
+	if totp {
+		targets = append(targets, "totp")
 	}
 	if len(targets) == 0 {
 		targets = []string{"ldap", "mailbox"}

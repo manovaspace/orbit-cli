@@ -1,0 +1,51 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-admin-verify - Seal owner.json locally (hermetic OTP; no API call)
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit admin verify [email] [code] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Local-only verification. The code is checked in-process, not against orbit-server or the gateway. On success a new master secret is sealed in owner.json. Does not import a server fingerprint.
+
+
+.SH OPTIONS
+.PP
+\fB-c\fP, \fB--code\fP=""
+	6-digit verification code
+
+.PP
+\fB--config\fP=""
+	Custom path to configuration file
+
+.PP
+\fB-f\fP, \fB--force\fP[=false]
+	Force re-verification even if already verified
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for verify
+
+.PP
+\fB-n\fP, \fB--name\fP=""
+	Owner display name
+
+.PP
+\fB-o\fP, \fB--owner\fP=""
+	Owner email address
+
+.PP
+\fB--store\fP=""
+	Custom path to owner storage vault file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-admin(1)\fP

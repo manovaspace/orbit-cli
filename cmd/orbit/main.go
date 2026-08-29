@@ -43,9 +43,10 @@ func init() {
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "orbit",
-		Short: "Orbit developer platform and workspace orchestrator",
-		Long:  "Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')",
+		Use:               "orbit",
+		Short:             "Orbit developer platform and workspace orchestrator",
+		Long:              "Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')",
+		DisableAutoGenTag: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
@@ -62,7 +63,7 @@ func newRootCmd() *cobra.Command {
 						infoStyle.Render("Ongoing onboarding session detected"),
 						warningStyle.Render(string(sess.CurrentStage)),
 						boldStyle.Render("orbit onboard --resume"),
-						boldStyle.Render("orbit onboard --purge"),
+						boldStyle.Render("orbit onboard --ignore-and-remove-checkpoint"),
 					)
 				}
 			}

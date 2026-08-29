@@ -1,0 +1,35 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-staff - Manage Orbit staff via the staff control plane
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit staff [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, verdaccio-bind, verdaccio-ci.
+
+
+.SH OPTIONS
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for staff
+
+.PP
+\fB--owner-store\fP=""
+	path to owner.json vault
+
+.PP
+\fB--server\fP=""
+	staff server URL (or ORBIT_STAFF_URL)
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP, \fBorbit-staff-create(1)\fP, \fBorbit-staff-delete(1)\fP, \fBorbit-staff-disable(1)\fP, \fBorbit-staff-enable(1)\fP, \fBorbit-staff-get(1)\fP, \fBorbit-staff-list(1)\fP, \fBorbit-staff-recreate(1)\fP, \fBorbit-staff-reset-password(1)\fP, \fBorbit-staff-update(1)\fP

@@ -90,7 +90,7 @@ func EvaluateOS(osInfo map[string]string, goos string) DiagnosticResult {
 			Category:      category,
 			Name:          name,
 			Status:        StatusWarning,
-			Message:       fmt.Sprintf("Non-Linux OS detected (%s). Manova CLI is optimized for Linux (Ubuntu 22.04+).", goos),
+			Message:       fmt.Sprintf("Non-Linux OS detected (%s). Orbit CLI is optimized for Linux (Ubuntu 22.04+).", goos),
 			FixSuggestion: "Run inside WSL2 or a Linux container for full development stack support.",
 		}
 	}
@@ -140,7 +140,7 @@ func EvaluateOS(osInfo map[string]string, goos string) DiagnosticResult {
 		Category:      category,
 		Name:          name,
 		Status:        StatusWarning,
-		Message:       fmt.Sprintf("Non-Ubuntu Linux distribution detected (%s); Manova officially supports Ubuntu 22.04/24.04/26.04 LTS", prettyName),
+		Message:       fmt.Sprintf("Non-Ubuntu Linux distribution detected (%s); Orbit officially supports Ubuntu 22.04/24.04/26.04 LTS", prettyName),
 		FixSuggestion: "Verify required dependencies manually or use Ubuntu in WSL2/Docker.",
 	}
 }

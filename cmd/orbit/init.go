@@ -54,7 +54,7 @@ Scopes:
 				return fmt.Errorf("manifest file not found at %s. Ensure workspace.yaml exists or pass --manifest", manifestPath)
 			}
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Manova Workspace Init — Scope: %s", scope)))
+			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Init — Scope: %s", scope)))
 			fmt.Fprintf(out, "  Workspace Root: %s\n", subtleStyle.Render(workspaceRoot))
 			fmt.Fprintf(out, "  Manifest Path:  %s\n\n", subtleStyle.Render(manifestPath))
 

@@ -1,0 +1,43 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-doctor - Run pre-flight system diagnostics and environment health checks
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit doctor [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Executes comprehensive diagnostics across OS, Go compiler, Node/Bun, Docker, SSH keys, dev ports, and optional tools.
+
+
+.SH OPTIONS
+.PP
+\fB-f\fP, \fB--fix\fP[=false]
+	Automatically install and configure missing toolchain dependencies
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for doctor
+
+.PP
+\fB--json\fP[=false]
+	Output diagnostic report in JSON format
+
+.PP
+\fB--non-interactive\fP[=false]
+	Disable interactive prompts
+
+.PP
+\fB-y\fP, \fB--yes\fP[=false]
+	Skip interactive confirmation prompts
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

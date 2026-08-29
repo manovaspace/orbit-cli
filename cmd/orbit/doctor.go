@@ -58,7 +58,7 @@ func newDoctorCmd() *cobra.Command {
 				return nil
 			}
 
-			fmt.Fprintln(out, titleStyle.Render("Manova System Doctor — Pre-flight Diagnostics"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit System Doctor — Pre-flight Diagnostics"))
 
 			renderDoctorReport(out, report)
 

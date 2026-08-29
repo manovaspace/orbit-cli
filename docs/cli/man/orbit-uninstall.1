@@ -1,0 +1,43 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-uninstall - Uninstall Orbit CLI binaries and cleanup shell configuration
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit uninstall [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.
+
+
+.SH OPTIONS
+.PP
+\fB--force\fP[=false]
+	Alias for --yes
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for uninstall
+
+.PP
+\fB--purge-state\fP[=false]
+	Purge cache, session, and owner vault (~/.orbit, ~/.manova, ~/.config/orbit, ~/.config/manova)
+
+.PP
+\fB--purge-workspace\fP[=false]
+	Purge workspace repositories (blocked if uncommitted changes exist)
+
+.PP
+\fB-y\fP, \fB--yes\fP[=false]
+	Uninstall without confirmation prompt
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

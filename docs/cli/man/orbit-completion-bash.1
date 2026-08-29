@@ -1,0 +1,58 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-completion-bash - Generate the autocompletion script for bash
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit completion bash\fP
+
+
+.SH DESCRIPTION
+.PP
+Generate the autocompletion script for the bash shell.
+
+.PP
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+.PP
+To load completions in your current shell session:
+
+.EX
+source <(orbit completion bash)
+.EE
+
+.PP
+To load completions for every new session, execute once:
+
+.SS Linux:
+.EX
+orbit completion bash > /etc/bash_completion.d/orbit
+.EE
+
+.SS macOS:
+.EX
+orbit completion bash > $(brew --prefix)/etc/bash_completion.d/orbit
+.EE
+
+.PP
+You will need to start a new shell for this setup to take effect.
+
+
+.SH OPTIONS
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for bash
+
+.PP
+\fB--no-descriptions\fP[=false]
+	disable completion descriptions
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-completion(1)\fP

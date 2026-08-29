@@ -7,7 +7,7 @@ Status: `beta`.
 ## Architecture & Scope
 
 Orbit CLI follows a dual-binary architecture:
-- **Workstation CLI (`orbit`)**: Pure client tool for developers and administrators. Handles multi-repo workspace management, environment validation, diagnostics, local dev orchestration, and invitation management. Workstation commands use pure API client workflows and never require direct SMTP credentials or raw infrastructure access.
+- **Workstation CLI (`orbit`)**: Client tool for developers and administrators. Handles multi-repo workspace management, environment validation, diagnostics, local dev orchestration, invitation management, and HMAC `orbit staff`. Workstation commands do not hold lldap/Stalwart *admin* credentials. `orbit invite create` may SMTP-send from the workstation unless `--no-send`.
 - **Infrastructure Daemon (`orbit-server`)**: Standalone edge HTTP daemon running on server infrastructure. Manages Stalwart SMTP gateways, out-of-band OTP challenges, administrator ownership verification, and developer claim provisioning.
 
 ### Core Capabilities
@@ -16,10 +16,10 @@ Orbit CLI follows a dual-binary architecture:
 - **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
 - **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/Bun, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
-- **50-Port Allocation**: `orbit port list`, `orbit port check` — manages 50-port block allocations per ADR-006 (`1nxxx` range).
-- **Workspace Migrations**: `orbit migrate` — automated schema, configuration, and workspace version transitions.
-- **Local Dev Orchestration**: `orbit dev` — process and container lifecycle orchestration across workspace services.
-- **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` (`--resume`, `--purge`) — cryptographic HMAC invite token generation, challenge verification, and workspace setup.
+- **50-Port Allocation**: `orbit port list`, `orbit port allocate` — 50-port blocks per ADR-006 (`1nxxx` range).
+- **Workspace Migrations**: `orbit migrate` (applies pending) and `orbit migrate status`.
+- **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
+- **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
 
 ## Commands
@@ -41,14 +41,27 @@ orbit init                # initialize workspace from workspace.yaml
 orbit sync                # synchronize repositories and dependencies
 orbit status              # multi-repo git status and dirty tree check
 orbit env check           # validate environment variables against .env.example
+orbit env setup           # generate missing .env files from schemas
 orbit port list           # display dev port allocations (ADR-006)
-orbit migrate run         # run pending workspace migrations
-orbit dev                 # start local dev stack services
+orbit port allocate <project> <service>
+orbit migrate             # apply pending workspace migrations
+orbit migrate status      # inspect applied migrations
+orbit dev up              # start local dev stack services
 orbit invite create <email> # issue HMAC-signed onboarding invite
 orbit onboard             # interactive onboarding wizard
+orbit staff create --uid … --name … --forward …
+orbit staff recreate --uid … --name … --forward … [--totp]
+orbit staff reset-password <uid> [--ldap|--mailbox|--totp]
 orbit assets pull         # download gitignored media from R2
+orbit assets push         # upload gitignored media to R2
 orbit assets add <path>   # upload a file, update orbit-assets.yaml + .gitignore
+orbit assets status       # compare local assets vs R2
 orbit admin init          # initiate platform ownership verification
+orbit doc -f markdown -o docs/cli
+orbit doc -f man -o docs/cli/man
+orbit config show         # local CLI config
+orbit self-update
+orbit uninstall
 ```
 
 ### Edge Daemon
@@ -68,11 +81,15 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | `pkg/migrate/` | Workspace schema, config, and structure migration engine |
 | `pkg/ports/` | Dev host port block allocation (ADR-006) and conflict detection |
 | `pkg/onboard/` | Developer and client onboarding flow and claim verification |
-| `pkg/session/` | Onboarding session state management (`--resume` / `--purge`) |
+| `pkg/session/` | Onboarding session state (`~/.config/orbit/session.json`; reads legacy `~/.config/manova/session.json`) |
 | `pkg/invite/` | Cryptographic HMAC invite tokens, token store, and SMTP mailer |
 | `pkg/owner/` | Root cryptographic trust vault (`owner.json`) and challenge verification |
 | `pkg/updater/` | Binary self-update mechanisms and background version checks |
-| `pkg/client/` | HTTP client for interacting with Orbit server and gateway APIs |
+| `pkg/client/` | HTTP clients: Orbit server plus HMAC `StaffClient` for orbit-staff |
+| `pkg/staffhmac/` | HMAC-SHA256 signing for `orbit staff` (`X-Orbit-Timestamp` / `X-Orbit-Signature`) |
+| `pkg/config/` | Workstation YAML config (`orbit config`) |
+| `pkg/env/` | `.env` schema validation (`orbit env check|setup`) |
+| `pkg/provisioner/` | Onboarding claim / SSH provisioning helpers |
 | `pkg/orchestrator/` | Local process and container runner for `orbit dev` |
 | `pkg/assets/` | `orbit-assets.yaml` index, gitignore helper, R2 S3 client, pull/push/add/status |
 | `pkg/tui/` | Lipgloss styles, icons, and terminal UI formatting |
@@ -85,7 +102,10 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | Development workflow | `handbook/docs/orbit/guides/development-workflow.md` |
 | Dev port allocation | `handbook/docs/orbit/architecture/orbit-dev-ports.md` |
 | Module catalog | `handbook/docs/orbit/architecture/module-catalog.md` |
-| Staff admin init runbook | `handbook/docs/orbit/guides/orbit-admin-init.md` |
+| Platform owner init runbook | `handbook/docs/orbit/guides/orbit-admin-init.md` |
+| Staff lifecycle (`orbit staff`) | `handbook/docs/orbit/guides/staff-lifecycle.md` |
+| Generated CLI markdown | `orbit/orbit-cli/docs/cli/` (`orbit doc -f markdown`) |
+| Generated man pages | `orbit/orbit-cli/docs/cli/man/` (`orbit doc -f man`) |
 | Ownership & email delivery (repo) | `orbit/orbit-cli/docs/guides/platform-ownership-and-email-delivery.md` |
 
 ## Do / don't

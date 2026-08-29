@@ -340,8 +340,8 @@ func newAdminVerifyCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "verify [email] [code]",
-		Short: "Complete owner verification using a received 6-digit OTP code",
-		Long:  "Verifies a 6-digit OTP challenge, generates a cryptographic master signing secret, and seals the owner record in the vault.",
+		Short: "Seal owner.json locally (hermetic OTP; no API call)",
+		Long:  "Local-only verification. The code is checked in-process, not against orbit-server or the gateway. On success a new master secret is sealed in owner.json. Does not import a server fingerprint.",
 		Args:  cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

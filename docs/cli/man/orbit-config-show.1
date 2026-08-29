@@ -1,0 +1,37 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-config-show - Display current configuration with secrets masked
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit config show [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Displays configuration values loaded from ~/.config/orbit/config.yaml, with sensitive credentials masked.
+
+
+.SH OPTIONS
+.PP
+\fB-f\fP, \fB--format\fP="yaml"
+	Output format: yaml or json
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for show
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+.PP
+\fB--config\fP=""
+	Custom path to configuration file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-config(1)\fP

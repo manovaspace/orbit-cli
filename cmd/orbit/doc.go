@@ -49,7 +49,7 @@ func newDocCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&outputDir, "output", "o", "./docs/cli", "Directory to output generated documentation")
+	cmd.Flags().StringVarP(&outputDir, "output", "o", "./docs/cli", "Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages)")
 	cmd.Flags().StringVarP(&format, "format", "f", "markdown", "Documentation format: markdown or man")
 
 	return cmd

@@ -17,7 +17,7 @@ func newMigrateCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			workspaceRoot := findWorkspaceRoot("")
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Workspace Migrations"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Workspace Migrations"))
 			fmt.Fprintf(out, "  Workspace Root: %s\n\n", subtleStyle.Render(workspaceRoot))
 
 			results, err := migrate.RunPendingMigrations(workspaceRoot)
@@ -58,7 +58,7 @@ func newMigrateStatusCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			workspaceRoot := findWorkspaceRoot("")
 
-			fmt.Fprintln(out, titleStyle.Render("Manova Workspace Migration Status"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Workspace Migration Status"))
 			fmt.Fprintf(out, "  State File: %s\n\n", subtleStyle.Render(workspaceRoot+"/.manova/state.json"))
 
 			engine := migrate.NewEngine(workspaceRoot, "")

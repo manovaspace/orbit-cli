@@ -1,0 +1,87 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-invite-create - Generate a cryptographically signed onboarding invitation token
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit invite create [email] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Generates a HMAC-SHA256 signed invite token for a developer email address with specified scope and expiration.
+
+
+.SH OPTIONS
+.PP
+\fB--email\fP=""
+	Developer email address
+
+.PP
+\fB-e\fP, \fB--expires\fP="168h"
+	Expiration duration (e.g. '7d', '24h', '168h')
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for create
+
+.PP
+\fB--insecure\fP[=false]
+	Bypass owner verification check (development only)
+
+.PP
+\fB-i\fP, \fB--interactive\fP[=false]
+	Interactive wizard for generating developer invitations
+
+.PP
+\fB-n\fP, \fB--name\fP=""
+	Display name of the developer (e.g. 'Alex Smith')
+
+.PP
+\fB--no-send\fP[=false]
+	Suppress dispatching onboarding invitation email
+
+.PP
+\fB--owner-store\fP=""
+	Custom path to owner storage vault file (default: $ORBIT_OWNER_STORE or ~/.config/orbit/owner.json)
+
+.PP
+\fB-s\fP, \fB--scope\fP="core"
+	Access scope (e.g. 'core', 'client', 'guest')
+
+.PP
+\fB--secret\fP=""
+	Raw signing secret (overrides --secret-env)
+
+.PP
+\fB--secret-env\fP="ORBIT_INVITE_SECRET"
+	Environment variable containing signing secret
+
+.PP
+\fB-m\fP, \fB--send\fP[=true]
+	Dispatch onboarding invitation email via SMTP (default: true)
+
+.PP
+\fB--smtp-from\fP=""
+	Sender email address (default: $ORBIT_SMTP_FROM)
+
+.PP
+\fB--smtp-host\fP=""
+	SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)
+
+.PP
+\fB--smtp-port\fP=""
+	SMTP server port (default: $ORBIT_SMTP_PORT or 587)
+
+.PP
+\fB--store-file\fP=""
+	Custom path to invites storage file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-invite(1)\fP

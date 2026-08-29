@@ -13,21 +13,25 @@ import (
 
 // SessionManager manages checkpointed onboarding sessions on disk.
 type SessionManager struct {
-	filePath string
+	filePath   string
+	legacyPath string
 }
 
 // NewSessionManager creates a SessionManager instance with either a custom path
-// or the default path ~/.config/manova/session.json.
+// or ~/.config/orbit/session.json. A leftover ~/.config/manova/session.json is
+// still read until the next save, which writes the orbit path.
 func NewSessionManager(customPath string) (*SessionManager, error) {
-	p := customPath
-	if p == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		p = filepath.Join(home, ".config", "manova", "session.json")
+	if customPath != "" {
+		return &SessionManager{filePath: customPath}, nil
 	}
-	return &SessionManager{filePath: p}, nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	return &SessionManager{
+		filePath:   filepath.Join(home, ".config", "orbit", "session.json"),
+		legacyPath: filepath.Join(home, ".config", "manova", "session.json"),
+	}, nil
 }
 
 // FilePath returns the configured session file path.
@@ -62,14 +66,27 @@ func (sm *SessionManager) HasPendingSession() bool {
 	return s.CurrentStage != StageCompleted
 }
 
+func (sm *SessionManager) readPath() string {
+	if _, err := os.Stat(sm.filePath); err == nil {
+		return sm.filePath
+	}
+	if sm.legacyPath != "" {
+		if _, err := os.Stat(sm.legacyPath); err == nil {
+			return sm.legacyPath
+		}
+	}
+	return sm.filePath
+}
+
 // LoadSession reads and unmarshals the session from disk.
 // Returns nil, nil if the file does not exist.
 func (sm *SessionManager) LoadSession() (*Session, error) {
-	if _, err := os.Stat(sm.filePath); os.IsNotExist(err) {
+	path := sm.readPath()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(sm.filePath)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -99,13 +116,24 @@ func (sm *SessionManager) SaveSession(s *Session) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
-	return os.WriteFile(sm.filePath, data, 0600)
+	if err := os.WriteFile(sm.filePath, data, 0600); err != nil {
+		return err
+	}
+	if sm.legacyPath != "" && sm.legacyPath != sm.filePath {
+		_ = os.Remove(sm.legacyPath)
+	}
+	return nil
 }
 
 // ClearSession removes the session file if it exists.
 func (sm *SessionManager) ClearSession() error {
 	if err := os.Remove(sm.filePath); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	if sm.legacyPath != "" {
+		if err := os.Remove(sm.legacyPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }

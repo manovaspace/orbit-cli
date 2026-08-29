@@ -1,0 +1,31 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-status - Show git status and working tree cleanliness across workspace repositories
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit status [scope] [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Inspects all cloned repositories and renders a colorized table of branch names, sync states (ahead/behind), and uncommitted changes.
+
+
+.SH OPTIONS
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for status
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml (default: /workspace.yaml)
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

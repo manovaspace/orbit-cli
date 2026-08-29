@@ -1,0 +1,55 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-update - Unified workspace update (CLI, git branches, migrations, and env validation)
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit update [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Performs a full workspace synchronization and verification:
+  1. Checks for Orbit CLI updates
+  2. Synchronizes all clean default git branches from origin
+  3. Executes pending workspace migrations (.manova/state.json)
+  4. Validates project .env files against .env.schema.yaml contracts
+
+
+.SH OPTIONS
+.PP
+\fB--concurrency\fP=4
+	Concurrent git sync workers
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for update
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml (default: /workspace.yaml)
+
+.PP
+\fB--skip-env\fP[=false]
+	Skip environment validation
+
+.PP
+\fB--skip-migrate\fP[=false]
+	Skip workspace migrations
+
+.PP
+\fB--skip-selfupdate\fP[=false]
+	Skip CLI update check
+
+.PP
+\fB--skip-sync\fP[=false]
+	Skip workspace git sync
+
+
+.SH SEE ALSO
+.PP
+\fBorbit(1)\fP

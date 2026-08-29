@@ -89,6 +89,43 @@ func TestStaffClientCreateSignsHeaders(t *testing.T) {
 	}
 }
 
+func TestStaffClientResetPasswordTOTP(t *testing.T) {
+	secret := "test-hmac-secret-for-staff-client"
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/staff/sara/reset-password" {
+			t.Fatalf("got %s %s", r.Method, r.URL.Path)
+		}
+		var err error
+		gotBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(StaffResetResult{OTPAuth: "otpauth://totp/fake:sara"})
+	}))
+	defer srv.Close()
+
+	c := NewStaffClient(srv.URL, secret)
+	res, err := c.ResetPassword(context.Background(), "sara", false, false, true)
+	if err != nil {
+		t.Fatalf("ResetPassword: %v", err)
+	}
+	var payload map[string][]string
+	if err := json.Unmarshal(gotBody, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload["targets"]) != 1 || payload["targets"][0] != "totp" {
+		t.Fatalf("targets = %v", payload["targets"])
+	}
+	if res.OTPAuth != "otpauth://totp/fake:sara" {
+		t.Fatalf("otpauth = %q", res.OTPAuth)
+	}
+	if res.LDAPPassword != "" || res.MailPassword != "" {
+		t.Fatalf("unexpected passwords: %+v", res)
+	}
+}
+
 func TestStaffUpdateInputOmitsEmptyDisplayName(t *testing.T) {
 	body, err := json.Marshal(StaffUpdateInput{
 		PersonalForward: "sara@proton.me",

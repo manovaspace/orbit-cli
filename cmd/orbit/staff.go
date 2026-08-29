@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -16,14 +17,14 @@ import (
 
 const (
 	defaultStaffServerURL = "https://staff.dev.manova.space"
-	staffOwnerUnverified  = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before issuing invitations."
+	staffOwnerUnverified  = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before managing staff."
 )
 
 func newStaffCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "staff",
 		Short: "Manage Orbit staff via the staff control plane",
-		Long:  "Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC).",
+		Long:  "Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, verdaccio-bind, verdaccio-ci.",
 	}
 	cmd.PersistentFlags().String("server", "", "staff server URL (or ORBIT_STAFF_URL)")
 	cmd.PersistentFlags().String("owner-store", "", "path to owner.json vault")
@@ -36,6 +37,7 @@ func newStaffCmd() *cobra.Command {
 	cmd.AddCommand(newStaffEnableCmd())
 	cmd.AddCommand(newStaffDeleteCmd())
 	cmd.AddCommand(newStaffResetPasswordCmd())
+	cmd.AddCommand(newStaffRecreateCmd())
 	return cmd
 }
 
@@ -239,17 +241,17 @@ func newStaffDeleteCmd() *cobra.Command {
 }
 
 func newStaffResetPasswordCmd() *cobra.Command {
-	var ldapFlag, mailboxFlag bool
+	var ldapFlag, mailboxFlag, totpFlag bool
 	cmd := &cobra.Command{
 		Use:   "reset-password <uid>",
-		Short: "Rotate ldap and/or mailbox passwords",
+		Short: "Rotate ldap and/or mailbox passwords, optionally Authelia TOTP",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
 			if err != nil {
 				return err
 			}
-			res, err := c.ResetPassword(context.Background(), args[0], ldapFlag, mailboxFlag)
+			res, err := c.ResetPassword(context.Background(), args[0], ldapFlag, mailboxFlag, totpFlag)
 			if err != nil {
 				return err
 			}
@@ -261,12 +263,83 @@ func newStaffResetPasswordCmd() *cobra.Command {
 			if res.MailPassword != "" {
 				fmt.Fprintf(out, "mail   %s\n", res.MailPassword)
 			}
+			if res.OTPAuth != "" {
+				fmt.Fprintf(out, "otpauth %s\n", res.OTPAuth)
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset SSO/ldap password")
 	cmd.Flags().BoolVar(&mailboxFlag, "mailbox", false, "reset mailbox password")
+	cmd.Flags().BoolVar(&totpFlag, "totp", false, "replace Authelia TOTP and print otpauth")
 	return cmd
+}
+
+func newStaffRecreateCmd() *cobra.Command {
+	var (
+		uidFlag     string
+		nameFlag    string
+		forwardFlag string
+		groupsFlag  string
+		totpFlag    bool
+		idemFlag    string
+	)
+	cmd := &cobra.Command{
+		Use:   "recreate",
+		Short: "Delete then create a staff member (fresh SSO + mailbox)",
+		Long:  "Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := staffClientFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			uid := strings.TrimSpace(uidFlag)
+			if uid == "" {
+				return errors.New("required flag --uid")
+			}
+			forward := strings.TrimSpace(forwardFlag)
+			if forward == "" || !strings.Contains(forward, "@") {
+				return errors.New("required flag --forward with an email address")
+			}
+			if err := c.Delete(context.Background(), uid); err != nil && !staffIsNotFound(err) {
+				return err
+			}
+			idem := strings.TrimSpace(idemFlag)
+			if idem == "" {
+				idem, err = newIdempotencyKey()
+				if err != nil {
+					return err
+				}
+			}
+			res, err := c.Create(context.Background(), client.StaffCreateInput{
+				UID:             uid,
+				DisplayName:     strings.TrimSpace(nameFlag),
+				PersonalForward: forward,
+				Groups:          splitCSV(groupsFlag),
+				TOTP:            totpFlag,
+				IdempotencyKey:  idem,
+			})
+			if err != nil {
+				return err
+			}
+			printStaffCreate(cmd, res)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&uidFlag, "uid", "", "staff uid (required)")
+	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
+	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email (required)")
+	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
+	cmd.Flags().BoolVar(&totpFlag, "totp", false, "enroll Authelia TOTP after recreate")
+	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key for create (generated if empty)")
+	_ = cmd.MarkFlagRequired("uid")
+	_ = cmd.MarkFlagRequired("forward")
+	return cmd
+}
+
+func staffIsNotFound(err error) bool {
+	var api *client.APIError
+	return errors.As(err, &api) && api.StatusCode == http.StatusNotFound
 }
 
 func staffClientFromCmd(cmd *cobra.Command) (*client.StaffClient, error) {

@@ -27,7 +27,7 @@ func newStatusCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Manova Workspace Status — Scope: %s", scope)))
+			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Status — Scope: %s", scope)))
 
 			if _, err := os.Stat(manifestPath); err != nil {
 				return fmt.Errorf("manifest file not found at %s. Ensure workspace.yaml exists or pass --manifest", manifestPath)

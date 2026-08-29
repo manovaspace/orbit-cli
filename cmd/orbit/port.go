@@ -44,7 +44,7 @@ func newPortListCmd() *cobra.Command {
 		Short: "List base ports and deterministic slots for all registered projects",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			fmt.Fprintln(out, titleStyle.Render("Manova Port Manager — 50-Port Block Allocations"))
+			fmt.Fprintln(out, titleStyle.Render("Orbit Port Manager — 50-Port Block Allocations"))
 
 			type projEntry struct {
 				name string

@@ -23,7 +23,7 @@ func newUninstallCmd() *cobra.Command {
 		Use:     "uninstall",
 		Aliases: []string{"remove", "purge"},
 		Short:   "Uninstall Orbit CLI binaries and cleanup shell configuration",
-		Long:    "Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges local session/cache state.",
+		Long:    "Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
@@ -119,6 +119,8 @@ func newUninstallCmd() *cobra.Command {
 				stateDirs := []string{
 					filepath.Join(home, ".orbit"),
 					filepath.Join(home, ".manova"),
+					filepath.Join(home, ".config", "orbit"),
+					filepath.Join(home, ".config", "manova"),
 				}
 				for _, sd := range stateDirs {
 					if _, err := os.Stat(sd); err == nil {
@@ -139,7 +141,7 @@ func newUninstallCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&force, "yes", "y", false, "Uninstall without confirmation prompt")
 	cmd.Flags().BoolVar(&force, "force", false, "Alias for --yes")
-	cmd.Flags().BoolVar(&purgeState, "purge-state", false, "Purge local cache and session state (~/.orbit, ~/.manova)")
+	cmd.Flags().BoolVar(&purgeState, "purge-state", false, "Purge cache, session, and owner vault (~/.orbit, ~/.manova, ~/.config/orbit, ~/.config/manova)")
 	cmd.Flags().BoolVar(&purgeWorkspace, "purge-workspace", false, "Purge workspace repositories (blocked if uncommitted changes exist)")
 
 	return cmd

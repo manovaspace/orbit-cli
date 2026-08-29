@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -193,5 +194,47 @@ func TestSessionManagerEdgeCases(t *testing.T) {
 	}
 	if defaultSM.FilePath() == "" {
 		t.Fatal("expected default path to be non-empty")
+	}
+	if !strings.Contains(defaultSM.FilePath(), filepath.Join(".config", "orbit", "session.json")) {
+		t.Fatalf("default path = %q, want ~/.config/orbit/session.json", defaultSM.FilePath())
+	}
+}
+
+func TestDefaultSessionReadsLegacyAndMigratesOnSave(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	legacyDir := filepath.Join(home, ".config", "manova")
+	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := filepath.Join(legacyDir, "session.json")
+	smWrite, err := NewSessionManager(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := smWrite.CreateSession("alex@example.com", "Alex")
+	if err := smWrite.SaveSession(s); err != nil {
+		t.Fatal(err)
+	}
+
+	sm, err := NewSessionManager("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := sm.LoadSession()
+	if err != nil || loaded == nil {
+		t.Fatalf("load legacy: %v %+v", err, loaded)
+	}
+	if loaded.Email != "alex@example.com" {
+		t.Fatalf("email = %q", loaded.Email)
+	}
+	if err := sm.SaveSession(loaded); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(sm.FilePath()); err != nil {
+		t.Fatalf("orbit session missing: %v", err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatal("expected legacy session removed after save")
 	}
 }

@@ -36,7 +36,7 @@ func TestOnboardFlagsAndResumePrompt(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "MANOVA DEVELOPER WIZARD") {
+	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
 	if !strings.Contains(out, "DRY-RUN PREVIEW") {
@@ -495,7 +495,7 @@ func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "MANOVA DEVELOPER WIZARD") {
+	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
 	if !strings.Contains(out, "DRY-RUN PREVIEW") {
@@ -600,7 +600,7 @@ func TestOnboardInteractivePromptDecline(t *testing.T) {
 	_ = cmd.Execute()
 
 	out := buf.String()
-	if !strings.Contains(out, "MANOVA DEVELOPER WIZARD") {
+	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
 }

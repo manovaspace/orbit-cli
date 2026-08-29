@@ -1,0 +1,39 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-admin-status - Display platform ownership verification status, vault integrity, and mail config
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit admin status [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Reports whether platform ownership has been verified, vault file path and permissions, and active SMTP gateway.
+
+
+.SH OPTIONS
+.PP
+\fB--config\fP=""
+	Custom path to configuration file
+
+.PP
+\fB-f\fP, \fB--format\fP="table"
+	Output format: table or json
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for status
+
+.PP
+\fB--store\fP=""
+	Custom path to owner storage vault file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-admin(1)\fP
