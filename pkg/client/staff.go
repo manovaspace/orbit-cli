@@ -54,8 +54,8 @@ type StaffCreateResult struct {
 
 // StaffUpdateInput is the PATCH body.
 type StaffUpdateInput struct {
-	DisplayName     string   `json:"display_name"`
-	PersonalForward string   `json:"personal_forward"`
+	DisplayName     string   `json:"display_name,omitempty"`
+	PersonalForward string   `json:"personal_forward,omitempty"`
 	Groups          []string `json:"groups"`
 }
 

@@ -88,3 +88,22 @@ func TestStaffClientCreateSignsHeaders(t *testing.T) {
 		t.Fatalf("unexpected result: %+v", res)
 	}
 }
+
+func TestStaffUpdateInputOmitsEmptyDisplayName(t *testing.T) {
+	body, err := json.Marshal(StaffUpdateInput{
+		PersonalForward: "sara@proton.me",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["display_name"]; ok {
+		t.Fatalf("display_name must be omitted from forward-only PATCH: %s", body)
+	}
+	if m["personal_forward"] != "sara@proton.me" {
+		t.Fatalf("personal_forward = %v", m["personal_forward"])
+	}
+}
