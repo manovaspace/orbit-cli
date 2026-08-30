@@ -9,7 +9,9 @@ orbit dev up [modules...] [flags]
 ### Options
 
 ```
-  -h, --help   help for up
+  -h, --help               help for up
+      --timeout duration   Timeout when waiting for service readiness (default 15s)
+  -w, --wait               Wait for core services to become responsive
 ```
 
 ### SEE ALSO
