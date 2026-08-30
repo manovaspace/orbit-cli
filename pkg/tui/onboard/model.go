@@ -135,6 +135,16 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		return w, cmd
 	}
 
+	// Wire Workspace stage component
+	workspaceModel := NewWorkspaceModel(m)
+	m.StageViews[session.StageWorkspace] = func(w *WizardModel) string {
+		return workspaceModel.View()
+	}
+	m.StageUpdates[session.StageWorkspace] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := workspaceModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 
