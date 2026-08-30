@@ -217,14 +217,19 @@ func TestEvaluateGoVersion(t *testing.T) {
 
 func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	// Node tests
-	nodeOk := EvaluateNodeVersion("v22.14.0\n", nil)
-	if nodeOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for Node v22.14.0, got %v", nodeOk.Status)
+	node24 := EvaluateNodeVersion("v24.18.0\n", nil)
+	if node24.Status != StatusOK {
+		t.Errorf("expected StatusOK for Node v24.18.0, got %v", node24.Status)
 	}
 
-	node24 := EvaluateNodeVersion("v24.18.0\n", nil)
-	if node24.Status != StatusError {
-		t.Errorf("expected StatusError for Node v24.18.0, got %v", node24.Status)
+	node26 := EvaluateNodeVersion("v26.0.0\n", nil)
+	if node26.Status != StatusOK {
+		t.Errorf("expected StatusOK for Node v26.0.0, got %v", node26.Status)
+	}
+
+	node22 := EvaluateNodeVersion("v22.14.0\n", nil)
+	if node22.Status != StatusError {
+		t.Errorf("expected StatusError for Node v22.14.0, got %v", node22.Status)
 	}
 
 	node20 := EvaluateNodeVersion("v20.10.0\n", nil)

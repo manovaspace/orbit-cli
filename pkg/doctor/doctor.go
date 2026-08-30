@@ -152,7 +152,7 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckNodeAndBun checks Node.js (22.x LTS) and Bun (1.4.x).
+// CheckNodeAndBun checks Node.js (>= 24.x) and Bun (1.4.x).
 func CheckNodeAndBun() []DiagnosticResult {
 	var results []DiagnosticResult
 
@@ -168,6 +168,7 @@ func CheckNodeAndBun() []DiagnosticResult {
 }
 
 // EvaluateNodeVersion evaluates the output of `node -v`.
+// Passes if Node >= 24.0.0 (ADR-023: Next.js standalone runners and tools require Node 24).
 func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 	category := "Runtime"
 	name := "Node.js"
@@ -178,7 +179,7 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 			Name:          name,
 			Status:        StatusError,
 			Message:       "Node.js not found in PATH",
-			FixSuggestion: "Install Node.js 22 LTS: https://nodejs.org or via fnm/nvm.",
+			FixSuggestion: "Install Node.js 24 LTS: https://nodejs.org or via fnm/nvm (fnm install 24).",
 		}
 	}
 
@@ -193,23 +194,13 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "22.0.0") < 0 {
+	if CompareVersions(v, "24.0.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Node.js v%s is below required version (22.x LTS)", v),
-			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
-		}
-	}
-
-	if CompareVersions(v, "23.0.0") >= 0 {
-		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusError,
-			Message:       fmt.Sprintf("Node.js v%s is not 22.x LTS", v),
-			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
+			Message:       fmt.Sprintf("Node.js v%s is below required version (>= 24)", v),
+			FixSuggestion: "Install Node.js 24 LTS: fnm install 24 or nvm install 24.",
 		}
 	}
 
@@ -217,7 +208,7 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Node.js v%s installed (22.x LTS)", v),
+		Message:  fmt.Sprintf("Node.js v%s installed (>= 24 required)", v),
 	}
 }
 

@@ -149,7 +149,7 @@ func TestDefaultRegistry(t *testing.T) {
 		t.Fatalf("expected 5 default healers, got %d", len(all))
 	}
 
-	names := []string{"Go 1.26", "Bun", "Node.js 22 LTS", "Git", "Docker Compose"}
+	names := []string{"Go 1.26", "Bun", "Node.js 24 LTS", "Git", "Docker Compose"}
 	for _, expectedName := range names {
 		if _, ok := reg.Get(expectedName); !ok {
 			t.Fatalf("expected default registry to contain %q", expectedName)
@@ -344,8 +344,8 @@ func TestNodeHealer(t *testing.T) {
 		}
 
 		script := runner.getLastScript()
-		if !strings.Contains(script, "setup_22.x") {
-			t.Errorf("expected NodeSource setup_22.x in script, got: %s", script)
+		if !strings.Contains(script, "setup_24.x") {
+			t.Errorf("expected NodeSource setup_24.x in script, got: %s", script)
 		}
 		if !strings.Contains(script, "sudo -E bash -") {
 			t.Errorf("expected sudo -E bash for non-root in script, got: %s", script)

@@ -239,7 +239,7 @@ curl -fsSL https://bun.sh/install | bash
 // NodeHealer
 // ============================================================================
 
-// NodeHealer installs Node.js 22 LTS via NodeSource package repository.
+// NodeHealer installs Node.js 24 LTS via NodeSource package repository.
 type NodeHealer struct {
 	Runner Runner
 	IsRoot func() bool
@@ -254,7 +254,7 @@ func NewNodeHealer() *NodeHealer {
 
 // Name returns the identifier of the healer.
 func (h *NodeHealer) Name() string {
-	return "Node.js 22 LTS"
+	return "Node.js 24 LTS"
 }
 
 // CanHeal checks whether the result represents a missing or outdated Node.js installation.
@@ -266,7 +266,7 @@ func (h *NodeHealer) CanHeal(result doctor.DiagnosticResult) bool {
 	return name == "node.js" || name == "nodejs" || name == "node" || strings.Contains(name, "node.js")
 }
 
-// Heal installs Node.js 22 LTS via official NodeSource repository.
+// Heal installs Node.js 24 LTS via official NodeSource repository.
 func (h *NodeHealer) Heal(ctx context.Context, progress func(step string)) error {
 	if progress == nil {
 		progress = func(string) {}
@@ -288,11 +288,11 @@ func (h *NodeHealer) Heal(ctx context.Context, progress func(step string)) error
 		sudoDashE = "sudo -E "
 	}
 
-	progress("Setting up NodeSource repository for Node.js 22 LTS...")
+	progress("Setting up NodeSource repository for Node.js 24 LTS...")
 
 	script := fmt.Sprintf(`set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-curl -fsSL https://deb.nodesource.com/setup_22.x | %sbash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | %sbash -
 %sapt-get update -y
 %sapt-get install -y nodejs
 `, sudoDashE, sp, sp)
