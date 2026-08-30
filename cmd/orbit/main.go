@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
@@ -47,6 +48,9 @@ func newRootCmd() *cobra.Command {
 		Short:             "Orbit developer platform and workspace orchestrator",
 		Long:              "Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')",
 		DisableAutoGenTag: true,
+		PersistentPreRunE: func(c *cobra.Command, args []string) error {
+			return enforceHost(c, host.Live)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
