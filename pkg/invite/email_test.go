@@ -58,6 +58,57 @@ func TestRenderInviteEmail(t *testing.T) {
 	}
 }
 
+func TestRenderInviteEmail_GeneratedTokenNeverLeaksSubject(t *testing.T) {
+	req := InviteRequest{
+		Email:       "alex@example.com",
+		DisplayName: "Alex Smith",
+		Scope:       "core",
+		TTL:         24 * time.Hour,
+		CreatedBy:   "admin@example.com",
+	}
+
+	tokenStr, _, err := GenerateToken(req, testSecret())
+	if err != nil {
+		t.Fatalf("GenerateToken failed: %v", err)
+	}
+
+	data := EmailData{
+		RecipientName:  req.DisplayName,
+		RecipientEmail: req.Email,
+		Token:          tokenStr,
+		ExpiresAt:      time.Now().Add(req.TTL).UTC(),
+		ExpiresInHuman: "24 hours",
+		CLICommand:     "orbit onboard --token " + tokenStr,
+		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- onboard --token " + tokenStr,
+	}
+
+	subject, _, htmlBody, err := RenderInviteEmail(data)
+	if err != nil {
+		t.Fatalf("RenderInviteEmail failed: %v", err)
+	}
+
+	if subject != "Welcome to Manova — developer workspace invitation" {
+		t.Fatalf("subject = %q", subject)
+	}
+	if strings.Contains(subject, tokenStr) {
+		t.Fatal("subject leaked generated HMAC token")
+	}
+
+	idx := strings.Index(htmlBody, tokenStr)
+	if idx < 0 {
+		t.Fatal("html missing token")
+	}
+	window := htmlBody[max(0, idx-200):min(len(htmlBody), idx+len(tokenStr)+80)]
+	if strings.Contains(window, "font-size:28px") || strings.Contains(window, "font-size: 28px") {
+		if strings.Contains(window, "letter-spacing") {
+			t.Fatalf("HMAC token in 28px letter-spaced hero: %s", window)
+		}
+	}
+	if strings.Contains(window, "font-size:32px") || strings.Contains(window, "font-size:32") {
+		t.Fatalf("HMAC token in 32px hero: %s", window)
+	}
+}
+
 func TestRenderInviteEmail_FallbackName(t *testing.T) {
 	data := EmailData{
 		RecipientEmail: "developer@manova.space",
