@@ -396,7 +396,13 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6. Revocation check via Store (if configured)
-	if s.config.InviteStore != nil {
+	if s.config.Store != nil {
+		rec, err := s.config.Store.Invites().GetInvite(r.Context(), claims.ID)
+		if err == nil && rec != nil && rec.Revoked {
+			writeJSONError(w, http.StatusForbidden, "invitation token has been revoked", 0)
+			return
+		}
+	} else if s.config.InviteStore != nil {
 		rec, err := s.config.InviteStore.GetInvite(claims.ID)
 		if err == nil && rec != nil && rec.Revoked {
 			writeJSONError(w, http.StatusForbidden, "invitation token has been revoked", 0)

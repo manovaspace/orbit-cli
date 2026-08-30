@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -20,6 +22,8 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/onboard"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
+	"github.com/manovaspace/orbit-cli/pkg/serverstore"
+	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -91,6 +95,26 @@ type serverOptions struct {
 	ownerStorePath          string
 	configPath              string
 	disablePublicChallenges bool
+	dbPath                  string
+	trustedProxies          []string
+}
+
+// DefaultDBPath returns the resolved default path to the SQLite database file.
+// Resolution order:
+// 1. $ORBIT_DB_PATH environment variable
+// 2. ~/.config/orbit/orbit.db (user home directory)
+// 3. /var/lib/orbit/orbit.db or /etc/orbit/orbit.db (system fallback)
+func DefaultDBPath() string {
+	if envPath := os.Getenv("ORBIT_DB_PATH"); envPath != "" {
+		return envPath
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		return filepath.Join(home, ".config", "orbit", "orbit.db")
+	}
+	if _, err := os.Stat("/var/lib/orbit"); err == nil {
+		return "/var/lib/orbit/orbit.db"
+	}
+	return "/etc/orbit/orbit.db"
 }
 
 func formatVersion() string {
@@ -111,12 +135,12 @@ func newRootCmd() *cobra.Command {
 	opts := &serverOptions{}
 
 	cmd := &cobra.Command{
-		Use:     "orbit-server",
-		Short:   "Dedicated edge HTTP daemon for developer onboarding and infrastructure management",
-		Long:    `orbit-server is the dedicated edge service that validates HMAC-signed developer invitations,
+		Use:   "orbit-server",
+		Short: "Dedicated edge HTTP daemon for developer onboarding and infrastructure management",
+		Long: `orbit-server is the dedicated edge service that validates HMAC-signed developer invitations,
 orchestrates local development infrastructure, handles admin ownership verification challenges,
 and serves the canonical developer onboarding script.`,
-		Version: version,
+		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -137,10 +161,14 @@ and serves the canonical developer onboarding script.`,
 	cmd.Flags().StringVar(&opts.signingSecret, "signing-secret", "", "Cryptographic secret for token signing and verification")
 	cmd.Flags().StringVar(&opts.signingSecret, "secret", "", "Alias for --signing-secret")
 	_ = cmd.Flags().MarkHidden("secret")
-	cmd.Flags().StringVar(&opts.storePath, "store", "", "Custom path to invites storage file")
+	cmd.Flags().StringVar(&opts.storePath, "store", "", "Custom path to legacy invites storage file")
 	cmd.Flags().StringVar(&opts.ownerStorePath, "owner-store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVar(&opts.configPath, "config", "", "Custom path to configuration file")
 	cmd.Flags().BoolVar(&opts.disablePublicChallenges, "disable-public-challenges", false, "Disable unauthenticated public challenge emails; require owner-issued 8-digit admin grants")
+	cmd.Flags().StringVar(&opts.dbPath, "db", "", "Custom path to SQLite database (default: $ORBIT_DB_PATH or ~/.config/orbit/orbit.db)")
+	cmd.Flags().StringVar(&opts.dbPath, "db-path", "", "Alias for --db")
+	_ = cmd.Flags().MarkHidden("db-path")
+	cmd.Flags().StringSliceVar(&opts.trustedProxies, "trusted-proxies", nil, "List of trusted reverse proxy CIDRs or IP addresses")
 
 	// Version subcommand for parity
 	versionCmd := &cobra.Command{
@@ -221,26 +249,62 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	// 3. Resolve signing secret
 	secret, secretSource := resolveSigningSecret(opts.signingSecret, opts.ownerStorePath)
 
-	// 4. Initialize Invite Store
-	var inviteStore *invite.Store
-	if store, err := invite.NewStore(opts.storePath); err == nil {
-		inviteStore = store
+	// 4. Resolve and Initialize SQLite Database
+	dbPath := opts.dbPath
+	if dbPath == "" {
+		dbPath = DefaultDBPath()
 	}
 
-	// 5. Initialize Challenge & Grant Managers
-	challengeMgr := owner.NewChallengeManager()
-	grantMgr := owner.NewGrantManager()
+	db, err := sqlite.NewDB(dbPath)
+	if err != nil {
+		slog.Error("failed to initialize SQLite database", "path", dbPath, "error", err)
+		return fmt.Errorf("failed to open sqlite database at %s: %w", dbPath, err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			slog.Warn("error closing sqlite database", "error", err)
+		}
+	}()
 
-	// 6. Initialize Onboard Server
+	// 5. Run auto-migration for legacy JSON invite files
+	if opts.storePath != "" {
+		if _, err := serverstore.MigrateLegacyJSON(cmd.Context(), opts.storePath, db.Invites()); err != nil {
+			slog.Warn("failed to migrate legacy JSON invites from custom path", "path", opts.storePath, "error", err)
+		}
+	}
+	if _, err := serverstore.AutoMigrateLegacyFiles(cmd.Context(), db.Invites()); err != nil {
+		slog.Warn("failed to auto-migrate legacy JSON invites", "error", err)
+	}
+
+	// 6. Initialize persistent challenge and grant managers
+	challengeMgr := owner.NewPersistentChallengeManager(db.Challenges())
+	grantMgr := owner.NewPersistentGrantManager(db.Grants())
+
+	// 7. Resolve trusted proxies
+	trustedProxies := opts.trustedProxies
+	if len(trustedProxies) == 0 {
+		if envProxies := os.Getenv("ORBIT_TRUSTED_PROXIES"); envProxies != "" {
+			for _, p := range strings.Split(envProxies, ",") {
+				if trimmed := strings.TrimSpace(p); trimmed != "" {
+					trustedProxies = append(trustedProxies, trimmed)
+				}
+			}
+		}
+	}
+
+	// 8. Initialize Onboard Server
 	serverCfg := onboard.ServerConfig{
 		Addr:                    opts.addr,
 		Secret:                  []byte(secret),
 		Provisioner:             provisioner.NewDevProvisioner(),
-		InviteStore:             inviteStore,
+		Store:                   db,
+		RateLimitStore:          db.RateLimits(),
 		ChallengeManager:        challengeMgr,
 		GrantManager:            grantMgr,
 		Mailer:                  mailer,
 		DisablePublicChallenges: opts.disablePublicChallenges,
+		TrustedProxies:          trustedProxies,
+		Logger:                  slog.Default(),
 	}
 
 	srv, err := onboard.NewServer(serverCfg)
@@ -248,7 +312,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	// 7. Start HTTP Listener
+	// 9. Start HTTP Listener
 	addr := opts.addr
 	if addr == "" {
 		addr = ":8080"
@@ -264,12 +328,13 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 
 	fmt.Fprintln(out, titleStyle.Render("Orbit Infrastructure Daemon (orbit-server)"))
 	fmt.Fprintf(out, "  %s  HTTP listener active on http://%s\n", iconOK, boldStyle.Render(actualAddr))
+	fmt.Fprintf(out, "  %s  SQLite database: %s\n", iconOK, subtleStyle.Render(dbPath))
 	fmt.Fprintf(out, "  %s  Mail gateway: %s\n", iconOK, subtleStyle.Render(smtpHost+":"+smtpPort))
 	if secretSource != "" {
 		fmt.Fprintf(out, "  %s  Signing secret: %s\n\n", iconOK, infoStyle.Render(secretSource))
 	}
 
-	// 8. Graceful Shutdown on SIGINT/SIGTERM or Context Cancellation
+	// 10. Graceful Shutdown on SIGINT/SIGTERM or Context Cancellation
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
