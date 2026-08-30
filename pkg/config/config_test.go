@@ -166,6 +166,7 @@ func TestResolveFallbackEnvVars(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "fallback", "config.yaml")
 
+	// Legacy env aliases must be ignored; only ORBIT_* vars are read.
 	t.Setenv("ORBIT_SERVER_URL", "https://fallback.server.local")
 	t.Setenv("ORBIT_OWNER_EMAIL", "fallback.owner@local")
 	t.Setenv("ORBIT_OWNER_NAME", "FallbackOwner")
@@ -182,53 +183,45 @@ func TestResolveFallbackEnvVars(t *testing.T) {
 		t.Fatalf("resolve failed: %v", err)
 	}
 
-	if resolved.Server.URL != "https://fallback.server.local" {
-		t.Errorf("expected server URL https://fallback.server.local, got %s", resolved.Server.URL)
+	def := DefaultConfig()
+	if resolved.Server.URL != def.Server.URL {
+		t.Errorf("expected default server URL %s, got %s", def.Server.URL, resolved.Server.URL)
 	}
-	if resolved.Admin.Email != "fallback.owner@local" {
-		t.Errorf("expected admin email fallback.owner@local, got %s", resolved.Admin.Email)
+	if resolved.Admin.Email != def.Admin.Email {
+		t.Errorf("expected default admin email %s, got %s", def.Admin.Email, resolved.Admin.Email)
 	}
-	if resolved.Admin.Name != "FallbackOwner" {
-		t.Errorf("expected admin name FallbackOwner, got %s", resolved.Admin.Name)
+	if resolved.Admin.Name != def.Admin.Name {
+		t.Errorf("expected default admin name %s, got %s", def.Admin.Name, resolved.Admin.Name)
 	}
-	if resolved.SMTP.Host != "fallback.smtp.local" {
-		t.Errorf("expected smtp host fallback.smtp.local, got %s", resolved.SMTP.Host)
+	if resolved.SMTP.Host != def.SMTP.Host {
+		t.Errorf("expected default smtp host %s, got %s", def.SMTP.Host, resolved.SMTP.Host)
 	}
-	if resolved.SMTP.Port != 5870 {
-		t.Errorf("expected smtp port 5870, got %d", resolved.SMTP.Port)
+	if resolved.SMTP.Port != def.SMTP.Port {
+		t.Errorf("expected default smtp port %d, got %d", def.SMTP.Port, resolved.SMTP.Port)
 	}
-	if resolved.SMTP.User != "fallbackuser" {
-		t.Errorf("expected smtp user fallbackuser, got %s", resolved.SMTP.User)
+	if resolved.SMTP.User != def.SMTP.User {
+		t.Errorf("expected default smtp user %q, got %q", def.SMTP.User, resolved.SMTP.User)
 	}
-	if resolved.SMTP.Pass != "fallbackpass" {
-		t.Errorf("expected smtp pass fallbackpass, got %s", resolved.SMTP.Pass)
+	if resolved.SMTP.Pass != def.SMTP.Pass {
+		t.Errorf("expected default smtp pass %q, got %q", def.SMTP.Pass, resolved.SMTP.Pass)
 	}
-	if resolved.SMTP.From != "fallback@local" {
-		t.Errorf("expected smtp from fallback@local, got %s", resolved.SMTP.From)
+	if resolved.SMTP.From != def.SMTP.From {
+		t.Errorf("expected default smtp from %s, got %s", def.SMTP.From, resolved.SMTP.From)
 	}
 }
 
-func TestResolvePrimaryOverridesFallbackEnvVars(t *testing.T) {
+func TestResolveOrbitEnv(t *testing.T) {
 	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "precedence", "config.yaml")
+	cfgPath := filepath.Join(tmpDir, "orbit", "config.yaml")
 
-	// Both primary and fallback are set
-	t.Setenv("ORBIT_SERVER", "https://primary.server.local")
-	t.Setenv("ORBIT_SERVER_URL", "https://fallback.server.local")
-	t.Setenv("ORBIT_ADMIN_EMAIL", "primary.admin@local")
-	t.Setenv("ORBIT_OWNER_EMAIL", "fallback.owner@local")
-	t.Setenv("ORBIT_ADMIN_NAME", "PrimaryAdmin")
-	t.Setenv("ORBIT_OWNER_NAME", "FallbackOwner")
-	t.Setenv("ORBIT_SMTP_HOST", "primary.smtp.local")
-	t.Setenv("SMTP_HOST", "fallback.smtp.local")
+	t.Setenv("ORBIT_SERVER", "https://orbit.server.local")
+	t.Setenv("ORBIT_ADMIN_EMAIL", "orbit.admin@local")
+	t.Setenv("ORBIT_ADMIN_NAME", "OrbitAdmin")
+	t.Setenv("ORBIT_SMTP_HOST", "orbit.smtp.local")
 	t.Setenv("ORBIT_SMTP_PORT", "1587")
-	t.Setenv("SMTP_PORT", "2587")
-	t.Setenv("ORBIT_SMTP_USER", "primaryuser")
-	t.Setenv("SMTP_USER", "fallbackuser")
-	t.Setenv("ORBIT_SMTP_PASS", "primarypass")
-	t.Setenv("SMTP_PASS", "fallbackpass")
-	t.Setenv("ORBIT_SMTP_FROM", "primary@local")
-	t.Setenv("SMTP_FROM", "fallback@local")
+	t.Setenv("ORBIT_SMTP_USER", "orbituser")
+	t.Setenv("ORBIT_SMTP_PASS", "orbitpass")
+	t.Setenv("ORBIT_SMTP_FROM", "orbit@local")
 
 	resolved, err := Resolve(ResolveOptions{
 		ConfigPath: cfgPath,
@@ -237,29 +230,29 @@ func TestResolvePrimaryOverridesFallbackEnvVars(t *testing.T) {
 		t.Fatalf("resolve failed: %v", err)
 	}
 
-	if resolved.Server.URL != "https://primary.server.local" {
-		t.Errorf("expected primary server URL, got %s", resolved.Server.URL)
+	if resolved.Server.URL != "https://orbit.server.local" {
+		t.Errorf("expected ORBIT_SERVER URL, got %s", resolved.Server.URL)
 	}
-	if resolved.Admin.Email != "primary.admin@local" {
-		t.Errorf("expected primary admin email, got %s", resolved.Admin.Email)
+	if resolved.Admin.Email != "orbit.admin@local" {
+		t.Errorf("expected ORBIT_ADMIN_EMAIL, got %s", resolved.Admin.Email)
 	}
-	if resolved.Admin.Name != "PrimaryAdmin" {
-		t.Errorf("expected primary admin name, got %s", resolved.Admin.Name)
+	if resolved.Admin.Name != "OrbitAdmin" {
+		t.Errorf("expected ORBIT_ADMIN_NAME, got %s", resolved.Admin.Name)
 	}
-	if resolved.SMTP.Host != "primary.smtp.local" {
-		t.Errorf("expected primary smtp host, got %s", resolved.SMTP.Host)
+	if resolved.SMTP.Host != "orbit.smtp.local" {
+		t.Errorf("expected ORBIT_SMTP_HOST, got %s", resolved.SMTP.Host)
 	}
 	if resolved.SMTP.Port != 1587 {
-		t.Errorf("expected primary smtp port, got %d", resolved.SMTP.Port)
+		t.Errorf("expected ORBIT_SMTP_PORT, got %d", resolved.SMTP.Port)
 	}
-	if resolved.SMTP.User != "primaryuser" {
-		t.Errorf("expected primary smtp user, got %s", resolved.SMTP.User)
+	if resolved.SMTP.User != "orbituser" {
+		t.Errorf("expected ORBIT_SMTP_USER, got %s", resolved.SMTP.User)
 	}
-	if resolved.SMTP.Pass != "primarypass" {
-		t.Errorf("expected primary smtp pass, got %s", resolved.SMTP.Pass)
+	if resolved.SMTP.Pass != "orbitpass" {
+		t.Errorf("expected ORBIT_SMTP_PASS, got %s", resolved.SMTP.Pass)
 	}
-	if resolved.SMTP.From != "primary@local" {
-		t.Errorf("expected primary smtp from, got %s", resolved.SMTP.From)
+	if resolved.SMTP.From != "orbit@local" {
+		t.Errorf("expected ORBIT_SMTP_FROM, got %s", resolved.SMTP.From)
 	}
 }
 

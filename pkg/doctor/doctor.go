@@ -6,13 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/manovaspace/orbit-cli/pkg/ports"
 )
 
@@ -28,7 +28,7 @@ func RunDiagnostics() *DoctorReport {
 		Results: make([]DiagnosticResult, 0),
 	}
 
-	report.Add(CheckOS())
+	report.Add(CheckHost())
 	report.Add(CheckGit())
 	report.Add(CheckGo())
 	report.AddAll(CheckNodeAndBun())
@@ -40,108 +40,26 @@ func RunDiagnostics() *DoctorReport {
 	return report
 }
 
-// CheckOS inspects the operating system release file (/etc/os-release) to verify compatibility with Ubuntu LTS releases.
-func CheckOS() DiagnosticResult {
-	if runtime.GOOS != "linux" {
-		return EvaluateOS(nil, runtime.GOOS)
-	}
-
-	content, err := os.ReadFile("/etc/os-release")
-	if err != nil {
-		// Fallback to /usr/lib/os-release
-		content, err = os.ReadFile("/usr/lib/os-release")
-		if err != nil {
-			return EvaluateOS(nil, runtime.GOOS)
-		}
-	}
-
-	osInfo := ParseOSRelease(string(content))
-	return EvaluateOS(osInfo, runtime.GOOS)
+// CheckHost validates the local machine against Orbit host constraints.
+func CheckHost() DiagnosticResult {
+	return hostResult(host.Live())
 }
 
-// ParseOSRelease parses the key-value pairs from standard Linux os-release format.
-func ParseOSRelease(content string) map[string]string {
-	data := make(map[string]string)
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
-		val = strings.Trim(val, "\"'")
-		data[key] = val
-	}
-	return data
-}
-
-// EvaluateOS checks parsed OS info against supported Ubuntu LTS versions.
-func EvaluateOS(osInfo map[string]string, goos string) DiagnosticResult {
-	category := "System"
-	name := "Operating System"
-
-	if goos != "linux" {
+func hostResult(r host.Report) DiagnosticResult {
+	if r.OK {
 		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusWarning,
-			Message:       fmt.Sprintf("Non-Linux OS detected (%s). Orbit CLI is optimized for Linux (Ubuntu 22.04+).", goos),
-			FixSuggestion: "Run inside WSL2 or a Linux container for full development stack support.",
+			Category: "System",
+			Name:     "Host",
+			Status:   StatusOK,
+			Message:  "Supported host: Ubuntu 24.04/26.04 LTS amd64, zsh, ~/.local/bin",
 		}
 	}
-
-	if len(osInfo) == 0 {
-		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusWarning,
-			Message:       "Linux distribution could not be identified (/etc/os-release unavailable)",
-			FixSuggestion: "Ensure system has a standard /etc/os-release file.",
-		}
-	}
-
-	id := strings.ToLower(osInfo["ID"])
-	versionID := strings.TrimSpace(osInfo["VERSION_ID"])
-	prettyName := osInfo["PRETTY_NAME"]
-	if prettyName == "" {
-		prettyName = osInfo["NAME"]
-	}
-	if prettyName == "" {
-		prettyName = "Linux"
-	}
-
-	if id == "ubuntu" {
-		if strings.HasPrefix(versionID, "26.04") ||
-			strings.HasPrefix(versionID, "24.04") ||
-			strings.HasPrefix(versionID, "22.04") {
-			return DiagnosticResult{
-				Category: category,
-				Name:     name,
-				Status:   StatusOK,
-				Message:  fmt.Sprintf("Supported OS: %s", prettyName),
-			}
-		}
-
-		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusWarning,
-			Message:       fmt.Sprintf("Ubuntu %s detected (recommended: 22.04, 24.04, or 26.04 LTS)", versionID),
-			FixSuggestion: "Consider running on an LTS release: Ubuntu 22.04, 24.04, or 26.04 LTS.",
-		}
-	}
-
 	return DiagnosticResult{
-		Category:      category,
-		Name:          name,
-		Status:        StatusWarning,
-		Message:       fmt.Sprintf("Non-Ubuntu Linux distribution detected (%s); Orbit officially supports Ubuntu 22.04/24.04/26.04 LTS", prettyName),
-		FixSuggestion: "Verify required dependencies manually or use Ubuntu in WSL2/Docker.",
+		Category:      "System",
+		Name:          "Host",
+		Status:        StatusError,
+		Message:       strings.TrimSpace(host.Format(r)),
+		FixSuggestion: "Use Ubuntu 24.04 or 26.04 LTS (amd64, WSL2 or native), chsh to zsh, and put ~/.local/bin on PATH.",
 	}
 }
 
@@ -184,7 +102,7 @@ func EvaluateGitVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.23).
+// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.24).
 func CheckGo() DiagnosticResult {
 	out, err := runCommand(defaultCommandTimeout, "go", "version")
 	return EvaluateGoVersion(out, err)
@@ -201,7 +119,7 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 			Name:          name,
 			Status:        StatusError,
 			Message:       "Go compiler not found in PATH",
-			FixSuggestion: "Install Go >= 1.23: sudo apt install golang-go or visit https://go.dev/dl/",
+			FixSuggestion: "Install Go >= 1.24: sudo apt install golang-go or visit https://go.dev/dl/",
 		}
 	}
 
@@ -216,13 +134,13 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.23") < 0 {
+	if CompareVersions(v, "1.24") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.23)", v),
-			FixSuggestion: "Upgrade Go to >= 1.23: visit https://go.dev/dl/ or use mise/asdf.",
+			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.24)", v),
+			FixSuggestion: "Upgrade Go to >= 1.24: visit https://go.dev/dl/ or use mise/asdf.",
 		}
 	}
 
@@ -230,11 +148,11 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Go v%s installed (>= 1.23 required)", v),
+		Message:  fmt.Sprintf("Go v%s installed (>= 1.24 required)", v),
 	}
 }
 
-// CheckNodeAndBun checks Node.js (>= 20/22) and Bun (>= 1.1).
+// CheckNodeAndBun checks Node.js (22.x LTS) and Bun (1.4.x).
 func CheckNodeAndBun() []DiagnosticResult {
 	var results []DiagnosticResult
 
@@ -275,22 +193,23 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "20.0.0") < 0 {
+	if CompareVersions(v, "22.0.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Node.js v%s is below required version (>= 20, recommended 22+ LTS)", v),
+			Message:       fmt.Sprintf("Node.js v%s is below required version (22.x LTS)", v),
 			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
 		}
 	}
 
-	if CompareVersions(v, "22.0.0") < 0 {
+	if CompareVersions(v, "23.0.0") >= 0 {
 		return DiagnosticResult{
-			Category: category,
-			Name:     name,
-			Status:   StatusOK,
-			Message:  fmt.Sprintf("Node.js v%s installed (v22+ LTS recommended)", v),
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       fmt.Sprintf("Node.js v%s is not 22.x LTS", v),
+			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
 		}
 	}
 
@@ -298,7 +217,7 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Node.js v%s installed (>= 22 LTS)", v),
+		Message:  fmt.Sprintf("Node.js v%s installed (22.x LTS)", v),
 	}
 }
 
@@ -328,13 +247,23 @@ func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.1.0") < 0 {
+	if CompareVersions(v, "1.4.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Bun v%s is below required version (>= 1.1)", v),
-			FixSuggestion: "Upgrade Bun: bun upgrade",
+			Message:       fmt.Sprintf("Bun v%s is below required version (1.4.x)", v),
+			FixSuggestion: "Upgrade Bun to 1.4.x: bun upgrade",
+		}
+	}
+
+	if CompareVersions(v, "1.5.0") >= 0 {
+		return DiagnosticResult{
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       fmt.Sprintf("Bun v%s is not 1.4.x", v),
+			FixSuggestion: "Install Bun 1.4.x: curl -fsSL https://bun.sh/install | bash",
 		}
 	}
 
@@ -342,7 +271,7 @@ func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Bun v%s installed (>= 1.1 required)", v),
+		Message:  fmt.Sprintf("Bun v%s installed (1.4.x required)", v),
 	}
 }
 

@@ -2,7 +2,10 @@ package doctor
 
 import (
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/manovaspace/orbit-cli/pkg/host"
 )
 
 func TestParseVersionString(t *testing.T) {
@@ -145,148 +148,67 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
-func TestParseOSRelease(t *testing.T) {
-	content := `
-# OS Release test file
-NAME="Ubuntu"
-VERSION="26.04 LTS (Resolute Raccoon)"
-ID=ubuntu
-ID_LIKE=debian
-PRETTY_NAME="Ubuntu 26.04 LTS"
-VERSION_ID="26.04"
-HOME_URL="https://www.ubuntu.com/"
-SUPPORT_URL="https://help.ubuntu.com/"
-UBUNTU_CODENAME=resolute
-`
-	info := ParseOSRelease(content)
-	if info["ID"] != "ubuntu" {
-		t.Errorf("expected ID 'ubuntu', got %q", info["ID"])
+func TestCheckHostFromReport(t *testing.T) {
+	okReport := host.Report{OK: true}
+	okRes := hostResult(okReport)
+	if okRes.Status != StatusOK {
+		t.Errorf("expected StatusOK, got %v", okRes.Status)
 	}
-	if info["VERSION_ID"] != "26.04" {
-		t.Errorf("expected VERSION_ID '26.04', got %q", info["VERSION_ID"])
+	if okRes.Category != "System" || okRes.Name != "Host" {
+		t.Errorf("expected System/Host, got %s/%s", okRes.Category, okRes.Name)
 	}
-	if info["PRETTY_NAME"] != "Ubuntu 26.04 LTS" {
-		t.Errorf("expected PRETTY_NAME 'Ubuntu 26.04 LTS', got %q", info["PRETTY_NAME"])
-	}
-}
-
-func TestEvaluateOS(t *testing.T) {
-	tests := []struct {
-		name           string
-		goos           string
-		osInfo         map[string]string
-		expectedStatus CheckStatus
-	}{
-		{
-			name: "Ubuntu 26.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "26.04",
-				"PRETTY_NAME": "Ubuntu 26.04 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu 24.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "24.04",
-				"PRETTY_NAME": "Ubuntu 24.04 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu 22.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "22.04.4",
-				"PRETTY_NAME": "Ubuntu 22.04.4 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu Non-LTS (23.10)",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "23.10",
-				"PRETTY_NAME": "Ubuntu 23.10",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name: "Debian GNU/Linux",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "debian",
-				"VERSION_ID":  "12",
-				"PRETTY_NAME": "Debian GNU/Linux 12 (bookworm)",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name: "Fedora Linux",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "fedora",
-				"VERSION_ID":  "40",
-				"PRETTY_NAME": "Fedora Linux 40",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "macOS Darwin",
-			goos:           "darwin",
-			osInfo:         nil,
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "Windows",
-			goos:           "windows",
-			osInfo:         nil,
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "Empty Linux os-release",
-			goos:           "linux",
-			osInfo:         map[string]string{},
-			expectedStatus: StatusWarning,
-		},
+	if okRes.Message != "Supported host: Ubuntu 24.04/26.04 LTS amd64, zsh, ~/.local/bin" {
+		t.Errorf("unexpected OK message: %q", okRes.Message)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			res := EvaluateOS(tc.osInfo, tc.goos)
-			if res.Status != tc.expectedStatus {
-				t.Errorf("expected status %v, got %v (message: %s)", tc.expectedStatus, res.Status, res.Message)
-			}
-		})
+	failReport := host.Report{
+		OK: false,
+		Failures: []host.Failure{
+			{Code: "os", Message: "darwin is not supported"},
+		},
+	}
+	failRes := hostResult(failReport)
+	if failRes.Status != StatusError {
+		t.Errorf("expected StatusError, got %v", failRes.Status)
+	}
+	if failRes.Category != "System" || failRes.Name != "Host" {
+		t.Errorf("expected System/Host, got %s/%s", failRes.Category, failRes.Name)
+	}
+	wantMsg := strings.TrimSpace(host.Format(failReport))
+	if failRes.Message != wantMsg {
+		t.Errorf("expected message %q, got %q", wantMsg, failRes.Message)
+	}
+	if failRes.FixSuggestion == "" {
+		t.Error("expected non-empty FixSuggestion on failure")
 	}
 }
 
 func TestEvaluateGoVersion(t *testing.T) {
-	// 1. Success case >= 1.23
+	// 1. Success case >= 1.24
 	res := EvaluateGoVersion("go version go1.26.0 linux/amd64", nil)
 	if res.Status != StatusOK {
 		t.Errorf("expected StatusOK for go1.26.0, got %v", res.Status)
 	}
 
-	// 2. Outdated case < 1.23
-	resOutdated := EvaluateGoVersion("go version go1.22.2 linux/amd64", nil)
+	// 2. Outdated case < 1.24
+	resOutdated := EvaluateGoVersion("go version go1.23.1 linux/amd64", nil)
 	if resOutdated.Status != StatusError {
-		t.Errorf("expected StatusError for go1.22.2, got %v", resOutdated.Status)
+		t.Errorf("expected StatusError for go1.23.1, got %v", resOutdated.Status)
 	}
 
-	// 3. Exec error case
+	// 3. Below 1.24
+	resOld := EvaluateGoVersion("go version go1.22.2 linux/amd64", nil)
+	if resOld.Status != StatusError {
+		t.Errorf("expected StatusError for go1.22.2, got %v", resOld.Status)
+	}
+
+	// 4. Exec error case
 	resErr := EvaluateGoVersion("", errors.New("exec: not found"))
 	if resErr.Status != StatusError {
 		t.Errorf("expected StatusError for missing binary, got %v", resErr.Status)
 	}
 
-	// 4. Unparseable output
+	// 5. Unparseable output
 	resUnparseable := EvaluateGoVersion("custom go build without semver", nil)
 	if resUnparseable.Status != StatusWarning {
 		t.Errorf("expected StatusWarning for unparseable output, got %v", resUnparseable.Status)
@@ -295,19 +217,19 @@ func TestEvaluateGoVersion(t *testing.T) {
 
 func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	// Node tests
-	nodeOk := EvaluateNodeVersion("v24.18.0\n", nil)
+	nodeOk := EvaluateNodeVersion("v22.14.0\n", nil)
 	if nodeOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for Node v24.18.0, got %v", nodeOk.Status)
+		t.Errorf("expected StatusOK for Node v22.14.0, got %v", nodeOk.Status)
+	}
+
+	node24 := EvaluateNodeVersion("v24.18.0\n", nil)
+	if node24.Status != StatusError {
+		t.Errorf("expected StatusError for Node v24.18.0, got %v", node24.Status)
 	}
 
 	node20 := EvaluateNodeVersion("v20.10.0\n", nil)
-	if node20.Status != StatusOK {
-		t.Errorf("expected StatusOK for Node v20.10.0, got %v", node20.Status)
-	}
-
-	nodeOld := EvaluateNodeVersion("v18.19.0\n", nil)
-	if nodeOld.Status != StatusError {
-		t.Errorf("expected StatusError for Node v18.19.0, got %v", nodeOld.Status)
+	if node20.Status != StatusError {
+		t.Errorf("expected StatusError for Node v20.10.0, got %v", node20.Status)
 	}
 
 	nodeMissing := EvaluateNodeVersion("", errors.New("not found"))
@@ -316,19 +238,19 @@ func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	}
 
 	// Bun tests
-	bunOk := EvaluateBunVersion("1.3.14\n", nil)
+	bunOk := EvaluateBunVersion("1.4.0\n", nil)
 	if bunOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for Bun 1.3.14, got %v", bunOk.Status)
+		t.Errorf("expected StatusOK for Bun 1.4.0, got %v", bunOk.Status)
 	}
 
 	bun11 := EvaluateBunVersion("1.1.0\n", nil)
-	if bun11.Status != StatusOK {
-		t.Errorf("expected StatusOK for Bun 1.1.0, got %v", bun11.Status)
+	if bun11.Status != StatusError {
+		t.Errorf("expected StatusError for Bun 1.1.0, got %v", bun11.Status)
 	}
 
-	bunOld := EvaluateBunVersion("0.8.0\n", nil)
-	if bunOld.Status != StatusError {
-		t.Errorf("expected StatusError for Bun 0.8.0, got %v", bunOld.Status)
+	bun15 := EvaluateBunVersion("1.5.0\n", nil)
+	if bun15.Status != StatusError {
+		t.Errorf("expected StatusError for Bun 1.5.0, got %v", bun15.Status)
 	}
 
 	bunMissing := EvaluateBunVersion("", errors.New("not found"))

@@ -20,7 +20,7 @@ orbit [flags]
 
 * [orbit admin](orbit_admin.md)	 - Manage platform ownership verification and root cryptographic secrets
 * [orbit assets](orbit_assets.md)	 - Sync gitignored media with private Cloudflare R2
-* [orbit completion](orbit_completion.md)	 - Generate the autocompletion script for the specified shell
+* [orbit completion](orbit_completion.md)	 - Generate zsh autocompletion
 * [orbit config](orbit_config.md)	 - Manage Orbit CLI configuration
 * [orbit dev](orbit_dev.md)	 - Control and orchestrate local development stacks and containers
 * [orbit doc](orbit_doc.md)	 - Generate documentation and man pages for Orbit CLI

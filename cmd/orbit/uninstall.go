@@ -102,10 +102,8 @@ func newUninstallCmd() *cobra.Command {
 
 			// Clean shell completions
 			completionCandidates := []string{
-				"/etc/bash_completion.d/orbit",
-				"/etc/bash_completion.d/manova",
-				filepath.Join(home, ".zsh", "completions", "_orbit"),
-				filepath.Join(home, ".zsh", "completions", "_manova"),
+				filepath.Join(home, ".local", "share", "zsh", "site-functions", "_orbit"),
+				filepath.Join(home, ".local", "share", "zsh", "site-functions", "_o"),
 			}
 			for _, cp := range completionCandidates {
 				if _, err := os.Stat(cp); err == nil {

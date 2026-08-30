@@ -82,7 +82,7 @@ func TestRegistry(t *testing.T) {
 		t.Fatalf("expected 2 healers, got %d", len(reg.All()))
 	}
 
-	if h, ok := reg.Get("Go 1.24"); !ok || h == nil {
+	if h, ok := reg.Get("Go 1.26"); !ok || h == nil {
 		t.Fatalf("expected to retrieve Go healer by name")
 	}
 
@@ -99,7 +99,7 @@ func TestRegistry(t *testing.T) {
 	}
 
 	h, found := reg.FindHealer(goResult)
-	if !found || h.Name() != "Go 1.24" {
+	if !found || h.Name() != "Go 1.26" {
 		t.Fatalf("expected FindHealer to find Go healer, got found=%v, h=%v", found, h)
 	}
 
@@ -136,7 +136,7 @@ func TestRegistry(t *testing.T) {
 	if len(matched) != 2 {
 		t.Fatalf("expected 2 deduplicated healers (Go, Bun), got %d", len(matched))
 	}
-	if matched[0].Name() != "Go 1.24" || matched[1].Name() != "Bun" {
+	if matched[0].Name() != "Go 1.26" || matched[1].Name() != "Bun" {
 		t.Fatalf("unexpected matched healers order: %v, %v", matched[0].Name(), matched[1].Name())
 	}
 }
@@ -149,7 +149,7 @@ func TestDefaultRegistry(t *testing.T) {
 		t.Fatalf("expected 5 default healers, got %d", len(all))
 	}
 
-	names := []string{"Go 1.24", "Bun", "Node.js 22 LTS", "Git", "Docker Compose"}
+	names := []string{"Go 1.26", "Bun", "Node.js 22 LTS", "Git", "Docker Compose"}
 	for _, expectedName := range names {
 		if _, ok := reg.Get(expectedName); !ok {
 			t.Fatalf("expected default registry to contain %q", expectedName)
@@ -190,7 +190,7 @@ func TestGoHealerHeal(t *testing.T) {
 
 		h := &GoHealer{
 			Runner:  runner,
-			Version: "1.24.0",
+			Version: "1.26.4",
 			GOOS:    "linux",
 			GOARCH:  "amd64",
 			IsRoot:  func() bool { return false },
@@ -208,7 +208,7 @@ func TestGoHealerHeal(t *testing.T) {
 		}
 
 		script := runner.getLastScript()
-		if !strings.Contains(script, "https://go.dev/dl/go1.24.0.linux-amd64.tar.gz") {
+		if !strings.Contains(script, "https://go.dev/dl/go1.26.4.linux-amd64.tar.gz") {
 			t.Errorf("script missing download url: %s", script)
 		}
 		if !strings.Contains(script, "sudo tar -C /usr/local") {
@@ -219,27 +219,16 @@ func TestGoHealerHeal(t *testing.T) {
 		}
 	})
 
-	t.Run("Root Linux execution", func(t *testing.T) {
+	t.Run("Unsupported arm64 error", func(t *testing.T) {
 		runner := &mockRunner{}
 		h := &GoHealer{
-			Runner:  runner,
-			Version: "1.24.0",
-			GOOS:    "linux",
-			GOARCH:  "arm64",
-			IsRoot:  func() bool { return true },
+			Runner: runner,
+			GOOS:   "linux",
+			GOARCH: "arm64",
 		}
-
 		err := h.Heal(ctx, nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		script := runner.getLastScript()
-		if !strings.Contains(script, "https://go.dev/dl/go1.24.0.linux-arm64.tar.gz") {
-			t.Errorf("script missing arm64 download url: %s", script)
-		}
-		if strings.Contains(script, "sudo ") {
-			t.Errorf("script should not use sudo when root, got: %s", script)
+		if err == nil || !strings.Contains(err.Error(), "unsupported architecture") {
+			t.Fatalf("expected unsupported arch error, got: %v", err)
 		}
 	})
 

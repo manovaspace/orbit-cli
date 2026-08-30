@@ -127,7 +127,7 @@ Pro capabilities:
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Developer display name")
 	cmd.Flags().StringVar(&opts.email, "email", "", "Developer email address")
 	cmd.Flags().StringVarP(&opts.uid, "uid", "u", "", "Desired username / UID")
-	cmd.Flags().StringVar(&opts.edgeURL, "edge-url", "", "Onboarding edge gateway URL (default: $ORBIT_SERVER or https://orbit.manova.space)")
+	cmd.Flags().StringVar(&opts.edgeURL, "edge-url", "", "Onboarding edge gateway URL (default: $ORBIT_SERVER or http://localhost:8080)")
 	cmd.Flags().StringVarP(&opts.edgeURL, "server", "s", "", "Orbit server URL (alias for --edge-url)")
 	cmd.Flags().StringVar(&opts.workspace, "workspace", "", "Target workspace root directory")
 	cmd.Flags().StringVar(&opts.manifest, "manifest", "", "Path to workspace.yaml manifest")
@@ -426,11 +426,7 @@ Actions that will be executed during onboarding:
 
 		edgeURL := opts.edgeURL
 		if edgeURL == "" {
-			if envURL := os.Getenv("ORBIT_SERVER"); envURL != "" {
-				edgeURL = envURL
-			} else if envURL := os.Getenv("MANOVA_EDGE_URL"); envURL != "" {
-				edgeURL = envURL
-			} else if envURL := os.Getenv("ORBIT_EDGE_URL"); envURL != "" {
+			if envURL := strings.TrimSpace(os.Getenv("ORBIT_SERVER")); envURL != "" {
 				edgeURL = envURL
 			} else {
 				edgeURL = "http://localhost:8080"

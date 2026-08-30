@@ -112,16 +112,8 @@ func (c *Config) Save(path string) error {
 	return nil
 }
 
-func getEnvWithFallback(primary, fallback string) string {
-	if val := strings.TrimSpace(os.Getenv(primary)); val != "" {
-		return val
-	}
-	if fallback != "" {
-		if val := strings.TrimSpace(os.Getenv(fallback)); val != "" {
-			return val
-		}
-	}
-	return ""
+func envOrEmpty(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 func Resolve(opts ResolveOptions) (*Config, error) {
@@ -137,31 +129,31 @@ func Resolve(opts ResolveOptions) (*Config, error) {
 		cfg = loaded
 	}
 
-	// Environment variable overrides with fallbacks
-	if val := getEnvWithFallback("ORBIT_SERVER", "ORBIT_SERVER_URL"); val != "" {
+	// Environment variable overrides (ORBIT_* only)
+	if val := envOrEmpty("ORBIT_SERVER"); val != "" {
 		cfg.Server.URL = val
 	}
-	if val := getEnvWithFallback("ORBIT_ADMIN_EMAIL", "ORBIT_OWNER_EMAIL"); val != "" {
+	if val := envOrEmpty("ORBIT_ADMIN_EMAIL"); val != "" {
 		cfg.Admin.Email = val
 	}
-	if val := getEnvWithFallback("ORBIT_ADMIN_NAME", "ORBIT_OWNER_NAME"); val != "" {
+	if val := envOrEmpty("ORBIT_ADMIN_NAME"); val != "" {
 		cfg.Admin.Name = val
 	}
-	if val := getEnvWithFallback("ORBIT_SMTP_HOST", "SMTP_HOST"); val != "" {
+	if val := envOrEmpty("ORBIT_SMTP_HOST"); val != "" {
 		cfg.SMTP.Host = val
 	}
-	if val := getEnvWithFallback("ORBIT_SMTP_PORT", "SMTP_PORT"); val != "" {
+	if val := envOrEmpty("ORBIT_SMTP_PORT"); val != "" {
 		if p, err := strconv.Atoi(val); err == nil && p > 0 {
 			cfg.SMTP.Port = p
 		}
 	}
-	if val := getEnvWithFallback("ORBIT_SMTP_USER", "SMTP_USER"); val != "" {
+	if val := envOrEmpty("ORBIT_SMTP_USER"); val != "" {
 		cfg.SMTP.User = val
 	}
-	if val := getEnvWithFallback("ORBIT_SMTP_PASS", "SMTP_PASS"); val != "" {
+	if val := envOrEmpty("ORBIT_SMTP_PASS"); val != "" {
 		cfg.SMTP.Pass = val
 	}
-	if val := getEnvWithFallback("ORBIT_SMTP_FROM", "SMTP_FROM"); val != "" {
+	if val := envOrEmpty("ORBIT_SMTP_FROM"); val != "" {
 		cfg.SMTP.From = val
 	}
 
