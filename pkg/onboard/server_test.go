@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -1102,3 +1103,116 @@ func TestServer_RateLimit_SQLitePersistence(t *testing.T) {
 		t.Errorf("expected status 429 on instance 2 due to persistent sqlite rate limits, got %d", r3.StatusCode)
 	}
 }
+
+func TestServer_Middleware_RequestIDAndStructuredLogging(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	prov := provisioner.NewMockProvisioner()
+	secret := testSecret()
+
+	srv, err := NewServer(ServerConfig{
+		Secret:           secret,
+		Provisioner:      prov,
+		DisableRateLimit: true,
+		Logger:           logger,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// Make request with custom traceparent
+	req, err := http.NewRequest("GET", ts.URL+"/healthz", nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	req.Header.Set("User-Agent", "OrbitTest/1.0")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	reqID := resp.Header.Get("X-Request-ID")
+	if reqID == "" {
+		t.Fatalf("expected X-Request-ID header in response")
+	}
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal(logBuf.Bytes(), &entry); err != nil {
+		t.Fatalf("failed to parse structured log json: %v, raw: %s", err, logBuf.String())
+	}
+
+	if entry["path"] != "/healthz" {
+		t.Errorf("expected path /healthz, got %v", entry["path"])
+	}
+	if entry["status"] != float64(200) {
+		t.Errorf("expected status 200, got %v", entry["status"])
+	}
+	if entry["trace_id"] != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Errorf("expected trace_id 4bf92f3577b34da6a3ce929d0e0e4736, got %v", entry["trace_id"])
+	}
+	if entry["request_id"] != reqID {
+		t.Errorf("expected request_id %s in log, got %v", reqID, entry["request_id"])
+	}
+}
+
+func TestServer_Middleware_PanicRecovery(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
+
+	mockProv := provisioner.NewMockProvisioner()
+	mockProv.HealthFunc = func(ctx context.Context) error {
+		panic("database connection explosion")
+	}
+
+	secret := testSecret()
+	srv, err := NewServer(ServerConfig{
+		Secret:           secret,
+		Provisioner:      mockProv,
+		DisableRateLimit: true,
+		Logger:           logger,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/v1/onboard/health")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("expected 500 status on panic, got %d", resp.StatusCode)
+	}
+
+	var errBody map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
+		t.Fatalf("failed to decode response JSON: %v", err)
+	}
+	if errBody["error"] != "internal server error" || errBody["code"] != float64(500) {
+		t.Errorf("unexpected error body: %+v", errBody)
+	}
+
+	var logEntry map[string]interface{}
+	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
+		t.Fatalf("failed to parse panic log JSON: %v", err)
+	}
+	if logEntry["level"] != "ERROR" {
+		t.Errorf("expected ERROR level, got %v", logEntry["level"])
+	}
+}
+

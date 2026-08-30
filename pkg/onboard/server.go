@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/middleware"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/ratelimit"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
@@ -48,6 +50,7 @@ type ServerConfig struct {
 	Limiter                 *ratelimit.Limiter
 	ReadTimeout             time.Duration
 	WriteTimeout            time.Duration
+	Logger                  *slog.Logger
 }
 
 // ErrorResponse defines the standard structured JSON error format.
@@ -111,6 +114,7 @@ func (c *idempotencyCache) Set(key string, resp *provisioner.ClaimResponse, ttl 
 type Server struct {
 	config     ServerConfig
 	mux        *http.ServeMux
+	handler    http.Handler
 	idemCache  *idempotencyCache
 	limiter    *ratelimit.Limiter
 	httpServer *http.Server
@@ -221,7 +225,24 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}
 
 	s.routes()
+	s.wrapMiddleware()
 	return s, nil
+}
+
+func (s *Server) wrapMiddleware() {
+	logger := s.config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	// Chain: Recovery(logger) -> RequestID -> TraceContext -> Logging(logger) -> mux
+	var h http.Handler = s.mux
+	h = middleware.Logging(logger)(h)
+	h = middleware.TraceContext(h)
+	h = middleware.RequestID(h)
+	h = middleware.Recovery(logger)(h)
+
+	s.handler = h
 }
 
 func (s *Server) routes() {
@@ -242,6 +263,9 @@ func (s *Server) routes() {
 
 // Handler returns the http.Handler for embedding or testing.
 func (s *Server) Handler() http.Handler {
+	if s.handler != nil {
+		return s.handler
+	}
 	return s.mux
 }
 
@@ -709,7 +733,7 @@ func (s *Server) Start() error {
 func (s *Server) Serve(lis net.Listener) error {
 	s.mu.Lock()
 	s.httpServer = &http.Server{
-		Handler:      s.mux,
+		Handler:      s.Handler(),
 		ReadTimeout:  s.config.ReadTimeout,
 		WriteTimeout: s.config.WriteTimeout,
 	}
