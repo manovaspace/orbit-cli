@@ -40,12 +40,12 @@ func (sm *SessionManager) FilePath() string {
 }
 
 // CreateSession generates a new onboarding session with an 8-byte hex ID.
-func (sm *SessionManager) CreateSession(email, displayName string) *Session {
+func (sm *SessionManager) CreateSession(email, displayName string) *SessionState {
 	rawID := make([]byte, 8)
 	_, _ = rand.Read(rawID)
 	now := time.Now().UTC()
 
-	return &Session{
+	return &SessionState{
 		ID:           hex.EncodeToString(rawID),
 		Email:        email,
 		DisplayName:  displayName,
@@ -63,7 +63,7 @@ func (sm *SessionManager) HasPendingSession() bool {
 	if err != nil || s == nil {
 		return false
 	}
-	return s.CurrentStage != StageCompleted
+	return s.CurrentStage != StageCompleted && s.CurrentStage != StageComplete
 }
 
 func (sm *SessionManager) readPath() string {
@@ -80,7 +80,7 @@ func (sm *SessionManager) readPath() string {
 
 // LoadSession reads and unmarshals the session from disk.
 // Returns nil, nil if the file does not exist.
-func (sm *SessionManager) LoadSession() (*Session, error) {
+func (sm *SessionManager) LoadSession() (*SessionState, error) {
 	path := sm.readPath()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, nil
@@ -91,21 +91,53 @@ func (sm *SessionManager) LoadSession() (*Session, error) {
 		return nil, err
 	}
 
-	var s Session
+	var s SessionState
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("failed to parse session file: %w", err)
+	}
+
+	// Normalize tokens for compatibility
+	if s.InviteToken == "" && s.ClaimToken != "" {
+		s.InviteToken = s.ClaimToken
+	} else if s.ClaimToken == "" && s.InviteToken != "" {
+		s.ClaimToken = s.InviteToken
+	}
+
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]string)
+	}
+	if s.ClonedRepos == nil {
+		s.ClonedRepos = make([]string, 0)
 	}
 
 	return &s, nil
 }
 
-// SaveSession serializes the session to disk with 0600 file permissions.
-func (sm *SessionManager) SaveSession(s *Session) error {
+// SaveSession serializes the session to disk with atomic write and 0600 file permissions.
+func (sm *SessionManager) SaveSession(s *SessionState) error {
 	if s == nil {
 		return errors.New("cannot save nil session")
 	}
 
-	s.UpdatedAt = time.Now().UTC()
+	if s.InviteToken == "" && s.ClaimToken != "" {
+		s.InviteToken = s.ClaimToken
+	} else if s.ClaimToken == "" && s.InviteToken != "" {
+		s.ClaimToken = s.InviteToken
+	}
+
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]string)
+	}
+	if s.ClonedRepos == nil {
+		s.ClonedRepos = make([]string, 0)
+	}
+
+	now := time.Now().UTC()
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = now
+	}
+	s.UpdatedAt = now
+
 	dir := filepath.Dir(sm.filePath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create session directory: %w", err)
@@ -116,13 +148,51 @@ func (sm *SessionManager) SaveSession(s *Session) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
-	if err := os.WriteFile(sm.filePath, data, 0600); err != nil {
-		return err
+	// Atomic write via temporary file in same directory
+	tmpFile, err := os.CreateTemp(dir, ".session-*.tmp")
+	if err != nil {
+		if writeErr := os.WriteFile(sm.filePath, data, 0600); writeErr != nil {
+			return writeErr
+		}
+	} else {
+		tmpPath := tmpFile.Name()
+		defer func() {
+			_ = os.Remove(tmpPath)
+		}()
+
+		if err := tmpFile.Chmod(0600); err != nil {
+			_ = tmpFile.Close()
+			return fmt.Errorf("failed to set temp file permissions: %w", err)
+		}
+
+		if _, err := tmpFile.Write(data); err != nil {
+			_ = tmpFile.Close()
+			return fmt.Errorf("failed to write session data: %w", err)
+		}
+
+		if err := tmpFile.Sync(); err != nil {
+			_ = tmpFile.Close()
+			return fmt.Errorf("failed to sync session data: %w", err)
+		}
+
+		if err := tmpFile.Close(); err != nil {
+			return fmt.Errorf("failed to close temp file: %w", err)
+		}
+
+		if err := os.Rename(tmpPath, sm.filePath); err != nil {
+			return fmt.Errorf("failed to atomic rename session file: %w", err)
+		}
 	}
+
 	if sm.legacyPath != "" && sm.legacyPath != sm.filePath {
 		_ = os.Remove(sm.legacyPath)
 	}
 	return nil
+}
+
+// SaveCheckpoint persists a session checkpoint to disk (alias for SaveSession).
+func (sm *SessionManager) SaveCheckpoint(s *SessionState) error {
+	return sm.SaveSession(s)
 }
 
 // ClearSession removes the session file if it exists.
@@ -136,4 +206,14 @@ func (sm *SessionManager) ClearSession() error {
 		}
 	}
 	return nil
+}
+
+// DiscardSession discards the pending session by deleting the file (alias for ClearSession).
+func (sm *SessionManager) DiscardSession() error {
+	return sm.ClearSession()
+}
+
+// Rollback clears the saved session state during rollback operations (alias for ClearSession).
+func (sm *SessionManager) Rollback() error {
+	return sm.ClearSession()
 }

@@ -1,17 +1,61 @@
-package session
+package session_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/manovaspace/orbit-cli/pkg/session"
 )
+
+func TestSessionCheckpointSaveAndRestore(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionPath := filepath.Join(tmpDir, "session.json")
+
+	sm, err := session.NewSessionManager(sessionPath)
+	if err != nil {
+		t.Fatalf("failed to create session manager: %v", err)
+	}
+
+	state := &session.SessionState{
+		CurrentStage: session.StageWorkspace,
+		Email:        "dev@manova.space",
+		DisplayName:  "Test Dev",
+		ClaimToken:   "orb_inv_test_token_123",
+		UpdatedAt:    time.Now().UTC(),
+	}
+
+	if err := sm.SaveSession(state); err != nil {
+		t.Fatalf("failed to save session: %v", err)
+	}
+
+	if !sm.HasPendingSession() {
+		t.Fatalf("expected HasPendingSession() to be true")
+	}
+
+	loaded, err := sm.LoadSession()
+	if err != nil {
+		t.Fatalf("failed to load session: %v", err)
+	}
+
+	if loaded.CurrentStage != session.StageWorkspace {
+		t.Fatalf("expected stage %v, got %v", session.StageWorkspace, loaded.CurrentStage)
+	}
+	if loaded.Email != "dev@manova.space" {
+		t.Fatalf("expected email dev@manova.space, got %s", loaded.Email)
+	}
+	if loaded.ClaimToken != "orb_inv_test_token_123" {
+		t.Fatalf("expected claim token orb_inv_test_token_123, got %s", loaded.ClaimToken)
+	}
+}
 
 func TestSessionCheckpointAndResume(t *testing.T) {
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 
-	sm, err := NewSessionManager(sessionPath)
+	sm, err := session.NewSessionManager(sessionPath)
 	if err != nil {
 		t.Fatalf("NewSessionManager failed: %v", err)
 	}
@@ -29,11 +73,11 @@ func TestSessionCheckpointAndResume(t *testing.T) {
 	if s.ID == "" {
 		t.Fatal("expected session ID to be populated")
 	}
-	if s.CurrentStage != StageInit {
-		t.Fatalf("expected initial stage %s, got %s", StageInit, s.CurrentStage)
+	if s.CurrentStage != session.StageInit {
+		t.Fatalf("expected initial stage %s, got %s", session.StageInit, s.CurrentStage)
 	}
 
-	s.CurrentStage = StageDoctorPassed
+	s.CurrentStage = session.StageDoctorPassed
 	s.SSHPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
 	s.UID = "alex"
 	s.Metadata["role"] = "engineer"
@@ -52,7 +96,7 @@ func TestSessionCheckpointAndResume(t *testing.T) {
 	}
 
 	// Reload in fresh manager
-	sm2, err := NewSessionManager(sessionPath)
+	sm2, err := session.NewSessionManager(sessionPath)
 	if err != nil {
 		t.Fatalf("NewSessionManager reload failed: %v", err)
 	}
@@ -75,8 +119,8 @@ func TestSessionCheckpointAndResume(t *testing.T) {
 	if loaded.DisplayName != "Alex Smith" {
 		t.Errorf("expected display name Alex Smith, got %s", loaded.DisplayName)
 	}
-	if loaded.CurrentStage != StageDoctorPassed {
-		t.Errorf("expected stage %s, got %s", StageDoctorPassed, loaded.CurrentStage)
+	if loaded.CurrentStage != session.StageDoctorPassed {
+		t.Errorf("expected stage %s, got %s", session.StageDoctorPassed, loaded.CurrentStage)
 	}
 	if loaded.SSHPublicKey != s.SSHPublicKey {
 		t.Errorf("expected SSH public key %s, got %s", s.SSHPublicKey, loaded.SSHPublicKey)
@@ -89,19 +133,22 @@ func TestSessionCheckpointAndResume(t *testing.T) {
 	}
 
 	// Progress through multiple stages and verify persistence
-	stages := []Stage{
-		StageKeypairReady,
-		StageTokenClaimed,
-		StageNetworkConfigured,
-		StageReposCloned,
-		StageMCPConfigured,
-		StageDevStackReady,
+	stages := []session.Stage{
+		session.StageKeypairReady,
+		session.StageTokenClaimed,
+		session.StageNetworkConfigured,
+		session.StageWorkspace,
+		session.StageReposCloned,
+		session.StageEnvironmentReady,
+		session.StageMCPConfigured,
+		session.StageDevStackReady,
+		session.StageStackReady,
 	}
 
 	for _, stage := range stages {
 		loaded.CurrentStage = stage
-		if err := sm2.SaveSession(loaded); err != nil {
-			t.Fatalf("SaveSession at stage %s failed: %v", stage, err)
+		if err := sm2.SaveCheckpoint(loaded); err != nil {
+			t.Fatalf("SaveCheckpoint at stage %s failed: %v", stage, err)
 		}
 
 		reloaded, err := sm2.LoadSession()
@@ -114,17 +161,64 @@ func TestSessionCheckpointAndResume(t *testing.T) {
 	}
 }
 
+func TestSessionDiscardAndRollback(t *testing.T) {
+	tempDir := t.TempDir()
+	sessionPath := filepath.Join(tempDir, "session.json")
+
+	sm, err := session.NewSessionManager(sessionPath)
+	if err != nil {
+		t.Fatalf("NewSessionManager failed: %v", err)
+	}
+
+	s := sm.CreateSession("dev@manova.space", "Dev")
+	s.CurrentStage = session.StageWorkspace
+	if err := sm.SaveCheckpoint(s); err != nil {
+		t.Fatalf("SaveCheckpoint failed: %v", err)
+	}
+
+	if !sm.HasPendingSession() {
+		t.Fatal("expected pending session before discard")
+	}
+
+	// Test DiscardSession
+	if err := sm.DiscardSession(); err != nil {
+		t.Fatalf("DiscardSession failed: %v", err)
+	}
+
+	if sm.HasPendingSession() {
+		t.Fatal("expected no pending session after discard")
+	}
+	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
+		t.Fatal("expected session file to be deleted after DiscardSession")
+	}
+
+	// Recreate and test Rollback
+	s2 := sm.CreateSession("dev@manova.space", "Dev")
+	if err := sm.SaveCheckpoint(s2); err != nil {
+		t.Fatalf("SaveCheckpoint failed: %v", err)
+	}
+	if err := sm.Rollback(); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
+	}
+	if sm.HasPendingSession() {
+		t.Fatal("expected no pending session after Rollback")
+	}
+	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
+		t.Fatal("expected session file to be deleted after Rollback")
+	}
+}
+
 func TestSessionCompleteAndClear(t *testing.T) {
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 
-	sm, err := NewSessionManager(sessionPath)
+	sm, err := session.NewSessionManager(sessionPath)
 	if err != nil {
 		t.Fatalf("NewSessionManager failed: %v", err)
 	}
 
 	s := sm.CreateSession("alex@example.com", "Alex Smith")
-	s.CurrentStage = StageCompleted
+	s.CurrentStage = session.StageCompleted
 	if err := sm.SaveSession(s); err != nil {
 		t.Fatalf("SaveSession failed: %v", err)
 	}
@@ -152,7 +246,7 @@ func TestSessionManagerEdgeCases(t *testing.T) {
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "nested", "dir", "session.json")
 
-	sm, err := NewSessionManager(sessionPath)
+	sm, err := session.NewSessionManager(sessionPath)
 	if err != nil {
 		t.Fatalf("NewSessionManager failed: %v", err)
 	}
@@ -188,7 +282,7 @@ func TestSessionManagerEdgeCases(t *testing.T) {
 	}
 
 	// Default path test
-	defaultSM, err := NewSessionManager("")
+	defaultSM, err := session.NewSessionManager("")
 	if err != nil {
 		t.Fatalf("NewSessionManager with empty path failed: %v", err)
 	}
@@ -208,7 +302,7 @@ func TestDefaultSessionReadsLegacyAndMigratesOnSave(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacy := filepath.Join(legacyDir, "session.json")
-	smWrite, err := NewSessionManager(legacy)
+	smWrite, err := session.NewSessionManager(legacy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +311,7 @@ func TestDefaultSessionReadsLegacyAndMigratesOnSave(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sm, err := NewSessionManager("")
+	sm, err := session.NewSessionManager("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,5 +330,34 @@ func TestDefaultSessionReadsLegacyAndMigratesOnSave(t *testing.T) {
 	}
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Fatal("expected legacy session removed after save")
+	}
+}
+
+func TestAllStagesConstants(t *testing.T) {
+	expectedStages := []session.Stage{
+		session.StageInit,
+		session.StageWelcome,
+		session.StageDoctor,
+		session.StageDoctorPassed,
+		session.StageIdentity,
+		session.StageKeypairReady,
+		session.StageTokenClaimed,
+		session.StageNetworkConfigured,
+		session.StageWorkspace,
+		session.StageReposCloned,
+		session.StageEnvironment,
+		session.StageEnvironmentReady,
+		session.StageMCPConfigured,
+		session.StageStack,
+		session.StageStackReady,
+		session.StageDevStackReady,
+		session.StageComplete,
+		session.StageCompleted,
+	}
+
+	for _, stage := range expectedStages {
+		if string(stage) == "" {
+			t.Errorf("expected non-empty stage constant value")
+		}
 	}
 }
