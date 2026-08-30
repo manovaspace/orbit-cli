@@ -299,10 +299,10 @@ curl -fsSL https://deb.nodesource.com/setup_24.x | %sbash -
 
 	progress("Installing nodejs package...")
 	if out, err := runner.RunShell(ctx, script); err != nil {
-		return fmt.Errorf("failed to install Node.js 22: %w\nOutput: %s", err, strings.TrimSpace(out))
+		return fmt.Errorf("failed to install Node.js 24: %w\nOutput: %s", err, strings.TrimSpace(out))
 	}
 
-	progress("Node.js 22 LTS installed successfully")
+	progress("Node.js 24 LTS installed successfully")
 	return nil
 }
 

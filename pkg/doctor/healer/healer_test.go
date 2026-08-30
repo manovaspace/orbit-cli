@@ -377,7 +377,7 @@ func TestNodeHealer(t *testing.T) {
 		h.IsRoot = func() bool { return true }
 
 		err := h.Heal(context.Background(), nil)
-		if err == nil || !strings.Contains(err.Error(), "failed to install Node.js 22") {
+		if err == nil || !strings.Contains(err.Error(), "failed to install Node.js 24") {
 			t.Fatalf("expected node install error, got: %v", err)
 		}
 	})
