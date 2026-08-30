@@ -214,8 +214,8 @@ func TestInviteCreateCmd(t *testing.T) {
 		t.Errorf("expected CreatedBy %s, got %s", ownerRec.Email, records[0].CreatedBy)
 	}
 
-	if !strings.HasPrefix(records[0].Token, "manova-inv.") {
-		t.Fatalf("expected signed token with prefix manova-inv., got %s", records[0].Token)
+	if !strings.HasPrefix(records[0].Token, "orbit-inv.") {
+		t.Fatalf("expected signed token with prefix orbit-inv., got %s", records[0].Token)
 	}
 	claims, err := invite.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
 	if err != nil {
@@ -258,8 +258,8 @@ func TestInviteCreateWithStorePath(t *testing.T) {
 	if records[0].Email != "sarah@example.com" {
 		t.Errorf("expected email sarah@example.com, got %s", records[0].Email)
 	}
-	if !strings.HasPrefix(records[0].Token, "manova-inv.") {
-		t.Errorf("expected signed token prefix 'manova-inv.', got %s", records[0].Token)
+	if !strings.HasPrefix(records[0].Token, "orbit-inv.") {
+		t.Errorf("expected signed token prefix 'orbit-inv.', got %s", records[0].Token)
 	}
 }
 

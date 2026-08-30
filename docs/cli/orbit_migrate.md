@@ -4,7 +4,7 @@ Run and inspect workspace state migrations
 
 ### Synopsis
 
-Executes pending workspace migrations (directory structure, git hooks, Cursor rules, MCP configs) and tracks applied state in .manova/state.json.
+Executes pending workspace migrations and tracks applied state in .orbit/migrations.json.
 
 ```
 orbit migrate [flags]

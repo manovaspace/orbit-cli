@@ -31,7 +31,7 @@ func TestInviteStoreLifecycle(t *testing.T) {
 		Email:       "alice@example.com",
 		DisplayName: "Alice",
 		Scope:       "core",
-		Token:       "manova-inv.token1.sig1",
+		Token:       "orbit-inv.token1.sig1",
 		IssuedAt:    time.Now().UTC(),
 		ExpiresAt:   time.Now().UTC().Add(24 * time.Hour),
 	}
@@ -41,7 +41,7 @@ func TestInviteStoreLifecycle(t *testing.T) {
 		Email:       "bob@example.com",
 		DisplayName: "Bob",
 		Scope:       "client",
-		Token:       "manova-inv.token2.sig2",
+		Token:       "orbit-inv.token2.sig2",
 		IssuedAt:    time.Now().UTC(),
 		ExpiresAt:   time.Now().UTC().Add(48 * time.Hour),
 	}
@@ -59,22 +59,22 @@ func TestInviteStoreLifecycle(t *testing.T) {
 		t.Fatalf("os.Stat failed: %v", err)
 	}
 	if fi.Mode().Perm() != 0600 {
-		t.Errorf("expected 0600 permissions, got %v", fi.Mode().Perm())
+		t.Errorf("expected permissions 0600, got %o", fi.Mode().Perm())
 	}
 
-	// 3. List
-	all, err := store.ListInvites()
+	// 3. List invites
+	invites, err = store.ListInvites()
 	if err != nil {
 		t.Fatalf("ListInvites failed: %v", err)
 	}
-	if len(all) != 2 {
-		t.Fatalf("expected 2 invites, got %d", len(all))
+	if len(invites) != 2 {
+		t.Fatalf("expected 2 invites, got %d", len(invites))
 	}
 
-	// 4. Get by exact ID and prefix and Token
-	got1, err := store.GetInvite("abcdef1234567890abcdef1234567890")
-	if err != nil || got1.Email != "alice@example.com" {
-		t.Fatalf("GetInvite by exact ID failed: %v", err)
+	// 4. Get by ID, prefix, and token
+	gotExact, err := store.GetInvite("abcdef1234567890abcdef1234567890")
+	if err != nil || gotExact.Email != "alice@example.com" {
+		t.Fatalf("GetInvite exact failed: %v", err)
 	}
 
 	gotPrefix, err := store.GetInvite("abcdef1234")
@@ -82,7 +82,7 @@ func TestInviteStoreLifecycle(t *testing.T) {
 		t.Fatalf("GetInvite by prefix failed: %v", err)
 	}
 
-	gotByToken, err := store.GetInvite("manova-inv.token2.sig2")
+	gotByToken, err := store.GetInvite("orbit-inv.token2.sig2")
 	if err != nil || gotByToken.Email != "bob@example.com" {
 		t.Fatalf("GetInvite by token failed: %v", err)
 	}

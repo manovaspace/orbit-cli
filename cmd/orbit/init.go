@@ -103,22 +103,25 @@ Scopes:
 				}
 			}
 
-			// Post-clone hooks & migrations
+			// Post-clone setup & workspace initialization
 			if !skipHooks {
-				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Clone Setup & Workspace Migrations ─────────────────"))
-				migResults, err := migrate.RunPendingMigrations(workspaceRoot)
-				if err != nil {
-					fmt.Fprintf(out, "  %s  Workspace migration warning: %v\n", iconWarn, err)
+				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Clone Setup & Workspace Initialization ─────────────"))
+				if err := migrate.SetupWorkspace(workspaceRoot); err != nil {
+					fmt.Fprintf(out, "  %s  Workspace setup warning: %v\n", iconWarn, err)
 				} else {
-					appliedCount := 0
-					for _, mr := range migResults {
-						if mr.Success {
-							appliedCount++
-							fmt.Fprintf(out, "  %s  Migration applied: %s (%s)\n", iconOK, boldStyle.Render(mr.ID), mr.Description)
+					fmt.Fprintf(out, "  %s  Workspace directory structure, hooks, and Cursor rules initialized.\n", iconOK)
+				}
+
+				if len(migrate.GetBuiltinMigrations()) > 0 {
+					migResults, err := migrate.RunPendingMigrations(workspaceRoot)
+					if err != nil {
+						fmt.Fprintf(out, "  %s  Workspace migration warning: %v\n", iconWarn, err)
+					} else {
+						for _, mr := range migResults {
+							if mr.Success {
+								fmt.Fprintf(out, "  %s  Migration applied: %s (%s)\n", iconOK, boldStyle.Render(mr.ID), mr.Description)
+							}
 						}
-					}
-					if appliedCount == 0 {
-						fmt.Fprintf(out, "  %s  Workspace directory structure and hooks are up to date.\n", iconOK)
 					}
 				}
 			}

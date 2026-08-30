@@ -8,30 +8,30 @@ import (
 	"strings"
 )
 
+// SetupWorkspace runs all standard idempotent workspace bootstrap tasks:
+// 1. Ensure standard workspace directory hierarchy exists.
+// 2. Configure git core.hooksPath if .githooks exists.
+// 3. Setup .cursor/mcp.env from templates if missing.
+// 4. Symlink Cursor rules and skills from handbook/cursor into .cursor/.
+func SetupWorkspace(workspaceRoot string) error {
+	if err := EnsureWorkspaceDirs(workspaceRoot); err != nil {
+		return err
+	}
+	if err := InstallGitHooks(workspaceRoot); err != nil {
+		return err
+	}
+	if err := SetupMCPEnvironment(workspaceRoot); err != nil {
+		return err
+	}
+	if err := SymlinkCursorRules(workspaceRoot); err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetBuiltinMigrations returns the canonical ordered list of built-in workspace migrations.
 func GetBuiltinMigrations() []Migration {
-	return []Migration{
-		{
-			ID:          "001_ensure_workspace_dirs",
-			Description: "Ensure standard workspace directory hierarchy exists",
-			Run:         EnsureWorkspaceDirs,
-		},
-		{
-			ID:          "002_install_git_hooks",
-			Description: "Configure git core.hooksPath if .githooks exists",
-			Run:         InstallGitHooks,
-		},
-		{
-			ID:          "003_setup_mcp_environment",
-			Description: "Ensure .cursor/mcp.env is created from template if missing",
-			Run:         SetupMCPEnvironment,
-		},
-		{
-			ID:          "004_symlink_cursor_rules",
-			Description: "Symlink Cursor rules and skills from handbook into .cursor/",
-			Run:         SymlinkCursorRules,
-		},
-	}
+	return []Migration{}
 }
 
 // EnsureWorkspaceDirs ensures that standard top-level workspace directories exist.

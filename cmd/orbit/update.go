@@ -29,7 +29,7 @@ func newUpdateCmd() *cobra.Command {
 		Long: `Performs a full workspace synchronization and verification:
   1. Checks for Orbit CLI updates
   2. Synchronizes all clean default git branches from origin
-  3. Executes pending workspace migrations (.manova/state.json)
+  3. Executes pending workspace migrations (.orbit/migrations.json)
   4. Validates project .env files against .env.schema.yaml contracts`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

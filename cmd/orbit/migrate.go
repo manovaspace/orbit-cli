@@ -12,7 +12,7 @@ func newMigrateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate",
 		Short: "Run and inspect workspace state migrations",
-		Long:  "Executes pending workspace migrations (directory structure, git hooks, Cursor rules, MCP configs) and tracks applied state in .manova/state.json.",
+		Long:  "Executes pending workspace migrations and tracks applied state in .orbit/migrations.json.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			workspaceRoot := findWorkspaceRoot("")
@@ -58,10 +58,10 @@ func newMigrateStatusCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			workspaceRoot := findWorkspaceRoot("")
 
-			fmt.Fprintln(out, titleStyle.Render("Orbit Workspace Migration Status"))
-			fmt.Fprintf(out, "  State File: %s\n\n", subtleStyle.Render(workspaceRoot+"/.manova/state.json"))
-
 			engine := migrate.NewEngine(workspaceRoot, "")
+			fmt.Fprintln(out, titleStyle.Render("Orbit Workspace Migration Status"))
+			fmt.Fprintf(out, "  State File: %s\n\n", subtleStyle.Render(engine.StatePath()))
+
 			state, err := engine.LoadState()
 			if err != nil {
 				return fmt.Errorf("failed to load migration state: %w", err)

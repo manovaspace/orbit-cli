@@ -339,7 +339,7 @@ func TestOnboardDiagBundle(t *testing.T) {
 	// Save session with secret data
 	sm, _ := session.NewSessionManager(sessionPath)
 	s := sm.CreateSession("diag-test@manova.space", "Diag Tester")
-	s.InviteToken = "manova-inv.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sensitive-signature"
+	s.InviteToken = "orbit-inv.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sensitive-signature"
 	s.ForgejoToken = "fjo_tok_super_secret_forgejo_token"
 	s.WireGuardConfig = "[Interface]\nPrivateKey = sensitive_private_key_base64\nAddress = 10.8.0.5/24\n"
 	_ = sm.SaveSession(s)

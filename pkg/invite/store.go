@@ -21,14 +21,14 @@ type Store struct {
 func NewStore(customPath string) (*Store, error) {
 	p := customPath
 	if p == "" {
-		if envPath := os.Getenv("MANOVA_INVITES_FILE"); envPath != "" {
+		if envPath := os.Getenv("ORBIT_INVITES_FILE"); envPath != "" {
 			p = envPath
 		} else {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return nil, err
 			}
-			p = filepath.Join(home, ".config", "manova", "invites.json")
+			p = filepath.Join(home, ".config", "orbit", "invites.json")
 		}
 	}
 	return &Store{filePath: p}, nil

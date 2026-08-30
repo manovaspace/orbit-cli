@@ -294,45 +294,6 @@ func TestSessionManagerEdgeCases(t *testing.T) {
 	}
 }
 
-func TestDefaultSessionReadsLegacyAndMigratesOnSave(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	legacyDir := filepath.Join(home, ".config", "manova")
-	if err := os.MkdirAll(legacyDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	legacy := filepath.Join(legacyDir, "session.json")
-	smWrite, err := session.NewSessionManager(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := smWrite.CreateSession("alex@example.com", "Alex")
-	if err := smWrite.SaveSession(s); err != nil {
-		t.Fatal(err)
-	}
-
-	sm, err := session.NewSessionManager("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := sm.LoadSession()
-	if err != nil || loaded == nil {
-		t.Fatalf("load legacy: %v %+v", err, loaded)
-	}
-	if loaded.Email != "alex@example.com" {
-		t.Fatalf("email = %q", loaded.Email)
-	}
-	if err := sm.SaveSession(loaded); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(sm.FilePath()); err != nil {
-		t.Fatalf("orbit session missing: %v", err)
-	}
-	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
-		t.Fatal("expected legacy session removed after save")
-	}
-}
-
 func TestAllStagesConstants(t *testing.T) {
 	expectedStages := []session.Stage{
 		session.StageInit,

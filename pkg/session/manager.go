@@ -13,13 +13,11 @@ import (
 
 // SessionManager manages checkpointed onboarding sessions on disk.
 type SessionManager struct {
-	filePath   string
-	legacyPath string
+	filePath string
 }
 
 // NewSessionManager creates a SessionManager instance with either a custom path
-// or ~/.config/orbit/session.json. A leftover ~/.config/manova/session.json is
-// still read until the next save, which writes the orbit path.
+// or ~/.config/orbit/session.json.
 func NewSessionManager(customPath string) (*SessionManager, error) {
 	if customPath != "" {
 		return &SessionManager{filePath: customPath}, nil
@@ -29,8 +27,7 @@ func NewSessionManager(customPath string) (*SessionManager, error) {
 		return nil, err
 	}
 	return &SessionManager{
-		filePath:   filepath.Join(home, ".config", "orbit", "session.json"),
-		legacyPath: filepath.Join(home, ".config", "manova", "session.json"),
+		filePath: filepath.Join(home, ".config", "orbit", "session.json"),
 	}, nil
 }
 
@@ -66,27 +63,14 @@ func (sm *SessionManager) HasPendingSession() bool {
 	return s.CurrentStage != StageCompleted && s.CurrentStage != StageComplete
 }
 
-func (sm *SessionManager) readPath() string {
-	if _, err := os.Stat(sm.filePath); err == nil {
-		return sm.filePath
-	}
-	if sm.legacyPath != "" {
-		if _, err := os.Stat(sm.legacyPath); err == nil {
-			return sm.legacyPath
-		}
-	}
-	return sm.filePath
-}
-
 // LoadSession reads and unmarshals the session from disk.
 // Returns nil, nil if the file does not exist.
 func (sm *SessionManager) LoadSession() (*SessionState, error) {
-	path := sm.readPath()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(sm.filePath); os.IsNotExist(err) {
 		return nil, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(sm.filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -184,9 +168,6 @@ func (sm *SessionManager) SaveSession(s *SessionState) error {
 		}
 	}
 
-	if sm.legacyPath != "" && sm.legacyPath != sm.filePath {
-		_ = os.Remove(sm.legacyPath)
-	}
 	return nil
 }
 
@@ -199,11 +180,6 @@ func (sm *SessionManager) SaveCheckpoint(s *SessionState) error {
 func (sm *SessionManager) ClearSession() error {
 	if err := os.Remove(sm.filePath); err != nil && !os.IsNotExist(err) {
 		return err
-	}
-	if sm.legacyPath != "" {
-		if err := os.Remove(sm.legacyPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
 	}
 	return nil
 }

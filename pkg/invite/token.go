@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const TokenPrefix = "manova-inv"
+const TokenPrefix = "orbit-inv"
 
 // ComputeIdempotencyKey computes a deterministic SHA-256 idempotency key from a token and machine ID.
 func ComputeIdempotencyKey(tokenStr, machineID string) string {

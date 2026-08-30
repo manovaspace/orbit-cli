@@ -60,8 +60,8 @@ var (
 	iconArrow = subtleStyle.Render("→")
 )
 
-// findWorkspaceRoot locates the root of the Manova workspace.
-// It checks MANOVA_ROOT env var, walks up parent directories looking for workspace.yaml or .manova or .git,
+// findWorkspaceRoot locates the root of the workspace.
+// It checks ORBIT_WORKSPACE, ORBIT_ROOT, or MANOVA_ROOT env vars, walks up parent directories looking for workspace.yaml or .orbit,
 // and falls back to the current working directory.
 func findWorkspaceRoot(overridePath string) string {
 	if overridePath != "" {
@@ -76,9 +76,11 @@ func findWorkspaceRoot(overridePath string) string {
 		return overridePath
 	}
 
-	if envRoot := os.Getenv("MANOVA_ROOT"); envRoot != "" {
-		if fi, err := os.Stat(envRoot); err == nil && fi.IsDir() {
-			return envRoot
+	for _, envKey := range []string{"ORBIT_WORKSPACE", "ORBIT_ROOT", "MANOVA_ROOT"} {
+		if envRoot := os.Getenv(envKey); envRoot != "" {
+			if fi, err := os.Stat(envRoot); err == nil && fi.IsDir() {
+				return envRoot
+			}
 		}
 	}
 
@@ -89,11 +91,11 @@ func findWorkspaceRoot(overridePath string) string {
 
 	dir := cwd
 	for {
-		// Check for workspace.yaml or .manova or handbook directory
+		// Check for workspace.yaml or .orbit
 		if _, err := os.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
 			return dir
 		}
-		if _, err := os.Stat(filepath.Join(dir, ".manova")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, ".orbit")); err == nil {
 			return dir
 		}
 

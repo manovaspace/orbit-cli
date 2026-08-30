@@ -11,7 +11,7 @@ import (
 
 func TestMigrationStatePersistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	stateFile := filepath.Join(tmpDir, ".manova", "state.json")
+	stateFile := filepath.Join(tmpDir, ".orbit", "migrations.json")
 
 	engine := NewEngine(tmpDir, stateFile)
 	applied, err := engine.Apply([]Migration{
@@ -425,6 +425,40 @@ func TestSymlinkCursorRules(t *testing.T) {
 	}
 }
 
+func TestSetupWorkspace(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create handbook/cursor structure to test symlinking
+	handbookRules := filepath.Join(tmpDir, "handbook", "cursor", "rules")
+	_ = os.MkdirAll(handbookRules, 0755)
+	_ = os.WriteFile(filepath.Join(handbookRules, "sample.mdc"), []byte("# Sample Rule"), 0644)
+
+	if err := SetupWorkspace(tmpDir); err != nil {
+		t.Fatalf("SetupWorkspace failed: %v", err)
+	}
+
+	// Verify standard directories created
+	expectedDirs := []string{"orbit", "manovaspace", "clients", "documents", "share", "temp"}
+	for _, dir := range expectedDirs {
+		p := filepath.Join(tmpDir, dir)
+		if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
+			t.Errorf("expected directory %s to exist, err: %v", p, err)
+		}
+	}
+
+	// Verify .cursor/mcp.env created
+	mcpEnv := filepath.Join(tmpDir, ".cursor", "mcp.env")
+	if _, err := os.Stat(mcpEnv); err != nil {
+		t.Errorf("expected .cursor/mcp.env to exist, err: %v", err)
+	}
+
+	// Verify symlinks created
+	ruleSymlink := filepath.Join(tmpDir, ".cursor", "rules", "sample.mdc")
+	if _, err := os.Readlink(ruleSymlink); err != nil {
+		t.Errorf("expected rule symlink %s to exist: %v", ruleSymlink, err)
+	}
+}
+
 func TestRunPendingMigrations(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -438,50 +472,35 @@ func TestRunPendingMigrations(t *testing.T) {
 		t.Errorf("expected %d results, got %d", len(builtins), len(results))
 	}
 
-	for _, res := range results {
-		if !res.Success {
-			t.Errorf("expected migration %s to succeed, got error: %s", res.ID, res.Error)
-		}
+	// Test with a custom engine and migration
+	engine := NewEngine(tmpDir, "")
+	if engine.StatePath() != filepath.Join(tmpDir, ".orbit", "migrations.json") {
+		t.Errorf("expected state path %s, got %s", filepath.Join(tmpDir, ".orbit", "migrations.json"), engine.StatePath())
 	}
 
-	// Verify state file was created
-	statePath := filepath.Join(tmpDir, ".manova", "state.json")
+	customResults, err := engine.Apply([]Migration{
+		{
+			ID:          "test_custom_001",
+			Description: "Custom migration test",
+			Run: func(root string) error {
+				return nil
+			},
+		},
+	})
+	if err != nil || len(customResults) != 1 {
+		t.Fatalf("expected 1 custom migration result, got %d (err: %v)", len(customResults), err)
+	}
+
+	// Verify state file was created at .orbit/migrations.json
+	statePath := filepath.Join(tmpDir, ".orbit", "migrations.json")
 	if _, err := os.Stat(statePath); err != nil {
 		t.Fatalf("expected state file %s to exist: %v", statePath, err)
-	}
-
-	// Second run should apply 0 migrations
-	resultsSecond, err := RunPendingMigrations(tmpDir)
-	if err != nil {
-		t.Fatalf("second RunPendingMigrations failed: %v", err)
-	}
-	if len(resultsSecond) != 0 {
-		t.Errorf("expected 0 migrations on second run, got %d", len(resultsSecond))
 	}
 }
 
 func TestGetBuiltinMigrations(t *testing.T) {
 	builtins := GetBuiltinMigrations()
-	if len(builtins) != 4 {
-		t.Fatalf("expected 4 builtin migrations, got %d", len(builtins))
-	}
-
-	expectedIDs := []string{
-		"001_ensure_workspace_dirs",
-		"002_install_git_hooks",
-		"003_setup_mcp_environment",
-		"004_symlink_cursor_rules",
-	}
-
-	for i, expected := range expectedIDs {
-		if builtins[i].ID != expected {
-			t.Errorf("migration %d: expected ID %s, got %s", i, expected, builtins[i].ID)
-		}
-		if builtins[i].Description == "" {
-			t.Errorf("migration %d (%s) missing description", i, expected)
-		}
-		if builtins[i].Run == nil {
-			t.Errorf("migration %d (%s) missing Run function", i, expected)
-		}
+	if len(builtins) != 0 {
+		t.Errorf("expected 0 default builtin migrations (bootstrapped in orbit init), got %d", len(builtins))
 	}
 }

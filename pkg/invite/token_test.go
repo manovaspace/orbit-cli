@@ -32,8 +32,8 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	}
 
 	// Verify token format
-	if !strings.HasPrefix(tokenStr, "manova-inv.") {
-		t.Fatalf("expected token prefix 'manova-inv.', got: %s", tokenStr)
+	if !strings.HasPrefix(tokenStr, "orbit-inv.") {
+		t.Fatalf("expected token prefix 'orbit-inv.', got: %s", tokenStr)
 	}
 
 	parts := strings.Split(tokenStr, ".")
@@ -188,18 +188,18 @@ func TestValidateToken_MalformedFormat(t *testing.T) {
 		tokenStr string
 	}{
 		{"empty string", ""},
-		{"single part", "manova-inv"},
-		{"two parts", "manova-inv.payload"},
-		{"four parts", "manova-inv.part1.part2.part3"},
+		{"single part", "orbit-inv"},
+		{"two parts", "orbit-inv.payload"},
+		{"four parts", "orbit-inv.part1.part2.part3"},
 		{"wrong prefix", "invalid-prefix.cGF5bG9hZA.c2ln"},
-		{"invalid base64 payload", "manova-inv.!!!invalid-base64!!!.c2ln"},
-		{"invalid base64 signature", "manova-inv.eyJlZGFpbCI6InRlc3QifQ.!!!invalid-sig!!!"},
+		{"invalid base64 payload", "orbit-inv.!!!invalid-base64!!!.c2ln"},
+		{"invalid base64 signature", "orbit-inv.eyJlZGFpbCI6InRlc3QifQ.!!!invalid-sig!!!"},
 		{"invalid json in payload", func() string {
 			badPayload := base64.RawURLEncoding.EncodeToString([]byte("not-json"))
 			mac := hmac.New(sha256.New, testSecret())
 			mac.Write([]byte(badPayload))
 			sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-			return "manova-inv." + badPayload + "." + sig
+			return "orbit-inv." + badPayload + "." + sig
 		}()},
 	}
 
@@ -232,12 +232,12 @@ func TestGenerateAndValidate_EmptySecret(t *testing.T) {
 		t.Error("expected error when generating token with empty secret")
 	}
 
-	_, err = ValidateToken("manova-inv.payload.sig", nil)
+	_, err = ValidateToken("orbit-inv.payload.sig", nil)
 	if err == nil {
 		t.Error("expected error when validating token with nil secret")
 	}
 
-	_, err = ValidateToken("manova-inv.payload.sig", []byte{})
+	_, err = ValidateToken("orbit-inv.payload.sig", []byte{})
 	if err == nil {
 		t.Error("expected error when validating token with empty secret")
 	}

@@ -13,7 +13,7 @@ const (
 	DefaultStateVersion = "1.0"
 
 	// DefaultStateRelativePath defines the standard relative location for state.json.
-	DefaultStateRelativePath = ".manova/state.json"
+	DefaultStateRelativePath = ".orbit/migrations.json"
 )
 
 // Engine manages reading, writing, and executing workspace state migrations.
@@ -23,7 +23,7 @@ type Engine struct {
 }
 
 // NewEngine creates a new migration Engine for the given workspace root.
-// If statePath is empty, it defaults to <workspaceRoot>/.manova/state.json.
+// If statePath is empty, it defaults to <workspaceRoot>/.orbit/migrations.json.
 func NewEngine(workspaceRoot string, statePath string) *Engine {
 	if statePath == "" {
 		statePath = filepath.Join(workspaceRoot, DefaultStateRelativePath)

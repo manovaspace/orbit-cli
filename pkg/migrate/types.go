@@ -16,7 +16,7 @@ type AppliedMigrationRecord struct {
 	Description string    `json:"description" yaml:"description"`
 }
 
-// MigrationState represents the persisted state in .manova/state.json.
+// MigrationState represents the persisted state in .orbit/migrations.json.
 type MigrationState struct {
 	Version string                   `json:"version" yaml:"version"`
 	Applied []AppliedMigrationRecord `json:"applied" yaml:"applied"`

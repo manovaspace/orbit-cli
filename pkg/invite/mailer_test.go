@@ -253,7 +253,7 @@ func TestSMTPMailer_SendInvite(t *testing.T) {
 	data := EmailData{
 		RecipientName:  "Test Dev",
 		RecipientEmail: "dev@manova.space",
-		Token:          "manova-inv.test.sig",
+		Token:          "orbit-inv.test.sig",
 		ShortCode:      "999-111",
 		ExpiresAt:      time.Now().Add(48 * time.Hour),
 		ExpiresInHuman: "48 hours",
