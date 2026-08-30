@@ -13,7 +13,7 @@ orbit-staff-create - Create a staff member (lldap + mailbox)
 
 .SH DESCRIPTION
 .PP
-Create a staff member (lldap + mailbox)
+Create a staff member and optionally generate a signed onboarding invite token with --invite.
 
 
 .SH OPTIONS
@@ -32,6 +32,18 @@ Create a staff member (lldap + mailbox)
 .PP
 \fB--idempotency-key\fP=""
 	idempotency key (generated if empty)
+
+.PP
+\fB--invite\fP[=false]
+	generate and print a signed onboarding invite token after account creation
+
+.PP
+\fB--invite-email\fP=""
+	email address for the invite token (defaults to --forward value)
+
+.PP
+\fB--invite-ttl\fP="7d"
+	invite token TTL (e.g. 7d, 24h, 168h)
 
 .PP
 \fB--name\fP=""

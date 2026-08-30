@@ -80,16 +80,17 @@ func init() {
 }
 
 type serverOptions struct {
-	addr           string
-	smtpHost       string
-	smtpPort       string
-	smtpUser       string
-	smtpPass       string
-	smtpFrom       string
-	signingSecret  string
-	storePath      string
-	ownerStorePath string
-	configPath     string
+	addr                    string
+	smtpHost                string
+	smtpPort                string
+	smtpUser                string
+	smtpPass                string
+	smtpFrom                string
+	signingSecret           string
+	storePath               string
+	ownerStorePath          string
+	configPath              string
+	disablePublicChallenges bool
 }
 
 func formatVersion() string {
@@ -111,9 +112,13 @@ func newRootCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "orbit-server",
-		Short:   "Orbit infrastructure and onboarding daemon",
-		Long:    "Standalone daemon providing the Orbit developer onboarding edge HTTP service and platform verification.",
+		Short:   "Dedicated edge HTTP daemon for developer onboarding and infrastructure management",
+		Long:    `orbit-server is the dedicated edge service that validates HMAC-signed developer invitations,
+orchestrates local development infrastructure, handles admin ownership verification challenges,
+and serves the canonical developer onboarding script.`,
 		Version: version,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServer(cmd, opts)
 		},
@@ -135,6 +140,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.storePath, "store", "", "Custom path to invites storage file")
 	cmd.Flags().StringVar(&opts.ownerStorePath, "owner-store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVar(&opts.configPath, "config", "", "Custom path to configuration file")
+	cmd.Flags().BoolVar(&opts.disablePublicChallenges, "disable-public-challenges", false, "Disable unauthenticated public challenge emails; require owner-issued 8-digit admin grants")
 
 	// Version subcommand for parity
 	versionCmd := &cobra.Command{
@@ -221,17 +227,20 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 		inviteStore = store
 	}
 
-	// 5. Initialize Challenge Manager
+	// 5. Initialize Challenge & Grant Managers
 	challengeMgr := owner.NewChallengeManager()
+	grantMgr := owner.NewGrantManager()
 
 	// 6. Initialize Onboard Server
 	serverCfg := onboard.ServerConfig{
-		Addr:             opts.addr,
-		Secret:           []byte(secret),
-		Provisioner:      provisioner.NewDevProvisioner(),
-		InviteStore:      inviteStore,
-		ChallengeManager: challengeMgr,
-		Mailer:           mailer,
+		Addr:                    opts.addr,
+		Secret:                  []byte(secret),
+		Provisioner:             provisioner.NewDevProvisioner(),
+		InviteStore:             inviteStore,
+		ChallengeManager:        challengeMgr,
+		GrantManager:            grantMgr,
+		Mailer:                  mailer,
+		DisablePublicChallenges: opts.disablePublicChallenges,
 	}
 
 	srv, err := onboard.NewServer(serverCfg)

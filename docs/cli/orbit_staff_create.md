@@ -2,6 +2,10 @@
 
 Create a staff member (lldap + mailbox)
 
+### Synopsis
+
+Create a staff member and optionally generate a signed onboarding invite token with --invite.
+
 ```
 orbit staff create [flags]
 ```
@@ -13,6 +17,9 @@ orbit staff create [flags]
       --groups string            comma-separated groups (default server-side: dev)
   -h, --help                     help for create
       --idempotency-key string   idempotency key (generated if empty)
+      --invite                   generate and print a signed onboarding invite token after account creation
+      --invite-email string      email address for the invite token (defaults to --forward value)
+      --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
       --name string              display name
       --totp                     enroll Authelia TOTP
       --uid string               staff uid (required)

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -544,7 +543,7 @@ func TestServer_AdminChallengeAndVerify(t *testing.T) {
 	defer ts.Close()
 
 	// 1. Request challenge
-	reqBody := `{"email":"alirezaopmc@gmail.com"}`
+	reqBody := `{"email":"admin@example.com"}`
 	resp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(reqBody))
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("challenge request failed: status %d, err %v", resp.StatusCode, err)
@@ -556,14 +555,14 @@ func TestServer_AdminChallengeAndVerify(t *testing.T) {
 	otp := mockMailer.sentChallenges[0].OTPCode
 
 	// 2. Verify with invalid code
-	badVerify := `{"email":"alirezaopmc@gmail.com","code":"000000"}`
+	badVerify := `{"email":"admin@example.com","code":"000000"}`
 	vResp, err := http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(badVerify))
 	if err != nil || vResp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 for bad OTP, got %d", vResp.StatusCode)
 	}
 
 	// 3. Verify with valid code
-	goodVerify := fmt.Sprintf(`{"email":"alirezaopmc@gmail.com","code":"%s"}`, otp)
+	goodVerify := fmt.Sprintf(`{"email":"admin@example.com","code":"%s"}`, otp)
 	vResp, err = http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(goodVerify))
 	if err != nil || vResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 for valid OTP, got %d", vResp.StatusCode)
@@ -576,8 +575,8 @@ func TestServer_AdminChallengeAndVerify(t *testing.T) {
 	if verifyResp.Status != "verified" {
 		t.Errorf("expected status 'verified', got %q", verifyResp.Status)
 	}
-	if verifyResp.Email != "alirezaopmc@gmail.com" {
-		t.Errorf("expected email alirezaopmc@gmail.com, got %q", verifyResp.Email)
+	if verifyResp.Email != "admin@example.com" {
+		t.Errorf("expected email admin@example.com, got %q", verifyResp.Email)
 	}
 	if verifyResp.KeyFingerprint == "" {
 		t.Errorf("expected non-empty key fingerprint")
@@ -830,7 +829,115 @@ func TestServer_ClaimPathAliases(t *testing.T) {
 	}
 }
 
-func init() {
-	// Clean up any test artifacts if necessary
-	_ = os.Getenv("ENV")
+func TestServer_AdminGrant_CreateAndVerify_Success(t *testing.T) {
+	secret := []byte("secret-key-32-bytes-long-12345678")
+	gm := owner.NewGrantManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           secret,
+		GrantManager:     gm,
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Create grant via authenticated API
+	grantReq := `{"email":"sara@manova.space","role":"admin","code":"8492-0194","ttl_seconds":600}`
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/admin/grants", strings.NewReader(grantReq))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+string(secret))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got status %d, err %v", resp.StatusCode, err)
+	}
+	resp.Body.Close()
+
+	// 2. Verify grant code from client
+	verifyReq := `{"email":"sara@manova.space","code":"8492-0194","display_name":"Sara"}`
+	vResp, err := http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(verifyReq))
+	if err != nil || vResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK verifying grant code, got %d, err %v", vResp.StatusCode, err)
+	}
+	defer vResp.Body.Close()
+
+	var verifyResult client.VerifyResponse
+	if err := json.NewDecoder(vResp.Body).Decode(&verifyResult); err != nil {
+		t.Fatalf("failed to decode verify response: %v", err)
+	}
+	if verifyResult.Status != "verified" {
+		t.Errorf("expected status verified, got %s", verifyResult.Status)
+	}
+	if verifyResult.Email != "sara@manova.space" {
+		t.Errorf("expected email sara@manova.space, got %s", verifyResult.Email)
+	}
+
+	// 3. Replay must be rejected
+	replayResp, err := http.Post(ts.URL+"/api/v1/admin/verify", "application/json", strings.NewReader(verifyReq))
+	if err != nil || replayResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on replay, got %d", replayResp.StatusCode)
+	}
+	replayResp.Body.Close()
+}
+
+func TestServer_DisablePublicChallenges_RejectsSpam(t *testing.T) {
+	srv, err := NewServer(ServerConfig{
+		Secret:                  []byte("secret-key-32-bytes-long-12345678"),
+		DisablePublicChallenges: true,
+		DisableRateLimit:        true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	reqBody := `{"email":"owner@manova.space"}`
+	resp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("POST challenge failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden when public challenges are disabled, got %d", resp.StatusCode)
+	}
+}
+
+func TestServer_AllowedAdminEmails_EnforcesAllowlist(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:             []byte("secret-key-32-bytes-long-12345678"),
+		ChallengeManager:   cm,
+		Mailer:             mockMailer,
+		AllowedAdminEmails: []string{"admin@manova.space"},
+		DisableRateLimit:   true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Disallowed email -> 403
+	badReq := `{"email":"attacker@spam.local"}`
+	bResp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(badReq))
+	if err != nil || bResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-allowlisted email, got %d", bResp.StatusCode)
+	}
+	bResp.Body.Close()
+
+	// 2. Allowlisted email -> 200
+	goodReq := `{"email":"admin@manova.space"}`
+	gResp, err := http.Post(ts.URL+"/api/v1/admin/challenge", "application/json", strings.NewReader(goodReq))
+	if err != nil || gResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for allowlisted email, got %d", gResp.StatusCode)
+	}
+	gResp.Body.Close()
 }

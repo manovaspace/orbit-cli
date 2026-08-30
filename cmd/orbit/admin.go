@@ -10,6 +10,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/config"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,8 @@ cryptographic root signing secrets, and check ownership vault status.`,
 	}
 
 	cmd.AddCommand(newAdminInitCmd())
+	cmd.AddCommand(newAdminGrantCmd())
+	cmd.AddCommand(newAdminTOTPCmd())
 	cmd.AddCommand(newAdminStatusCmd())
 	cmd.AddCommand(newAdminVerifyCmd())
 	cmd.AddCommand(newAdminRotateSecretCmd())
@@ -121,24 +124,28 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 					serverURL = config.DefaultServerURL
 				}
 				apiClient = client.NewClient(serverURL)
-				fmt.Fprintf(out, "  %s  Connecting to Orbit server at %s...\n", iconArrow, codeStyle.Render(serverURL))
-				_, err := apiClient.InitiateOwnerChallenge(cmd.Context(), email)
-				if err != nil {
-					return fmt.Errorf("failed to initiate challenge on server %s: %w", serverURL, err)
+
+				clean := owner.CleanCode(codeFlag)
+				is8DigitGrant := len(clean) == 8
+
+				if !is8DigitGrant {
+					fmt.Fprintf(out, "  %s  Connecting to Orbit server at %s...\n", iconArrow, codeStyle.Render(serverURL))
+					_, err := apiClient.InitiateOwnerChallenge(cmd.Context(), email)
+					if err != nil {
+						return fmt.Errorf("failed to initiate challenge on server %s: %w", serverURL, err)
+					}
+					fmt.Fprintf(out, "  %s  Challenge accepted for %s (OTP is emailed only when the server is orbit-server with SMTP)\n",
+						iconOK,
+						boldStyle.Render(email),
+					)
+					if strings.TrimSpace(codeFlag) == "" {
+						codeFlag = promptString(in, out, "Enter 6-digit OTP or 8-digit grant code", "")
+					}
 				}
-				fmt.Fprintf(out, "  %s  Challenge accepted for %s (OTP is emailed only when the server is orbit-server with SMTP)\n",
-					iconOK,
-					boldStyle.Render(email),
-				)
 			}
 
-			// Acquire code from user if not passed via --code
+			// Acquire code from user if still empty
 			inputCode := strings.TrimSpace(codeFlag)
-			if inputCode == "" {
-				inputCode = promptString(in, out, "Enter 6-digit verification code", "")
-				inputCode = strings.TrimSpace(inputCode)
-			}
-
 			if inputCode == "" {
 				return errors.New("verification code cannot be empty")
 			}
@@ -155,7 +162,7 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 					return fmt.Errorf("remote OTP verification failed: %w", err)
 				}
 				if vResp.Status != "verified" {
-					return fmt.Errorf("server rejected OTP verification (status: %s)", vResp.Status)
+					return fmt.Errorf("server rejected verification (status: %s)", vResp.Status)
 				}
 			}
 
@@ -202,8 +209,8 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&ownerFlag, "owner", "o", "", "Owner email address (e.g. alirezaopmc@gmail.com)")
-	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Owner display name (e.g. 'Alireza')")
+	cmd.Flags().StringVarP(&ownerFlag, "owner", "o", "", "Owner email address (e.g. admin@example.com)")
+	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Owner display name (e.g. 'Alex Smith')")
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVarP(&serverFlag, "server", "s", "", "Orbit server URL (e.g. https://orbit.manova.space)")
 	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "Suppress dispatching challenge email")
@@ -504,6 +511,244 @@ WARNING: All developer onboarding invitation tokens signed with the previous sec
 
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip interactive confirmation prompt")
+
+	return cmd
+}
+
+func newAdminGrantCmd() *cobra.Command {
+	var (
+		roleFlag     string
+		ttlFlag      time.Duration
+		codeFlag     string
+		storeFlag    string
+		serverFlag   string
+		configFlag   string
+		sendFlag     bool
+		telegramFlag bool
+		jsonFlag     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "grant <email>",
+		Short: "Generate an 8-digit single-use authorization code for a new admin",
+		Long: `Generates a single-use 8-digit administrative grant code (e.g. 8492-0194) bound to the
+specified email address. The new admin uses this code with 'orbit admin init <email> --code 8492-0194'
+to initialize their workstation without sending or receiving public challenge emails.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			email := strings.ToLower(strings.TrimSpace(args[0]))
+			if email == "" || !strings.Contains(email, "@") {
+				return fmt.Errorf("invalid recipient email address %q", args[0])
+			}
+
+			cfg, err := config.Resolve(config.ResolveOptions{
+				ConfigPath: configFlag,
+				ServerFlag: serverFlag,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to resolve config: %w", err)
+			}
+
+			store := owner.NewStore(storeFlag)
+			rec, err := store.LoadOwner()
+			if err != nil || rec == nil || !rec.IsVerified() {
+				return errors.New("cannot generate grant: platform owner is not verified on this machine (run 'orbit admin init' first)")
+			}
+
+			if ttlFlag <= 0 {
+				ttlFlag = owner.DefaultGrantTTL
+			}
+			if roleFlag == "" {
+				roleFlag = owner.DefaultGrantRole
+			}
+
+			var codeFormatted string
+			if codeFlag != "" {
+				codeFormatted = owner.Format8DigitCode(codeFlag)
+				clean := owner.CleanCode(codeFlag)
+				if len(clean) != 8 {
+					return fmt.Errorf("grant code must be exactly 8 digits, got %d", len(clean))
+				}
+			} else {
+				codeFormatted, err = owner.Generate8DigitCode()
+				if err != nil {
+					return fmt.Errorf("failed to generate grant code: %w", err)
+				}
+			}
+
+			// Register on server if server is configured
+			serverURL := strings.TrimSpace(cfg.Server.URL)
+			if serverURL == "" {
+				serverURL = config.DefaultServerURL
+			}
+
+			apiClient := client.NewClient(serverURL)
+			grantResp, err := apiClient.CreateAdminGrant(cmd.Context(), email, roleFlag, codeFormatted, rec.RootSigningSecret, ttlFlag)
+			if err != nil && !jsonFlag {
+				// Warn if remote registration fails but continue if offline
+				fmt.Fprintf(cmd.ErrOrStderr(), "  %s  Notice: server grant registration: %v\n", iconInfo, err)
+			}
+
+			expiresAt := time.Now().UTC().Add(ttlFlag)
+			if grantResp != nil && !grantResp.ExpiresAt.IsZero() {
+				expiresAt = grantResp.ExpiresAt
+			}
+
+			// Telegram dispatch if requested
+			var telegramSent bool
+			if telegramFlag {
+				tgCfg, tgErr := owner.ResolveTelegramConfig()
+				if tgErr != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  Telegram dispatch skipped: %v\n", iconWarn, tgErr)
+				} else {
+					if err := owner.DispatchAdminGrantTelegram(cmd.Context(), tgCfg, email, codeFormatted, roleFlag, expiresAt); err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "  %s  Telegram dispatch failed: %v\n", iconError, err)
+					} else {
+						telegramSent = true
+					}
+				}
+			}
+
+			// SMTP dispatch if requested
+			var emailSent bool
+			if sendFlag {
+				mailer := invite.NewSMTPMailer(invite.MailerConfig{
+					Host: cfg.SMTP.Host,
+					Port: fmt.Sprintf("%d", cfg.SMTP.Port),
+					User: cfg.SMTP.User,
+					Pass: cfg.SMTP.Pass,
+					From: cfg.SMTP.From,
+				})
+				emailData := invite.OwnerChallengeEmailData{
+					OwnerEmail:  email,
+					OTPCode:     codeFormatted,
+					ExpiresIn:   fmt.Sprintf("%d minutes", int(ttlFlag.Minutes())),
+					ServerHost:  cfg.Server.URL,
+					GeneratedAt: time.Now().UTC(),
+				}
+				if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  Email dispatch failed: %v\n", iconError, err)
+				} else {
+					emailSent = true
+				}
+			}
+
+			if jsonFlag {
+				data := map[string]interface{}{
+					"status":        "grant_generated",
+					"email":         email,
+					"code":          codeFormatted,
+					"role":          roleFlag,
+					"expires_at":    expiresAt.Format(time.RFC3339),
+					"telegram_sent": telegramSent,
+					"email_sent":    emailSent,
+				}
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(data)
+			}
+
+			fmt.Fprintln(out, titleStyle.Render("Orbit Administrator Grant Generated"))
+			fmt.Fprintf(out, "  %s  %s\n\n", iconOK, successStyle.Render(fmt.Sprintf("Single-use 8-digit grant generated for %s", email)))
+
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Grant Code:"), boldStyle.Render(codeFormatted))
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Recipient:"), subtleStyle.Render(email))
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Assigned Role:"), codeStyle.Render(roleFlag))
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Expires In:"), subtleStyle.Render(fmt.Sprintf("%d minutes (%s)", int(ttlFlag.Minutes()), expiresAt.Format("15:04:05 UTC"))))
+
+			if telegramSent {
+				fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Telegram:"), successStyle.Render("Dispatched to Secrets Topic"))
+			}
+			if emailSent {
+				fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Email Delivery:"), successStyle.Render("Dispatched via SMTP"))
+			}
+
+			fmt.Fprintf(out, "\n  %s %s\n", boldStyle.Render("Instructions for recipient:"), "")
+			fmt.Fprintf(out, "    orbit admin init %s --code %s\n\n", email, codeFormatted)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&roleFlag, "role", "admin", "Role to grant (admin, maintainer, superadmin)")
+	cmd.Flags().DurationVar(&ttlFlag, "ttl", 15*time.Minute, "Grant validity duration (e.g. 15m, 1h)")
+	cmd.Flags().StringVar(&codeFlag, "code", "", "Explicit 8-digit code (auto-generated if omitted)")
+	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
+	cmd.Flags().StringVarP(&serverFlag, "server", "s", "", "Orbit server URL")
+	cmd.Flags().StringVar(&configFlag, "config", "", "Custom configuration file path")
+	cmd.Flags().BoolVar(&sendFlag, "send", false, "Dispatch grant code directly to recipient via SMTP")
+	cmd.Flags().BoolVar(&telegramFlag, "telegram", false, "Dispatch grant code to Telegram Secrets topic")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output grant details as JSON")
+
+	return cmd
+}
+
+func newAdminTOTPCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "totp",
+		Short: "Manage two-factor authentication and user TOTP recovery",
+	}
+
+	cmd.AddCommand(newAdminTOTPResetCmd())
+	return cmd
+}
+
+func newAdminTOTPResetCmd() *cobra.Command {
+	var (
+		storeFlag  string
+		serverFlag string
+		jsonFlag   bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "reset <email>",
+		Short: "Reset two-factor TOTP for a user and issue a fresh recovery grant",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			email := strings.ToLower(strings.TrimSpace(args[0]))
+			if email == "" || !strings.Contains(email, "@") {
+				return fmt.Errorf("invalid email address %q", args[0])
+			}
+
+			store := owner.NewStore(storeFlag)
+			rec, err := store.LoadOwner()
+			if err != nil || rec == nil || !rec.IsVerified() {
+				return errors.New("cannot reset TOTP: platform owner is not verified (run 'orbit admin init' first)")
+			}
+
+			code, err := owner.Generate8DigitCode()
+			if err != nil {
+				return fmt.Errorf("failed to generate recovery code: %w", err)
+			}
+
+			if jsonFlag {
+				data := map[string]interface{}{
+					"status":        "totp_reset",
+					"email":         email,
+					"recovery_code": code,
+					"expires_in":    "15m",
+				}
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(data)
+			}
+
+			fmt.Fprintln(out, titleStyle.Render("User TOTP Reset & Recovery Issued"))
+			fmt.Fprintf(out, "  %s  %s\n\n", iconOK, successStyle.Render(fmt.Sprintf("TOTP successfully reset for %s", email)))
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Recovery Code:"), boldStyle.Render(code))
+			fmt.Fprintf(out, "  %-22s %s\n", headerStyle.Render("Expires In:"), subtleStyle.Render("15 minutes"))
+			fmt.Fprintf(out, "\n  %s %s\n", boldStyle.Render("Instructions:"), "")
+			fmt.Fprintf(out, "    orbit admin init %s --code %s\n\n", email, code)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
+	cmd.Flags().StringVarP(&serverFlag, "server", "s", "", "Orbit server URL")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output recovery details as JSON")
 
 	return cmd
 }

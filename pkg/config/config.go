@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,7 +15,8 @@ import (
 
 const (
 	DefaultServerURL  = "https://orbit.manova.space"
-	DefaultAdminEmail = "alirezaopmc@gmail.com"
+	DefaultAdminEmail = ""
+	DefaultAdminName  = ""
 	DefaultSMTPHost   = "mail.manova.space"
 	DefaultSMTPPort   = 587
 	DefaultSMTPFrom   = "Orbit Platform <noreply@manova.space>"
@@ -22,15 +24,40 @@ const (
 	DefaultExpiryDays = 7
 )
 
+func discoverGitEmail() string {
+	out, err := exec.Command("git", "config", "--get", "user.email").Output()
+	if err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return ""
+}
+
+func discoverGitName() string {
+	out, err := exec.Command("git", "config", "--get", "user.name").Output()
+	if err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return ""
+}
+
 func DefaultConfig() *Config {
+	email := DefaultAdminEmail
+	if email == "" {
+		email = discoverGitEmail()
+	}
+	name := DefaultAdminName
+	if name == "" {
+		name = discoverGitName()
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			URL:     DefaultServerURL,
 			Timeout: 15 * time.Second,
 		},
 		Admin: AdminConfig{
-			Email: DefaultAdminEmail,
-			Name:  "Alireza",
+			Email: email,
+			Name:  name,
 		},
 		SMTP: SMTPConfig{
 			Host: DefaultSMTPHost,
@@ -90,14 +117,46 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", dir, err)
+	}
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-config-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file in %q: %w", dir, err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if err := tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to chmod temp file: %w", err)
+	}
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to atomic rename file to %q: %w", path, err)
+	}
+
+	return nil
+}
+
 func (c *Config) Save(path string) error {
 	if path == "" {
 		path = DefaultConfigPath()
-	}
-
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("failed to create config directory %q: %w", dir, err)
 	}
 
 	data, err := yaml.Marshal(c)
@@ -105,11 +164,7 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("failed to encode config yaml: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("failed to write config file %q: %w", path, err)
-	}
-	_ = os.Chmod(path, 0600)
-	return nil
+	return atomicWriteFile(path, data, 0600)
 }
 
 func envOrEmpty(key string) string {

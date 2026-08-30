@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-30  
 **Status**: Approved  
-**Author**: Antigravity / alirezaopmc  
+**Author**: Orbit Platform Team  
 **Target Repository**: `orbit/orbit-cli`  
 
 ---

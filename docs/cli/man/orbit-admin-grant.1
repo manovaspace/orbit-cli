@@ -1,0 +1,65 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-admin-grant - Generate an 8-digit single-use authorization code for a new admin
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit admin grant  [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Generates a single-use 8-digit administrative grant code (e.g. 8492-0194) bound to the
+specified email address. The new admin uses this code with 'orbit admin init  --code 8492-0194'
+to initialize their workstation without sending or receiving public challenge emails.
+
+
+.SH OPTIONS
+.PP
+\fB--code\fP=""
+	Explicit 8-digit code (auto-generated if omitted)
+
+.PP
+\fB--config\fP=""
+	Custom configuration file path
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for grant
+
+.PP
+\fB--json\fP[=false]
+	Output grant details as JSON
+
+.PP
+\fB--role\fP="admin"
+	Role to grant (admin, maintainer, superadmin)
+
+.PP
+\fB--send\fP[=false]
+	Dispatch grant code directly to recipient via SMTP
+
+.PP
+\fB-s\fP, \fB--server\fP=""
+	Orbit server URL
+
+.PP
+\fB--store\fP=""
+	Custom path to owner storage vault file
+
+.PP
+\fB--telegram\fP[=false]
+	Dispatch grant code to Telegram Secrets topic
+
+.PP
+\fB--ttl\fP=15m0s
+	Grant validity duration (e.g. 15m, 1h)
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-admin(1)\fP

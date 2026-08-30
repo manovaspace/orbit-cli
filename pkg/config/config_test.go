@@ -12,12 +12,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Server.URL != "https://orbit.manova.space" {
 		t.Fatalf("expected server url https://orbit.manova.space, got %s", cfg.Server.URL)
 	}
-	if cfg.Admin.Email != "alirezaopmc@gmail.com" {
-		t.Fatalf("expected admin email alirezaopmc@gmail.com, got %s", cfg.Admin.Email)
-	}
-	if cfg.Admin.Name != "Alireza" {
-		t.Fatalf("expected admin name Alireza, got %s", cfg.Admin.Name)
-	}
 	if cfg.SMTP.Host != "mail.manova.space" {
 		t.Fatalf("expected smtp host mail.manova.space, got %s", cfg.SMTP.Host)
 	}

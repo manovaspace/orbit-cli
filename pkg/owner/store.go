@@ -97,13 +97,41 @@ func (s *Store) SaveOwner(rec *OwnerRecord) error {
 		return fmt.Errorf("failed to marshal owner record: %w", err)
 	}
 
-	if err := os.WriteFile(s.filePath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write owner file: %w", err)
+	return atomicWriteOwnerFile(s.filePath, data, 0600)
+}
+
+func atomicWriteOwnerFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", dir, err)
 	}
 
-	// Ensure permissions remain 0600 even if file previously existed with wider permissions
-	if err := os.Chmod(s.filePath, 0600); err != nil {
-		return fmt.Errorf("failed to set 0600 permissions on owner file: %w", err)
+	tmpFile, err := os.CreateTemp(dir, ".tmp-owner-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file in %q: %w", dir, err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if err := tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to chmod temp file: %w", err)
+	}
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to atomic rename file to %q: %w", path, err)
 	}
 
 	return nil

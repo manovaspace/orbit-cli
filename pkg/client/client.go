@@ -233,6 +233,31 @@ func (c *Client) VerifyOwnerChallenge(ctx context.Context, email, code string) (
 	return nil, lastErr
 }
 
+// CreateAdminGrant registers an 8-digit admin grant on the server using master secret authentication.
+func (c *Client) CreateAdminGrant(ctx context.Context, email, role, code, masterSecret string, ttl time.Duration) (*CreateGrantResponse, error) {
+	normEmail := strings.ToLower(strings.TrimSpace(email))
+	if normEmail == "" {
+		return nil, errors.New("email cannot be empty")
+	}
+
+	reqBody := CreateGrantRequest{
+		Email:      normEmail,
+		Role:       role,
+		Code:       code,
+		TTLSeconds: int(ttl.Seconds()),
+	}
+
+	var respBody CreateGrantResponse
+	headers := map[string]string{
+		"Authorization": "Bearer " + strings.TrimSpace(masterSecret),
+	}
+
+	if err := c.doRequest(ctx, http.MethodPost, "/api/v1/admin/grants", reqBody, &respBody, headers); err != nil {
+		return nil, err
+	}
+	return &respBody, nil
+}
+
 // AdminStatus retrieves platform ownership verification status, vault integrity, and mail configuration.
 func (c *Client) AdminStatus(ctx context.Context) (*AdminStatusResponse, error) {
 	var respBody AdminStatusResponse

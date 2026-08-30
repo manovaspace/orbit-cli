@@ -73,7 +73,7 @@ func newMockAdminServer(t *testing.T, expectedEmail, validCode string) *httptest
 }
 
 func TestAdminInit_APIServer_Success(t *testing.T) {
-	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "748291")
+	ts := newMockAdminServer(t, "admin@example.com", "748291")
 	defer ts.Close()
 
 	tempDir := t.TempDir()
@@ -85,7 +85,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--name", "Alireza",
 		"--code", "748291",
 		"--server", ts.URL,
@@ -100,7 +100,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 	if !strings.Contains(out, "Connecting to Orbit server at "+ts.URL) {
 		t.Errorf("output missing server connection message: %s", out)
 	}
-	if !strings.Contains(out, "Challenge accepted for alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "Challenge accepted for admin@example.com") {
 		t.Errorf("output missing challenge dispatch notice: %s", out)
 	}
 	if !strings.Contains(out, "Orbit Platform Ownership Verified") {
@@ -119,8 +119,8 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadOwner failed: %v", err)
 	}
-	if rec.Email != "alirezaopmc@gmail.com" {
-		t.Errorf("expected email alirezaopmc@gmail.com, got %s", rec.Email)
+	if rec.Email != "admin@example.com" {
+		t.Errorf("expected email admin@example.com, got %s", rec.Email)
 	}
 	if rec.DisplayName != "Alireza" {
 		t.Errorf("expected display name Alireza, got %s", rec.DisplayName)
@@ -131,7 +131,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 }
 
 func TestAdminInit_APIServer_InteractiveCode(t *testing.T) {
-	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "883311")
+	ts := newMockAdminServer(t, "admin@example.com", "883311")
 	defer ts.Close()
 
 	tempDir := t.TempDir()
@@ -146,7 +146,7 @@ func TestAdminInit_APIServer_InteractiveCode(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--server", ts.URL,
 		"--store", storePath,
 	})
@@ -177,7 +177,7 @@ func TestAdminInit_APIServer_ChallengeFails(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--server", ts.URL,
 		"--store", storePath,
 	})
@@ -192,7 +192,7 @@ func TestAdminInit_APIServer_ChallengeFails(t *testing.T) {
 }
 
 func TestAdminInit_APIServer_InvalidVerificationCode(t *testing.T) {
-	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "123456")
+	ts := newMockAdminServer(t, "admin@example.com", "123456")
 	defer ts.Close()
 
 	tempDir := t.TempDir()
@@ -204,7 +204,7 @@ func TestAdminInit_APIServer_InvalidVerificationCode(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--code", "999999", // wrong code
 		"--server", ts.URL,
 		"--store", storePath,
@@ -248,7 +248,7 @@ func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--name", "Alireza",
 		"--code", "123456",
 		"--no-send",
@@ -263,7 +263,7 @@ func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 	if !strings.Contains(out, "Orbit Platform Ownership Verified") {
 		t.Errorf("output missing verification title: %s", out)
 	}
-	if !strings.Contains(out, "alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "admin@example.com") {
 		t.Errorf("output missing owner email: %s", out)
 	}
 	if !strings.Contains(out, "Alireza") {
@@ -282,8 +282,8 @@ func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadOwner failed: %v", err)
 	}
-	if rec.Email != "alirezaopmc@gmail.com" {
-		t.Errorf("expected email alirezaopmc@gmail.com, got %s", rec.Email)
+	if rec.Email != "admin@example.com" {
+		t.Errorf("expected email admin@example.com, got %s", rec.Email)
 	}
 	if rec.DisplayName != "Alireza" {
 		t.Errorf("expected name Alireza, got %s", rec.DisplayName)
@@ -311,7 +311,7 @@ func TestAdminInit_AlreadyVerified(t *testing.T) {
 
 	store := owner.NewStore(storePath)
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: "existingsecret12345678901234567890123456789012345678901234567890",
@@ -327,7 +327,7 @@ func TestAdminInit_AlreadyVerified(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--code", "999999",
 		"--no-send",
 		"--store", storePath,
@@ -372,7 +372,7 @@ func TestAdminInit_ForceReInit(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--code", "654321",
 		"--no-send",
 		"--force",
@@ -387,8 +387,8 @@ func TestAdminInit_ForceReInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadOwner failed: %v", err)
 	}
-	if loaded.Email != "alirezaopmc@gmail.com" {
-		t.Errorf("expected updated email alirezaopmc@gmail.com, got %s", loaded.Email)
+	if loaded.Email != "admin@example.com" {
+		t.Errorf("expected updated email admin@example.com, got %s", loaded.Email)
 	}
 	if loaded.RootSigningSecret == oldRec.RootSigningSecret {
 		t.Errorf("expected secret to be regenerated")
@@ -450,7 +450,7 @@ func TestAdminInit_InteractivePrompt(t *testing.T) {
 }
 
 func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
-	ts := newMockAdminServer(t, "alirezaopmc@gmail.com", "748291")
+	ts := newMockAdminServer(t, "admin@example.com", "748291")
 	defer ts.Close()
 
 	t.Setenv("ORBIT_SERVER", ts.URL)
@@ -464,7 +464,7 @@ func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"admin", "init",
-		"--owner", "alirezaopmc@gmail.com",
+		"--owner", "admin@example.com",
 		"--code", "748291",
 		"--store", storePath,
 	})
@@ -474,7 +474,7 @@ func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "Challenge accepted for alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "Challenge accepted for admin@example.com") {
 		t.Errorf("output missing dispatch confirmation: %s", out)
 	}
 }
@@ -511,7 +511,7 @@ func TestAdminStatus_VerifiedTable(t *testing.T) {
 
 	store := owner.NewStore(storePath)
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
 		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -538,7 +538,7 @@ func TestAdminStatus_VerifiedTable(t *testing.T) {
 	if !strings.Contains(out, "VERIFIED") {
 		t.Errorf("expected VERIFIED in status output: %s", out)
 	}
-	if !strings.Contains(out, "alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "admin@example.com") {
 		t.Errorf("expected owner email in output: %s", out)
 	}
 	if !strings.Contains(out, "Alireza") {
@@ -558,7 +558,7 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 
 	store := owner.NewStore(storePath)
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
 		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -590,8 +590,8 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 	if !res.Verified {
 		t.Errorf("expected verified == true")
 	}
-	if res.Email != "alirezaopmc@gmail.com" {
-		t.Errorf("expected email alirezaopmc@gmail.com, got %s", res.Email)
+	if res.Email != "admin@example.com" {
+		t.Errorf("expected email admin@example.com, got %s", res.Email)
 	}
 	if res.DisplayName != "Alireza" {
 		t.Errorf("expected display name Alireza, got %s", res.DisplayName)
@@ -724,7 +724,7 @@ func TestAdminRotateSecret_Success(t *testing.T) {
 	store := owner.NewStore(storePath)
 	origSecret, _ := owner.GenerateMasterSecret()
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,
 		KeyFingerprint:    owner.ComputeFingerprint(origSecret),
@@ -774,7 +774,7 @@ func TestAdminRotateSecret_PromptCancel(t *testing.T) {
 	store := owner.NewStore(storePath)
 	origSecret, _ := owner.GenerateMasterSecret()
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,
 	}
@@ -824,3 +824,139 @@ func TestAdminRotateSecret_UnverifiedError(t *testing.T) {
 		t.Fatal("expected error rotating secret when unverified, got nil")
 	}
 }
+
+func TestAdminGrant_Success(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	store := owner.NewStore(storePath)
+	origSecret, _ := owner.GenerateMasterSecret()
+	rec := &owner.OwnerRecord{
+		Email:             "admin@manova.space",
+		DisplayName:       "Owner",
+		VerifiedAt:        time.Now().UTC(),
+		RootSigningSecret: origSecret,
+		KeyFingerprint:    owner.ComputeFingerprint(origSecret),
+	}
+	_ = store.SaveOwner(rec)
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "grant", "sara@manova.space",
+		"--store", storePath,
+		"--role", "admin",
+		"--ttl", "30m",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("admin grant failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Orbit Administrator Grant Generated") {
+		t.Errorf("output missing grant header: %s", out)
+	}
+	if !strings.Contains(out, "sara@manova.space") {
+		t.Errorf("output missing recipient email: %s", out)
+	}
+	if !strings.Contains(out, "Grant Code:") {
+		t.Errorf("output missing Grant Code: %s", out)
+	}
+}
+
+func TestAdminGrant_UnverifiedError(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "grant", "sara@manova.space",
+		"--store", storePath,
+	})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error when running grant unverified, got nil")
+	}
+}
+
+func TestAdminGrant_JSONOutput(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	store := owner.NewStore(storePath)
+	origSecret, _ := owner.GenerateMasterSecret()
+	rec := &owner.OwnerRecord{
+		Email:             "admin@manova.space",
+		DisplayName:       "Owner",
+		VerifiedAt:        time.Now().UTC(),
+		RootSigningSecret: origSecret,
+	}
+	_ = store.SaveOwner(rec)
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "grant", "sara@manova.space",
+		"--store", storePath,
+		"--json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("admin grant --json failed: %v", err)
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &data); err != nil {
+		t.Fatalf("failed to parse JSON output: %v, raw: %s", err, buf.String())
+	}
+	if data["email"] != "sara@manova.space" {
+		t.Errorf("expected email sara@manova.space, got %v", data["email"])
+	}
+	if data["code"] == nil || !strings.Contains(data["code"].(string), "-") {
+		t.Errorf("expected 8-digit formatted code, got %v", data["code"])
+	}
+}
+
+func TestAdminTOTPReset_Success(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "owner.json")
+
+	store := owner.NewStore(storePath)
+	origSecret, _ := owner.GenerateMasterSecret()
+	rec := &owner.OwnerRecord{
+		Email:             "admin@manova.space",
+		VerifiedAt:        time.Now().UTC(),
+		RootSigningSecret: origSecret,
+	}
+	_ = store.SaveOwner(rec)
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"admin", "totp", "reset", "user@manova.space",
+		"--store", storePath,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("admin totp reset failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "User TOTP Reset & Recovery Issued") {
+		t.Errorf("output missing reset header: %s", out)
+	}
+	if !strings.Contains(out, "user@manova.space") {
+		t.Errorf("output missing recipient email: %s", out)
+	}
+}
+

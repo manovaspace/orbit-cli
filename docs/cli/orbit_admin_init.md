@@ -20,9 +20,9 @@ orbit admin init [email] [flags]
       --config string   Custom path to configuration file
   -f, --force           Force re-initialization even if already verified
   -h, --help            help for init
-  -n, --name string     Owner display name (e.g. 'Alireza')
+  -n, --name string     Owner display name (e.g. 'Alex Smith')
       --no-send         Suppress dispatching challenge email
-  -o, --owner string    Owner email address (e.g. alirezaopmc@gmail.com)
+  -o, --owner string    Owner email address (e.g. admin@example.com)
   -s, --server string   Orbit server URL (e.g. https://orbit.manova.space)
       --store string    Custom path to owner storage vault file
 ```

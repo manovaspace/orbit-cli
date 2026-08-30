@@ -1,0 +1,39 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+.PP
+orbit-admin-totp-reset - Reset two-factor TOTP for a user and issue a fresh recovery grant
+
+
+.SH SYNOPSIS
+.PP
+\fBorbit admin totp reset  [flags]\fP
+
+
+.SH DESCRIPTION
+.PP
+Reset two-factor TOTP for a user and issue a fresh recovery grant
+
+
+.SH OPTIONS
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for reset
+
+.PP
+\fB--json\fP[=false]
+	Output recovery details as JSON
+
+.PP
+\fB-s\fP, \fB--server\fP=""
+	Orbit server URL
+
+.PP
+\fB--store\fP=""
+	Custom path to owner storage vault file
+
+
+.SH SEE ALSO
+.PP
+\fBorbit-admin-totp(1)\fP

@@ -27,18 +27,21 @@ var installLandingHTML []byte
 
 // ServerConfig configures the onboard edge HTTP server.
 type ServerConfig struct {
-	Addr             string
-	Secret           []byte
-	Provisioner      provisioner.Provisioner
-	InviteStore      *invite.Store
-	ChallengeManager *owner.ChallengeManager
-	Mailer           invite.Mailer
-	RateLimit        int           // Maximum requests per window per IP (default 10)
-	RateInterval     time.Duration // Sliding window duration (default 1 minute)
-	IdempotencyTTL   time.Duration // Retention time for cached claims (default 24h)
-	DisableRateLimit bool          // Disables rate limiting for tests
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
+	Addr                     string
+	Secret                   []byte
+	Provisioner              provisioner.Provisioner
+	InviteStore              *invite.Store
+	ChallengeManager         *owner.ChallengeManager
+	GrantManager             *owner.GrantManager
+	Mailer                   invite.Mailer
+	DisablePublicChallenges  bool          // When true, rejects unauthenticated /api/v1/admin/challenge requests
+	AllowedAdminEmails       []string      // When non-empty, restricts challenge requests to specific emails
+	RateLimit                int           // Maximum requests per window per IP (default 10)
+	RateInterval             time.Duration // Sliding window duration (default 1 minute)
+	IdempotencyTTL           time.Duration // Retention time for cached claims (default 24h)
+	DisableRateLimit         bool          // Disables rate limiting for tests
+	ReadTimeout              time.Duration
+	WriteTimeout             time.Duration
 }
 
 // ErrorResponse defines the standard structured JSON error format.
@@ -186,6 +189,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if cfg.ChallengeManager == nil {
 		cfg.ChallengeManager = owner.NewChallengeManager()
 	}
+	if cfg.GrantManager == nil {
+		cfg.GrantManager = owner.NewGrantManager()
+	}
 	if cfg.Mailer == nil {
 		cfg.Mailer = invite.NewMailerFromEnv()
 	}
@@ -213,6 +219,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/system/ownership/challenge", s.handleAdminChallenge)
 	s.mux.HandleFunc("POST /api/v1/admin/verify", s.handleAdminVerify)
 	s.mux.HandleFunc("POST /api/v1/system/ownership/verify", s.handleAdminVerify)
+	s.mux.HandleFunc("POST /api/v1/admin/grants", s.handleAdminGrantCreate)
+	s.mux.HandleFunc("GET /api/v1/admin/grants", s.handleAdminGrantList)
 }
 
 // Handler returns the http.Handler for embedding or testing.
@@ -396,7 +404,28 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Create Challenge
+	// 3. Security: Check if public challenges are disabled
+	if s.config.DisablePublicChallenges {
+		writeJSONError(w, http.StatusForbidden, "public challenge requests are disabled for security; please use an owner-issued 8-digit admin grant code (orbit admin grant <email>)", 0)
+		return
+	}
+
+	// 4. Security: Check allowlist if configured
+	if len(s.config.AllowedAdminEmails) > 0 {
+		allowed := false
+		for _, ae := range s.config.AllowedAdminEmails {
+			if strings.ToLower(strings.TrimSpace(ae)) == normEmail {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			writeJSONError(w, http.StatusForbidden, fmt.Sprintf("email %s is not in the administrator allowlist", normEmail), 0)
+			return
+		}
+	}
+
+	// 5. Create Challenge
 	if s.config.ChallengeManager == nil {
 		writeJSONError(w, http.StatusInternalServerError, "challenge manager not initialized", 0)
 		return
@@ -408,7 +437,7 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Dispatch Email via Mailer
+	// 6. Dispatch Email via Mailer
 	if s.config.Mailer == nil {
 		writeJSONError(w, http.StatusInternalServerError, "mailer service not configured", 0)
 		return
@@ -456,7 +485,8 @@ func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	normEmail := strings.ToLower(strings.TrimSpace(req.Email))
-	cleanCode := strings.TrimSpace(req.Code)
+	rawCode := strings.TrimSpace(req.Code)
+	cleanCode := owner.CleanCode(rawCode)
 
 	if normEmail == "" {
 		writeJSONError(w, http.StatusBadRequest, "email cannot be empty", 0)
@@ -467,32 +497,131 @@ func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.config.ChallengeManager == nil {
-		writeJSONError(w, http.StatusInternalServerError, "challenge manager not initialized", 0)
-		return
-	}
-
-	// 3. Verify OTP code
-	ok, err := s.config.ChallengeManager.VerifyCode(normEmail, cleanCode)
-	if err != nil || !ok {
-		msg := "invalid verification code"
-		if err != nil {
-			msg = err.Error()
-		}
-		writeJSONError(w, http.StatusBadRequest, msg, 0)
-		return
-	}
-
-	// 4. Generate Key Fingerprint & Respond
 	keyFingerprint := owner.ComputeFingerprint(string(s.config.Secret))
 
-	writeJSON(w, http.StatusOK, client.VerifyResponse{
-		Status:         "verified",
-		Email:          normEmail,
-		DisplayName:    strings.TrimSpace(req.DisplayName),
-		KeyFingerprint: keyFingerprint,
-		VerifiedAt:     time.Now().UTC(),
-		Message:        fmt.Sprintf("platform ownership successfully verified for %s", normEmail),
+	// 3. Priority A: Check if valid 8-digit admin grant
+	if s.config.GrantManager != nil && len(cleanCode) == 8 {
+		grant, err := s.config.GrantManager.VerifyGrant(normEmail, cleanCode)
+		if err == nil && grant != nil {
+			writeJSON(w, http.StatusOK, client.VerifyResponse{
+				Status:         "verified",
+				Email:          normEmail,
+				DisplayName:    strings.TrimSpace(req.DisplayName),
+				KeyFingerprint: keyFingerprint,
+				VerifiedAt:     time.Now().UTC(),
+				Message:        fmt.Sprintf("admin grant successfully verified for %s (role: %s)", normEmail, grant.Role),
+			})
+			return
+		}
+		if err != nil && !errors.Is(err, owner.ErrGrantNotFound) {
+			writeJSONError(w, http.StatusBadRequest, err.Error(), 0)
+			return
+		}
+	}
+
+	// 4. Priority B: Check 6-digit legacy / self challenge
+	if s.config.ChallengeManager != nil {
+		ok, err := s.config.ChallengeManager.VerifyCode(normEmail, cleanCode)
+		if err == nil && ok {
+			writeJSON(w, http.StatusOK, client.VerifyResponse{
+				Status:         "verified",
+				Email:          normEmail,
+				DisplayName:    strings.TrimSpace(req.DisplayName),
+				KeyFingerprint: keyFingerprint,
+				VerifiedAt:     time.Now().UTC(),
+				Message:        fmt.Sprintf("platform ownership successfully verified for %s", normEmail),
+			})
+			return
+		}
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error(), 0)
+			return
+		}
+	}
+
+	writeJSONError(w, http.StatusBadRequest, "invalid verification code", 0)
+}
+
+func (s *Server) handleAdminGrantCreate(w http.ResponseWriter, r *http.Request) {
+	// 1. Authenticate with root secret or valid token
+	authHeader := r.Header.Get("Authorization")
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if strings.TrimSpace(token) != string(s.config.Secret) {
+		if _, err := invite.ValidateToken(token, s.config.Secret); err != nil {
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized: valid master secret or token required", 0)
+			return
+		}
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req struct {
+		Email      string `json:"email"`
+		Role       string `json:"role"`
+		Code       string `json:"code,omitempty"`
+		TTLSeconds int    `json:"ttl_seconds,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("malformed request JSON: %v", err), 0)
+		return
+	}
+
+	ttl := time.Duration(req.TTLSeconds) * time.Second
+	if ttl <= 0 {
+		ttl = owner.DefaultGrantTTL
+	}
+
+	var (
+		rec           *owner.GrantRecord
+		codeFormatted string
+		err           error
+	)
+
+	if req.Code != "" {
+		rec, err = s.config.GrantManager.RegisterGrantWithCode(req.Email, req.Role, req.Code, "remote-owner", ttl)
+		codeFormatted = owner.Format8DigitCode(req.Code)
+	} else {
+		rec, codeFormatted, err = s.config.GrantManager.CreateGrant(req.Email, req.Role, "remote-owner", ttl)
+	}
+
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error(), 0)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"status":     "grant_created",
+		"id":         rec.ID,
+		"email":      rec.Email,
+		"role":       rec.Role,
+		"code":       codeFormatted,
+		"expires_at": rec.ExpiresAt,
+	})
+}
+
+func (s *Server) handleAdminGrantList(w http.ResponseWriter, r *http.Request) {
+	// Authenticate with root secret
+	authHeader := r.Header.Get("Authorization")
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if strings.TrimSpace(token) != string(s.config.Secret) {
+		if _, err := invite.ValidateToken(token, s.config.Secret); err != nil {
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized: valid master secret or token required", 0)
+			return
+		}
+	}
+
+	email := r.URL.Query().Get("email")
+	if email != "" {
+		grant, exists := s.config.GrantManager.GetGrant(email)
+		if !exists {
+			writeJSONError(w, http.StatusNotFound, "grant not found", 0)
+			return
+		}
+		writeJSON(w, http.StatusOK, grant)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message": "active grants ledger",
 	})
 }
 

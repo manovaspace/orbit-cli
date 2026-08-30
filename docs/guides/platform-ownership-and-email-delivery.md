@@ -36,7 +36,7 @@ Orbit uses a **dual-binary architecture** that decouples developer workstation t
 1. **Dual-Binary Separation**: Workstations run `orbit` (pure API client); servers run `orbit-server` (infrastructure daemon).
 2. **Pure API Client Architecture**: `orbit admin init` talks HTTPS to the Orbit API for the ownership challenge. `orbit staff` talks HMAC HTTPS to orbit-staff. `orbit invite create` is **not** an API client — it signs locally and may SMTP-send from the workstation.
 3. **Dedicated Server Daemon (`orbit-server`)**: Runs on production/staging infrastructure, holds backend Stalwart SMTP credentials, manages OTP challenges with rate limiting and expiration, and exposes REST endpoints.
-4. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`alirezaopmc@gmail.com`). Verification codes are **never** logged to stdout/stderr in standard mode.
+4. **Strict Out-of-Band Ownership Verification**: Platform administrators must verify ownership via a 6-digit OTP challenge sent out-of-band to their email address (`admin@manova.space`). Verification codes are **never** logged to stdout/stderr in standard mode.
 5. **Root Cryptographic Trust**: Upon remote API verification, Orbit generates a 32-byte cryptographic master signing secret sealed inside `~/.config/orbit/owner.json` (mode `0600`). All subsequent developer invites are cryptographically signed and stamped with the verified owner's identity.
 
 ### End-to-End Ownership Verification Flow
@@ -248,7 +248,7 @@ Generates a cryptographically random 6-digit OTP code, stores it in memory (TTL:
 **Request Body**:
 ```json
 {
-  "email": "alirezaopmc@gmail.com"
+  "email": "admin@manova.space"
 }
 ```
 
@@ -256,9 +256,9 @@ Generates a cryptographically random 6-digit OTP code, stores it in memory (TTL:
 ```json
 {
   "status": "challenge_sent",
-  "email": "alirezaopmc@gmail.com",
+  "email": "admin@manova.space",
   "expires_at": "2026-08-27T14:10:00Z",
-  "message": "verification OTP sent to alirezaopmc@gmail.com"
+  "message": "verification OTP sent to admin@manova.space"
 }
 ```
 
@@ -278,7 +278,7 @@ Validates the provided 6-digit OTP code against the active challenge for the ema
 **Request Body**:
 ```json
 {
-  "email": "alirezaopmc@gmail.com",
+  "email": "admin@manova.space",
   "code": "482910",
   "display_name": "Alireza"
 }
@@ -288,11 +288,11 @@ Validates the provided 6-digit OTP code against the active challenge for the ema
 ```json
 {
   "status": "verified",
-  "email": "alirezaopmc@gmail.com",
+  "email": "admin@manova.space",
   "display_name": "Alireza",
   "key_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "verified_at": "2026-08-27T14:00:00Z",
-  "message": "platform ownership successfully verified for alirezaopmc@gmail.com"
+  "message": "platform ownership successfully verified for admin@manova.space"
 }
 ```
 
@@ -337,7 +337,7 @@ Output (YAML):
 server:
   url: https://orbit.manova.space
 admin:
-  email: alirezaopmc@gmail.com
+  email: admin@manova.space
   name: Alireza
 smtp:
   host: mail.manova.space
@@ -366,7 +366,7 @@ orbit config get admin.email
 orbit config set server.url https://orbit.manova.space
 
 # Update administrator identity
-orbit config set admin.email alirezaopmc@gmail.com
+orbit config set admin.email admin@manova.space
 orbit config set admin.name "Alireza"
 
 # Inspect active file path
@@ -379,7 +379,7 @@ orbit config path
 | Key | Scope | Description | Default |
 |---|---|---|---|
 | `server.url` | Client | Orbit API server endpoint | `https://orbit.manova.space` |
-| `admin.email` | Client | Platform administrator email | `alirezaopmc@gmail.com` |
+| `admin.email` | Client | Platform administrator email | `admin@manova.space` |
 | `admin.name` | Client | Platform administrator display name | `Alireza` |
 | `smtp.host` | Daemon | Stalwart SMTP hostname | `mail.manova.space` |
 | `smtp.port` | Daemon | SMTP port (`587` STARTTLS, `465` SMTPS) | `587` |
@@ -396,14 +396,14 @@ orbit config path
 Run `orbit admin init` to establish the platform root of cryptographic trust.
 
 ```bash
-orbit admin init --owner alirezaopmc@gmail.com
+orbit admin init --owner admin@manova.space
 ```
 
 ### Execution Steps
 
 1. **Server API Connection**: Resolves the API endpoint (`cfg.Server.URL`, `--server`, or `ORBIT_SERVER`).
 2. **Challenge Request**: Calls `POST /api/v1/admin/challenge` on the server.
-3. **Out-of-Band Dispatch**: The server generates an OTP and dispatches it via Stalwart to `alirezaopmc@gmail.com`.
+3. **Out-of-Band Dispatch**: The server generates an OTP and dispatches it via Stalwart to `admin@manova.space`.
 4. **Interactive Code Entry**: Orbit prompts the operator in the terminal for the 6-digit OTP.
 5. **API Verification**: Calls `POST /api/v1/admin/verify` to validate the code with the server.
 6. **Local Vault Sealing**: Orbit generates a 32-byte cryptographic master signing secret and seals it into `~/.config/orbit/owner.json` (mode `0600`).
@@ -414,14 +414,14 @@ orbit admin init --owner alirezaopmc@gmail.com
 Orbit Platform Administration Initialization
 
   ➜  Connecting to Orbit server at https://orbit.manova.space...
-  ✔  Challenge accepted for alirezaopmc@gmail.com (OTP is emailed only when the server is orbit-server with SMTP)
+  ✔  Challenge accepted for admin@manova.space (OTP is emailed only when the server is orbit-server with SMTP)
 
   Enter 6-digit verification code: 482910
 
 Orbit Platform Ownership Verified
-  ✔  Platform owner alirezaopmc@gmail.com verified and root cryptographic vault sealed.
+  ✔  Platform owner admin@manova.space verified and root cryptographic vault sealed.
 
-  Owner Email:       alirezaopmc@gmail.com
+  Owner Email:       admin@manova.space
   Display Name:      Alireza
   Verified At:       2026-08-27 14:00:00 UTC
   Key Fingerprint:   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -461,7 +461,7 @@ Orbit Server Ownership Status
 
   ✔  Platform ownership is VERIFIED.
 
-  Owner Email:       alirezaopmc@gmail.com
+  Owner Email:       admin@manova.space
   Display Name:      Alireza
   Verified At:       2026-08-27 14:00:00 UTC
   Key Fingerprint:   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -480,7 +480,7 @@ Output:
 ```json
 {
   "verified": true,
-  "email": "alirezaopmc@gmail.com",
+  "email": "admin@manova.space",
   "display_name": "Alireza",
   "verified_at": "2026-08-27T14:00:00Z",
   "key_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -498,7 +498,7 @@ Output:
 This command is **hermetic**: it does not call `orbit.manova.space`. Any well-formed 6-digit code is accepted in-process, then a **new** local secret is sealed. Use it to finish a local vault when you are not relying on emailed OTP.
 
 ```bash
-orbit admin verify alirezaopmc@gmail.com 482910
+orbit admin verify admin@manova.space 482910
 ```
 
 ---
@@ -525,7 +525,7 @@ orbit admin rotate-secret --yes
 
 Once ownership is verified, invitations dispatched via `orbit invite create` are automatically:
 - **Signed with the master root signing key** from `~/.config/orbit/owner.json`.
-- **Stamped with provenance metadata** (`created_by: alirezaopmc@gmail.com`).
+- **Stamped with provenance metadata** (`created_by: admin@manova.space`).
 - **Dispatched via Stalwart** (`mail.manova.space:587`) directly to the developer's real inbox with HTML and plaintext multipart rendering.
 
 ```bash
@@ -541,7 +541,7 @@ Orbit Developer Invitation Generated
 
   Token:          QpSglawu
   Email:          hardkoding@gmail.com
-  Created By:     alirezaopmc@gmail.com
+  Created By:     admin@manova.space
   Scope:          core
   Expires:        2026-09-03 14:00:00 UTC (6d 23h)
 ```
@@ -574,7 +574,7 @@ Environment variables take precedence over configuration file settings:
 |---|---|---|---|
 | `ORBIT_CONFIG` | — | Path to custom YAML configuration file | `~/.config/orbit/config.yaml` |
 | `ORBIT_SERVER` | `ORBIT_SERVER_URL` | Orbit API server URL | `https://orbit.manova.space` |
-| `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email | `alirezaopmc@gmail.com` |
+| `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email | `admin@manova.space` |
 | `ORBIT_ADMIN_NAME` | `ORBIT_OWNER_NAME` | Administrator display name | `Alireza` |
 | `ORBIT_STAFF_URL` | — | orbit-staff HMAC API (`orbit staff --server`) | `https://staff.dev.manova.space` |
 

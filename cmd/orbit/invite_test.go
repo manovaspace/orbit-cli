@@ -23,8 +23,8 @@ func createTestVerifiedOwnerStore(t *testing.T, dir string) (string, *owner.Owne
 		t.Fatalf("failed to generate master secret: %v", err)
 	}
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
-		DisplayName:       "Alireza",
+		Email:             "admin@example.com",
+		DisplayName:       "Admin User",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: secret,
 		KeyFingerprint:    owner.ComputeFingerprint(secret),
@@ -118,7 +118,7 @@ func TestInviteOwnerGuard_VerifiedOwner(t *testing.T) {
 	if !strings.Contains(out, "Orbit Developer Invitation Generated") {
 		t.Errorf("output missing invitation header: %s", out)
 	}
-	if !strings.Contains(out, "Created By:") || !strings.Contains(out, "alirezaopmc@gmail.com") {
+	if !strings.Contains(out, "Created By:") || !strings.Contains(out, "admin@example.com") {
 		t.Errorf("output missing Created By line: %s", out)
 	}
 

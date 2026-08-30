@@ -133,7 +133,7 @@ func TestRenderInviteEmail_FallbackName(t *testing.T) {
 func TestRenderOwnerChallengeEmail(t *testing.T) {
 	genTime := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
 	data := OwnerChallengeEmailData{
-		OwnerEmail:  "alirezaopmc@gmail.com",
+		OwnerEmail:  "admin@example.com",
 		OTPCode:     "749102",
 		ExpiresIn:   "10 minutes",
 		ServerHost:  "mail.manova.space",
@@ -155,7 +155,7 @@ func TestRenderOwnerChallengeEmail(t *testing.T) {
 	if !strings.Contains(textBody, "749102") {
 		t.Errorf("textBody missing OTP code: %s", textBody)
 	}
-	if !strings.Contains(textBody, "alirezaopmc@gmail.com") {
+	if !strings.Contains(textBody, "admin@example.com") {
 		t.Errorf("textBody missing owner email: %s", textBody)
 	}
 	if !strings.Contains(textBody, "10 minutes") {
@@ -168,7 +168,7 @@ func TestRenderOwnerChallengeEmail(t *testing.T) {
 	if !strings.Contains(htmlBody, "749102") {
 		t.Errorf("htmlBody missing OTP code: %s", htmlBody)
 	}
-	if !strings.Contains(htmlBody, "alirezaopmc@gmail.com") {
+	if !strings.Contains(htmlBody, "admin@example.com") {
 		t.Errorf("htmlBody missing owner email: %s", htmlBody)
 	}
 	if !strings.Contains(htmlBody, "#fafafa") || !strings.Contains(htmlBody, "#2563eb") {

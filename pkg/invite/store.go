@@ -184,15 +184,47 @@ func (s *Store) loadRecordsLocked() ([]*InviteRecord, error) {
 }
 
 func (s *Store) saveRecordsLocked(records []*InviteRecord) error {
-	dir := filepath.Dir(s.filePath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("failed to create invites directory: %w", err)
-	}
-
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal invites: %w", err)
 	}
 
-	return os.WriteFile(s.filePath, data, 0600)
+	return atomicWriteInviteFile(s.filePath, data, 0600)
+}
+
+func atomicWriteInviteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", dir, err)
+	}
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-invites-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file in %q: %w", dir, err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if err := tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to chmod temp file: %w", err)
+	}
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to atomic rename file to %q: %w", path, err)
+	}
+
+	return nil
 }

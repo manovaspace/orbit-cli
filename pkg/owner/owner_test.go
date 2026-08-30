@@ -43,13 +43,13 @@ func TestGenerateOTP(t *testing.T) {
 func TestCreateChallenge(t *testing.T) {
 	mgr := owner.NewChallengeManager()
 
-	email := "AlirezaOPMC@Gmail.Com"
+	email := "Admin@Example.Com"
 	ch, code, err := mgr.CreateChallenge(email, 10*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChallenge failed: %v", err)
 	}
 
-	if ch.Email != "alirezaopmc@gmail.com" {
+	if ch.Email != "admin@example.com" {
 		t.Errorf("expected normalized email, got %q", ch.Email)
 	}
 
@@ -223,7 +223,7 @@ func TestStore_SaveAndLoad(t *testing.T) {
 	}
 
 	rec := &owner.OwnerRecord{
-		Email:             "alirezaopmc@gmail.com",
+		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Now().UTC().Truncate(time.Second),
 		RootSigningSecret: secret,

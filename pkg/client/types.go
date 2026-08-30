@@ -29,10 +29,29 @@ type VerifyRequest struct {
 type VerifyResponse struct {
 	Status         string    `json:"status"`
 	Email          string    `json:"email"`
+	Role           string    `json:"role,omitempty"`
 	DisplayName    string    `json:"display_name,omitempty"`
 	KeyFingerprint string    `json:"key_fingerprint"`
 	VerifiedAt     time.Time `json:"verified_at"`
 	Message        string    `json:"message,omitempty"`
+}
+
+// CreateGrantRequest represents a request to register an 8-digit admin grant on the server.
+type CreateGrantRequest struct {
+	Email      string `json:"email"`
+	Role       string `json:"role,omitempty"`
+	Code       string `json:"code,omitempty"`
+	TTLSeconds int    `json:"ttl_seconds,omitempty"`
+}
+
+// CreateGrantResponse represents the response when an admin grant is registered on the server.
+type CreateGrantResponse struct {
+	Status    string    `json:"status"`
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // AdminStatusResponse represents the owner verification and vault status returned by admin status endpoint.

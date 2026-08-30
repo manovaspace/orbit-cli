@@ -283,7 +283,7 @@ func TestSMTPMailer_SendOwnerChallenge(t *testing.T) {
 	})
 
 	data := OwnerChallengeEmailData{
-		OwnerEmail:  "alirezaopmc@gmail.com",
+		OwnerEmail:  "admin@example.com",
 		OTPCode:     "654321",
 		ExpiresIn:   "10 minutes",
 		ServerHost:  "mail.manova.space",
@@ -293,7 +293,7 @@ func TestSMTPMailer_SendOwnerChallenge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := mailer.SendOwnerChallenge(ctx, "alirezaopmc@gmail.com", data); err != nil {
+	if err := mailer.SendOwnerChallenge(ctx, "admin@example.com", data); err != nil {
 		t.Fatalf("SendOwnerChallenge failed: %v", err)
 	}
 }
