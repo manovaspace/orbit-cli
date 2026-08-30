@@ -123,7 +123,7 @@ func StepIndexForStage(st session.Stage) int {
 		return 0
 	case session.StageDoctor, session.StageDoctorPassed:
 		return 1
-	case session.StageIdentity, session.StageKeypairReady, session.StageTokenClaimed, session.StageNetworkConfigured:
+	case session.StageIdentity, session.StageKeypairReady, session.StageTokenClaimed, session.StageClaimSubmitted, session.StageNetworkConfigured:
 		return 2
 	case session.StageWorkspace, session.StageReposCloned:
 		return 3

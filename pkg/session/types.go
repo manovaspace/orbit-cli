@@ -13,6 +13,7 @@ const (
 	StageIdentity          Stage = "identity"
 	StageKeypairReady      Stage = "keypair_ready"
 	StageTokenClaimed      Stage = "token_claimed"
+	StageClaimSubmitted    Stage = "claim_submitted"
 	StageNetworkConfigured Stage = "network_configured"
 	StageWorkspace         Stage = "workspace"
 	StageReposCloned       Stage = "repos_cloned"

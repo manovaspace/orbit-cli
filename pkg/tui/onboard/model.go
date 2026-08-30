@@ -125,6 +125,16 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		return w, cmd
 	}
 
+	// Wire Identity stage component
+	identityModel := NewIdentityModel(m)
+	m.StageViews[session.StageIdentity] = func(w *WizardModel) string {
+		return identityModel.View()
+	}
+	m.StageUpdates[session.StageIdentity] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := identityModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 
