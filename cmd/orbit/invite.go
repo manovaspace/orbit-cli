@@ -207,9 +207,6 @@ func newInviteCreateCmd() *cobra.Command {
 				if mailerCfg.Host == "" {
 					mailerCfg.Host = os.Getenv("ORBIT_SMTP_HOST")
 					if mailerCfg.Host == "" {
-						mailerCfg.Host = os.Getenv("SMTP_HOST")
-					}
-					if mailerCfg.Host == "" {
 						if insecureFlag {
 							mailerCfg.Host = "localhost"
 						} else {
@@ -219,9 +216,6 @@ func newInviteCreateCmd() *cobra.Command {
 				}
 				if mailerCfg.Port == "" {
 					mailerCfg.Port = os.Getenv("ORBIT_SMTP_PORT")
-					if mailerCfg.Port == "" {
-						mailerCfg.Port = os.Getenv("SMTP_PORT")
-					}
 					if mailerCfg.Port == "" {
 						if insecureFlag {
 							mailerCfg.Port = "10725"
@@ -233,20 +227,11 @@ func newInviteCreateCmd() *cobra.Command {
 				if mailerCfg.From == "" {
 					mailerCfg.From = os.Getenv("ORBIT_SMTP_FROM")
 					if mailerCfg.From == "" {
-						mailerCfg.From = os.Getenv("SMTP_FROM")
-					}
-					if mailerCfg.From == "" {
 						mailerCfg.From = "Orbit Platform <noreply@manova.space>"
 					}
 				}
 				mailerCfg.User = os.Getenv("ORBIT_SMTP_USER")
-				if mailerCfg.User == "" {
-					mailerCfg.User = os.Getenv("SMTP_USER")
-				}
 				mailerCfg.Pass = os.Getenv("ORBIT_SMTP_PASS")
-				if mailerCfg.Pass == "" {
-					mailerCfg.Pass = os.Getenv("SMTP_PASS")
-				}
 
 				mailer := invite.NewSMTPMailer(mailerCfg)
 				emailData := invite.EmailData{

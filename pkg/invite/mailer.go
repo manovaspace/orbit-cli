@@ -58,20 +58,14 @@ func NewSMTPMailer(cfg MailerConfig) *SMTPMailer {
 	return &SMTPMailer{cfg: cfg}
 }
 
-// NewMailerFromEnv initializes an SMTPMailer from environment variables.
+// NewMailerFromEnv initializes an SMTPMailer from ORBIT_SMTP_* environment variables.
 func NewMailerFromEnv() *SMTPMailer {
-	host := getEnvFallback("ORBIT_SMTP_HOST", "SMTP_HOST", "mail.manova.space")
-	port := getEnvFallback("ORBIT_SMTP_PORT", "SMTP_PORT", "587")
-	user := getEnvFallback("ORBIT_SMTP_USER", "SMTP_USER", "")
-	pass := getEnvFallback("ORBIT_SMTP_PASS", "SMTP_PASS", "")
-	from := getEnvFallback("ORBIT_SMTP_FROM", "SMTP_FROM", "Orbit Platform <noreply@manova.space>")
-
 	return NewSMTPMailer(MailerConfig{
-		Host: host,
-		Port: port,
-		User: user,
-		Pass: pass,
-		From: from,
+		Host: envOrDefault("ORBIT_SMTP_HOST", "mail.manova.space"),
+		Port: envOrDefault("ORBIT_SMTP_PORT", "587"),
+		User: envOrDefault("ORBIT_SMTP_USER", ""),
+		Pass: envOrDefault("ORBIT_SMTP_PASS", ""),
+		From: envOrDefault("ORBIT_SMTP_FROM", "Orbit Platform <noreply@manova.space>"),
 	})
 }
 
@@ -214,12 +208,10 @@ func extractEmailAddress(from string) string {
 	return strings.TrimSpace(from)
 }
 
-func getEnvFallback(keys ...string) string {
-	for i := 0; i < len(keys)-1; i++ {
-		if val := os.Getenv(keys[i]); val != "" {
-			return val
-		}
+func envOrDefault(key, def string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
 	}
-	return keys[len(keys)-1]
+	return def
 }
 

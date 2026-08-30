@@ -361,17 +361,11 @@ func TestNewMailerFromEnv(t *testing.T) {
 }
 
 func TestNewMailerFromEnv_Defaults(t *testing.T) {
-	// Set all relevant env vars to empty
 	t.Setenv("ORBIT_SMTP_HOST", "")
-	t.Setenv("SMTP_HOST", "")
 	t.Setenv("ORBIT_SMTP_PORT", "")
-	t.Setenv("SMTP_PORT", "")
 	t.Setenv("ORBIT_SMTP_USER", "")
-	t.Setenv("SMTP_USER", "")
 	t.Setenv("ORBIT_SMTP_PASS", "")
-	t.Setenv("SMTP_PASS", "")
 	t.Setenv("ORBIT_SMTP_FROM", "")
-	t.Setenv("SMTP_FROM", "")
 
 	mailer := NewMailerFromEnv()
 	if mailer.cfg.Host != "mail.manova.space" {
