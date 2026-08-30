@@ -200,6 +200,10 @@ func (m *DoctorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		// If first time arriving at StageDoctor and no report is present, automatically trigger diagnostics scan
+		if m.report == nil && !m.running && !m.healing {
+			cmds = append(cmds, m.RunDiagnostics())
+		}
 
 	case DiagnosticsFinishedMsg:
 		m.running = false
