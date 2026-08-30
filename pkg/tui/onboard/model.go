@@ -155,6 +155,26 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		return w, cmd
 	}
 
+	// Wire Stack stage component
+	stackModel := NewStackModel(m)
+	m.StageViews[session.StageStack] = func(w *WizardModel) string {
+		return stackModel.View()
+	}
+	m.StageUpdates[session.StageStack] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := stackModel.Update(msg)
+		return w, cmd
+	}
+
+	// Wire Complete stage component
+	completeModel := NewCompleteModel(m)
+	m.StageViews[session.StageComplete] = func(w *WizardModel) string {
+		return completeModel.View()
+	}
+	m.StageUpdates[session.StageComplete] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := completeModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 
