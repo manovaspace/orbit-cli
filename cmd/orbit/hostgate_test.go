@@ -35,3 +35,15 @@ func TestEnforceHost_Allowlist(t *testing.T) {
 		t.Fatalf("stderr: %s", errBuf.String())
 	}
 }
+
+func TestCompletionZshOnly(t *testing.T) {
+	root := newRootCmd()
+	comp, _, err := root.Find([]string{"completion", "bash"})
+	if err == nil && comp != nil && comp.Name() == "bash" {
+		t.Fatal("bash completion must not be registered")
+	}
+	zsh, _, err := root.Find([]string{"completion", "zsh"})
+	if err != nil || zsh == nil {
+		t.Fatalf("zsh completion required: %v", err)
+	}
+}

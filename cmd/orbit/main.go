@@ -48,6 +48,9 @@ func newRootCmd() *cobra.Command {
 		Short:             "Orbit developer platform and workspace orchestrator",
 		Long:              "Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')",
 		DisableAutoGenTag: true,
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
 		PersistentPreRunE: func(c *cobra.Command, args []string) error {
 			return enforceHost(c, host.Live)
 		},
@@ -116,6 +119,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStaffCmd())
 	cmd.AddCommand(newConfigCmd())
 	cmd.AddCommand(newAssetsCmd())
+	cmd.AddCommand(newCompletionCmd())
 	cmd.AddCommand(versionCmd)
 
 	return cmd
