@@ -189,11 +189,27 @@ func TestEvaluateGoVersion(t *testing.T) {
 	if res.Status != StatusOK {
 		t.Errorf("expected StatusOK for go1.26.0, got %v", res.Status)
 	}
+	if !strings.Contains(res.Message, ">= 1.26.0 required") {
+		t.Errorf("expected OK message to mention >= 1.26.0 required, got %q", res.Message)
+	}
 
-	// 2. Outdated case < 1.26.0 (e.g. 1.24.2)
+	resNext := EvaluateGoVersion("go version go1.26.2 linux/amd64", nil)
+	if resNext.Status != StatusOK {
+		t.Errorf("expected StatusOK for go1.26.2, got %v", resNext.Status)
+	}
+
+	// 2. Outdated case < 1.26.0 (e.g. 1.25.9, 1.24.2)
 	resOutdated := EvaluateGoVersion("go version go1.24.2 linux/amd64", nil)
 	if resOutdated.Status != StatusError {
 		t.Errorf("expected StatusError for go1.24.2, got %v", resOutdated.Status)
+	}
+	if !strings.Contains(resOutdated.Message, "below required version") {
+		t.Errorf("expected error message to mention below required version, got %q", resOutdated.Message)
+	}
+
+	res25 := EvaluateGoVersion("go version go1.25.9 linux/amd64", nil)
+	if res25.Status != StatusError {
+		t.Errorf("expected StatusError for go1.25.9, got %v", res25.Status)
 	}
 
 	// 3. Below 1.26.0 (e.g. 1.23.1)
@@ -206,6 +222,9 @@ func TestEvaluateGoVersion(t *testing.T) {
 	resErr := EvaluateGoVersion("", errors.New("exec: not found"))
 	if resErr.Status != StatusError {
 		t.Errorf("expected StatusError for missing binary, got %v", resErr.Status)
+	}
+	if !strings.Contains(resErr.FixSuggestion, "1.26.0") {
+		t.Errorf("expected missing binary fix suggestion to mention 1.26.0, got %q", resErr.FixSuggestion)
 	}
 
 	// 5. Unparseable output
