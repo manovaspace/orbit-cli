@@ -23,12 +23,16 @@ const (
 
 // Challenge represents an ephemeral OTP verification challenge.
 type Challenge struct {
-	Email       string    `json:"email"`
-	CodeHash    string    `json:"code_hash"`
-	Salt        string    `json:"salt"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	Attempts    int       `json:"attempts"`
-	MaxAttempts int       `json:"max_attempts"`
+	ID          string     `json:"id,omitempty"`
+	Email       string     `json:"email"`
+	CodeHash    string     `json:"code_hash"`
+	Salt        string     `json:"salt"`
+	Attempts    int        `json:"attempts"`
+	MaxAttempts int        `json:"max_attempts"`
+	Verified    bool       `json:"verified,omitempty"`
+	VerifiedAt  *time.Time `json:"verified_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at,omitempty"`
+	ExpiresAt   time.Time  `json:"expires_at"`
 }
 
 // IsExpired returns true if the challenge has passed its expiration time.
@@ -59,6 +63,11 @@ func GenerateOTP() (string, error) {
 		return "", fmt.Errorf("failed to generate secure OTP: %w", err)
 	}
 	return fmt.Sprintf("%06d", n.Int64()+100000), nil
+}
+
+// HashOTP is an alias for HashCode.
+func HashOTP(otp, salt string) string {
+	return HashCode(otp, salt)
 }
 
 // HashCode computes a salted SHA-256 hash for a verification code.

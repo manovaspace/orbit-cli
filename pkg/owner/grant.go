@@ -57,6 +57,9 @@ type GrantRecord struct {
 	UsedAt      *time.Time `json:"used_at,omitempty"`
 }
 
+// AdminGrant is an alias for GrantRecord.
+type AdminGrant = GrantRecord
+
 // IsExpired returns true if the grant has passed its expiration timestamp.
 func (g *GrantRecord) IsExpired() bool {
 	if g == nil || g.ExpiresAt.IsZero() {
