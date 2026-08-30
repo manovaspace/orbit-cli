@@ -128,12 +128,12 @@ func (d *DB) Invites() serverstore.InviteStore {
 
 // Challenges returns the ChallengeStore repository implementation.
 func (d *DB) Challenges() serverstore.ChallengeStore {
-	return nil
+	return NewChallengeStore(d.db)
 }
 
 // Grants returns the GrantStore repository implementation.
 func (d *DB) Grants() serverstore.GrantStore {
-	return nil
+	return NewGrantStore(d.db)
 }
 
 // RateLimits returns the RateLimitStore repository implementation.

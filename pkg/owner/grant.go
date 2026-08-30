@@ -1,6 +1,7 @@
 package owner
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -68,6 +69,14 @@ func (g *GrantRecord) IsExpired() bool {
 	return time.Now().UTC().After(g.ExpiresAt)
 }
 
+// GrantStore defines the persistence interface required by GrantManager.
+type GrantStore interface {
+	SaveGrant(ctx context.Context, g *AdminGrant) error
+	GetGrant(ctx context.Context, email, codeHash string) (*AdminGrant, error)
+	MarkUsed(ctx context.Context, id string) error
+	ListActiveGrants(ctx context.Context) ([]*AdminGrant, error)
+}
+
 // Generate8DigitCode generates a cryptographically secure 8-digit numeric OTP string (10000000-99999999).
 func Generate8DigitCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(90000000))
@@ -101,17 +110,41 @@ func HashGrantCode(code, salt string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// GrantManager manages active in-memory admin grants with thread-safe access.
+// GrantManager manages active admin grants with thread-safe access (in-memory or persistent).
 type GrantManager struct {
 	mu     sync.RWMutex
 	grants map[string]*GrantRecord // keyed by normalized email
+	store  GrantStore
 }
 
-// NewGrantManager creates a new GrantManager instance.
+// NewGrantManager creates a new in-memory GrantManager instance.
 func NewGrantManager() *GrantManager {
 	return &GrantManager{
 		grants: make(map[string]*GrantRecord),
 	}
+}
+
+// NewPersistentGrantManager creates a GrantManager backed by a persistent store.
+func NewPersistentGrantManager(store GrantStore) *GrantManager {
+	return &GrantManager{
+		grants: make(map[string]*GrantRecord),
+		store:  store,
+	}
+}
+
+// WithStore configures a persistent GrantStore on the manager.
+func (m *GrantManager) WithStore(store GrantStore) *GrantManager {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.store = store
+	return m
+}
+
+// Store returns the configured GrantStore or nil if operating in-memory.
+func (m *GrantManager) Store() GrantStore {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.store
 }
 
 // CreateGrant generates and registers an 8-digit admin grant for the specified email.
@@ -167,8 +200,14 @@ func (m *GrantManager) CreateGrant(email, role, createdBy string, ttl time.Durat
 	}
 
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.store != nil {
+		if err := m.store.SaveGrant(context.Background(), rec); err != nil {
+			return nil, "", err
+		}
+	}
 	m.grants[normEmail] = rec
-	m.mu.Unlock()
 
 	return rec, codeFormatted, nil
 }
@@ -222,8 +261,14 @@ func (m *GrantManager) RegisterGrantWithCode(email, role, code, createdBy string
 	}
 
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.store != nil {
+		if err := m.store.SaveGrant(context.Background(), rec); err != nil {
+			return nil, err
+		}
+	}
 	m.grants[normEmail] = rec
-	m.mu.Unlock()
 
 	return rec, nil
 }
@@ -244,6 +289,52 @@ func (m *GrantManager) VerifyGrant(email, submittedCode string) (*GrantRecord, e
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.store != nil {
+		rec, err := m.store.GetGrant(context.Background(), normEmail, "")
+		if err != nil {
+			if errors.Is(err, ErrGrantNotFound) {
+				return nil, ErrGrantNotFound
+			}
+			return nil, err
+		}
+		if rec == nil {
+			return nil, ErrGrantNotFound
+		}
+
+		if rec.Used {
+			return nil, ErrGrantAlreadyUsed
+		}
+
+		if rec.IsExpired() {
+			delete(m.grants, normEmail)
+			return nil, ErrGrantExpired
+		}
+
+		rec.Attempts++
+
+		expectedHash := HashGrantCode(cleanCode, rec.Salt)
+		if subtle.ConstantTimeCompare([]byte(rec.CodeHash), []byte(expectedHash)) != 1 {
+			if rec.Attempts >= rec.MaxAttempts {
+				_ = m.store.MarkUsed(context.Background(), rec.ID)
+				delete(m.grants, normEmail)
+				return nil, ErrGrantMaxAttempts
+			}
+			return nil, ErrInvalidGrantCode
+		}
+
+		// Code is valid! Mark used.
+		if err := m.store.MarkUsed(context.Background(), rec.ID); err != nil {
+			return nil, err
+		}
+		rec.Used = true
+		now := time.Now().UTC()
+		rec.UsedAt = &now
+		delete(m.grants, normEmail)
+
+		recCopy := *rec
+		return &recCopy, nil
+	}
 
 	rec, exists := m.grants[normEmail]
 	if !exists {
@@ -283,6 +374,18 @@ func (m *GrantManager) VerifyGrant(email, submittedCode string) (*GrantRecord, e
 func (m *GrantManager) GetGrant(email string) (*GrantRecord, bool) {
 	normEmail := strings.ToLower(strings.TrimSpace(email))
 	m.mu.RLock()
+	store := m.store
+	m.mu.RUnlock()
+
+	if store != nil {
+		rec, err := store.GetGrant(context.Background(), normEmail, "")
+		if err != nil || rec == nil {
+			return nil, false
+		}
+		return rec, true
+	}
+
+	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	rec, exists := m.grants[normEmail]
@@ -299,11 +402,40 @@ func (m *GrantManager) RevokeGrant(email string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	deleted := false
 	if _, exists := m.grants[normEmail]; exists {
 		delete(m.grants, normEmail)
-		return true
+		deleted = true
 	}
-	return false
+
+	if m.store != nil {
+		rec, err := m.store.GetGrant(context.Background(), normEmail, "")
+		if err == nil && rec != nil {
+			_ = m.store.MarkUsed(context.Background(), rec.ID)
+			deleted = true
+		}
+	}
+
+	return deleted
+}
+
+// ListActiveGrants returns all active unexpired admin grants.
+func (m *GrantManager) ListActiveGrants() ([]*GrantRecord, error) {
+	if m.store != nil {
+		return m.store.ListActiveGrants(context.Background())
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []*GrantRecord
+	for _, g := range m.grants {
+		if !g.Used && !g.IsExpired() {
+			cp := *g
+			list = append(list, &cp)
+		}
+	}
+	return list, nil
 }
 
 // Clear purges all grants from memory.

@@ -1,6 +1,7 @@
 package owner_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -336,4 +337,99 @@ func TestCreateChallengeWithCode(t *testing.T) {
 		t.Fatalf("expected VerifyCode to succeed with explicit code, got ok=%v, err=%v", ok, err)
 	}
 }
+
+type mockChallengeStore struct {
+	challenges map[string]*owner.Challenge
+}
+
+func newMockChallengeStore() *mockChallengeStore {
+	return &mockChallengeStore{challenges: make(map[string]*owner.Challenge)}
+}
+
+func (m *mockChallengeStore) SaveChallenge(ctx context.Context, ch *owner.Challenge) error {
+	m.challenges[ch.Email] = ch
+	return nil
+}
+
+func (m *mockChallengeStore) GetActiveChallenge(ctx context.Context, email string) (*owner.Challenge, error) {
+	ch, ok := m.challenges[email]
+	if !ok || ch.Verified || ch.IsExpired() {
+		return nil, owner.ErrChallengeNotFound
+	}
+	return ch, nil
+}
+
+func (m *mockChallengeStore) IncrementAttempts(ctx context.Context, id string) (int, error) {
+	for _, ch := range m.challenges {
+		if ch.ID == id {
+			ch.Attempts++
+			return ch.Attempts, nil
+		}
+	}
+	return 0, owner.ErrChallengeNotFound
+}
+
+func (m *mockChallengeStore) MarkVerified(ctx context.Context, id string) error {
+	for _, ch := range m.challenges {
+		if ch.ID == id {
+			ch.Verified = true
+			now := time.Now().UTC()
+			ch.VerifiedAt = &now
+			return nil
+		}
+	}
+	return owner.ErrChallengeNotFound
+}
+
+func (m *mockChallengeStore) PruneExpired(ctx context.Context) error {
+	for email, ch := range m.challenges {
+		if !ch.Verified && ch.IsExpired() {
+			delete(m.challenges, email)
+		}
+	}
+	return nil
+}
+
+func TestPersistentChallengeManager(t *testing.T) {
+	mockStore := newMockChallengeStore()
+	mgr := owner.NewPersistentChallengeManager(mockStore)
+
+	if mgr.Store() != owner.ChallengeStore(mockStore) {
+		t.Errorf("expected Store() to return configured mockStore")
+	}
+
+	email := "persist-challenge@manova.space"
+	ch, code, err := mgr.CreateChallenge(email, 10*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChallenge failed: %v", err)
+	}
+
+	if _, ok := mockStore.challenges[email]; !ok {
+		t.Fatalf("expected challenge to be stored in mockStore")
+	}
+
+	inspected, ok := mgr.GetChallenge(email)
+	if !ok || inspected.ID != ch.ID {
+		t.Fatalf("GetChallenge failed or ID mismatch")
+	}
+
+	// Invalid verification
+	valid, err := mgr.VerifyCode(email, "000000")
+	if valid || err != owner.ErrInvalidCode {
+		t.Fatalf("expected ErrInvalidCode, got: %v (valid: %v)", err, valid)
+	}
+
+	// Successful verification
+	valid, err = mgr.VerifyCode(email, code)
+	if !valid || err != nil {
+		t.Fatalf("expected VerifyCode success, got: %v (valid: %v)", err, valid)
+	}
+
+	// Replay should fail
+	valid, err = mgr.VerifyCode(email, code)
+	if valid || err != owner.ErrChallengeNotFound {
+		t.Fatalf("expected ErrChallengeNotFound on replay, got: %v", err)
+	}
+}
+
 
