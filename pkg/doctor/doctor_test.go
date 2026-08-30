@@ -184,25 +184,31 @@ func TestCheckHostFromReport(t *testing.T) {
 }
 
 func TestEvaluateGoVersion(t *testing.T) {
-	// 1. Success case >= 1.23
+	// 1. Success case >= 1.24
 	res := EvaluateGoVersion("go version go1.26.0 linux/amd64", nil)
 	if res.Status != StatusOK {
 		t.Errorf("expected StatusOK for go1.26.0, got %v", res.Status)
 	}
 
-	// 2. Outdated case < 1.23
-	resOutdated := EvaluateGoVersion("go version go1.22.2 linux/amd64", nil)
+	// 2. Outdated case < 1.24
+	resOutdated := EvaluateGoVersion("go version go1.23.1 linux/amd64", nil)
 	if resOutdated.Status != StatusError {
-		t.Errorf("expected StatusError for go1.22.2, got %v", resOutdated.Status)
+		t.Errorf("expected StatusError for go1.23.1, got %v", resOutdated.Status)
 	}
 
-	// 3. Exec error case
+	// 3. Below 1.24
+	resOld := EvaluateGoVersion("go version go1.22.2 linux/amd64", nil)
+	if resOld.Status != StatusError {
+		t.Errorf("expected StatusError for go1.22.2, got %v", resOld.Status)
+	}
+
+	// 4. Exec error case
 	resErr := EvaluateGoVersion("", errors.New("exec: not found"))
 	if resErr.Status != StatusError {
 		t.Errorf("expected StatusError for missing binary, got %v", resErr.Status)
 	}
 
-	// 4. Unparseable output
+	// 5. Unparseable output
 	resUnparseable := EvaluateGoVersion("custom go build without semver", nil)
 	if resUnparseable.Status != StatusWarning {
 		t.Errorf("expected StatusWarning for unparseable output, got %v", resUnparseable.Status)
@@ -211,19 +217,19 @@ func TestEvaluateGoVersion(t *testing.T) {
 
 func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	// Node tests
-	nodeOk := EvaluateNodeVersion("v24.18.0\n", nil)
+	nodeOk := EvaluateNodeVersion("v22.14.0\n", nil)
 	if nodeOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for Node v24.18.0, got %v", nodeOk.Status)
+		t.Errorf("expected StatusOK for Node v22.14.0, got %v", nodeOk.Status)
+	}
+
+	node24 := EvaluateNodeVersion("v24.18.0\n", nil)
+	if node24.Status != StatusError {
+		t.Errorf("expected StatusError for Node v24.18.0, got %v", node24.Status)
 	}
 
 	node20 := EvaluateNodeVersion("v20.10.0\n", nil)
-	if node20.Status != StatusOK {
-		t.Errorf("expected StatusOK for Node v20.10.0, got %v", node20.Status)
-	}
-
-	nodeOld := EvaluateNodeVersion("v18.19.0\n", nil)
-	if nodeOld.Status != StatusError {
-		t.Errorf("expected StatusError for Node v18.19.0, got %v", nodeOld.Status)
+	if node20.Status != StatusError {
+		t.Errorf("expected StatusError for Node v20.10.0, got %v", node20.Status)
 	}
 
 	nodeMissing := EvaluateNodeVersion("", errors.New("not found"))
@@ -232,19 +238,19 @@ func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	}
 
 	// Bun tests
-	bunOk := EvaluateBunVersion("1.3.14\n", nil)
+	bunOk := EvaluateBunVersion("1.4.0\n", nil)
 	if bunOk.Status != StatusOK {
-		t.Errorf("expected StatusOK for Bun 1.3.14, got %v", bunOk.Status)
+		t.Errorf("expected StatusOK for Bun 1.4.0, got %v", bunOk.Status)
 	}
 
 	bun11 := EvaluateBunVersion("1.1.0\n", nil)
-	if bun11.Status != StatusOK {
-		t.Errorf("expected StatusOK for Bun 1.1.0, got %v", bun11.Status)
+	if bun11.Status != StatusError {
+		t.Errorf("expected StatusError for Bun 1.1.0, got %v", bun11.Status)
 	}
 
-	bunOld := EvaluateBunVersion("0.8.0\n", nil)
-	if bunOld.Status != StatusError {
-		t.Errorf("expected StatusError for Bun 0.8.0, got %v", bunOld.Status)
+	bun15 := EvaluateBunVersion("1.5.0\n", nil)
+	if bun15.Status != StatusError {
+		t.Errorf("expected StatusError for Bun 1.5.0, got %v", bun15.Status)
 	}
 
 	bunMissing := EvaluateBunVersion("", errors.New("not found"))

@@ -102,7 +102,7 @@ func EvaluateGitVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.23).
+// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.24).
 func CheckGo() DiagnosticResult {
 	out, err := runCommand(defaultCommandTimeout, "go", "version")
 	return EvaluateGoVersion(out, err)
@@ -119,7 +119,7 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 			Name:          name,
 			Status:        StatusError,
 			Message:       "Go compiler not found in PATH",
-			FixSuggestion: "Install Go >= 1.23: sudo apt install golang-go or visit https://go.dev/dl/",
+			FixSuggestion: "Install Go >= 1.24: sudo apt install golang-go or visit https://go.dev/dl/",
 		}
 	}
 
@@ -134,13 +134,13 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.23") < 0 {
+	if CompareVersions(v, "1.24") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.23)", v),
-			FixSuggestion: "Upgrade Go to >= 1.23: visit https://go.dev/dl/ or use mise/asdf.",
+			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.24)", v),
+			FixSuggestion: "Upgrade Go to >= 1.24: visit https://go.dev/dl/ or use mise/asdf.",
 		}
 	}
 
@@ -148,11 +148,11 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Go v%s installed (>= 1.23 required)", v),
+		Message:  fmt.Sprintf("Go v%s installed (>= 1.24 required)", v),
 	}
 }
 
-// CheckNodeAndBun checks Node.js (>= 20/22) and Bun (>= 1.1).
+// CheckNodeAndBun checks Node.js (22.x LTS) and Bun (1.4.x).
 func CheckNodeAndBun() []DiagnosticResult {
 	var results []DiagnosticResult
 
@@ -193,22 +193,23 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "20.0.0") < 0 {
+	if CompareVersions(v, "22.0.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Node.js v%s is below required version (>= 20, recommended 22+ LTS)", v),
+			Message:       fmt.Sprintf("Node.js v%s is below required version (22.x LTS)", v),
 			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
 		}
 	}
 
-	if CompareVersions(v, "22.0.0") < 0 {
+	if CompareVersions(v, "23.0.0") >= 0 {
 		return DiagnosticResult{
-			Category: category,
-			Name:     name,
-			Status:   StatusOK,
-			Message:  fmt.Sprintf("Node.js v%s installed (v22+ LTS recommended)", v),
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       fmt.Sprintf("Node.js v%s is not 22.x LTS", v),
+			FixSuggestion: "Install Node.js 22 LTS: fnm install 22 or nvm install 22.",
 		}
 	}
 
@@ -216,7 +217,7 @@ func EvaluateNodeVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Node.js v%s installed (>= 22 LTS)", v),
+		Message:  fmt.Sprintf("Node.js v%s installed (22.x LTS)", v),
 	}
 }
 
@@ -246,13 +247,23 @@ func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.1.0") < 0 {
+	if CompareVersions(v, "1.4.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Bun v%s is below required version (>= 1.1)", v),
-			FixSuggestion: "Upgrade Bun: bun upgrade",
+			Message:       fmt.Sprintf("Bun v%s is below required version (1.4.x)", v),
+			FixSuggestion: "Upgrade Bun to 1.4.x: bun upgrade",
+		}
+	}
+
+	if CompareVersions(v, "1.5.0") >= 0 {
+		return DiagnosticResult{
+			Category:      category,
+			Name:          name,
+			Status:        StatusError,
+			Message:       fmt.Sprintf("Bun v%s is not 1.4.x", v),
+			FixSuggestion: "Install Bun 1.4.x: curl -fsSL https://bun.sh/install | bash",
 		}
 	}
 
@@ -260,7 +271,7 @@ func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Bun v%s installed (>= 1.1 required)", v),
+		Message:  fmt.Sprintf("Bun v%s installed (1.4.x required)", v),
 	}
 }
 
