@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
+	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
 )
@@ -43,16 +44,20 @@ func newStaffCmd() *cobra.Command {
 
 func newStaffCreateCmd() *cobra.Command {
 	var (
-		uidFlag     string
-		nameFlag    string
-		forwardFlag string
-		groupsFlag  string
-		totpFlag    bool
-		idemFlag    string
+		uidFlag         string
+		nameFlag        string
+		forwardFlag     string
+		groupsFlag      string
+		totpFlag        bool
+		idemFlag        string
+		inviteFlag      bool
+		inviteEmailFlag string
+		inviteTTLFlag   string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a staff member (lldap + mailbox)",
+		Long:  "Create a staff member and optionally generate a signed onboarding invite token with --invite.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
 			if err != nil {
@@ -86,6 +91,22 @@ func newStaffCreateCmd() *cobra.Command {
 				return err
 			}
 			printStaffCreate(cmd, res)
+
+			// --invite: generate a signed onboarding invite token and print it
+			if inviteFlag {
+				inviteEmail := strings.TrimSpace(inviteEmailFlag)
+				if inviteEmail == "" {
+					inviteEmail = forward // default to the forward address
+				}
+				tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag)
+				if err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "warn   invite generation failed: %v\n", err)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "invite %s\n", invID)
+					fmt.Fprintf(cmd.OutOrStdout(), "token  %s\n", tokenStr)
+				}
+			}
+
 			return nil
 		},
 	}
@@ -95,6 +116,9 @@ func newStaffCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
 	cmd.Flags().BoolVar(&totpFlag, "totp", false, "enroll Authelia TOTP")
 	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key (generated if empty)")
+	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account creation")
+	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
+	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "invite token TTL (e.g. 7d, 24h, 168h)")
 	_ = cmd.MarkFlagRequired("uid")
 	_ = cmd.MarkFlagRequired("forward")
 	return cmd
@@ -413,4 +437,69 @@ func newIdempotencyKey() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// createStaffInvite generates a signed onboarding invite token for a newly created staff member.
+// It resolves the signing secret from the owner store or environment, generates the token,
+// saves it to the invite store, and returns the token string and invite ID.
+func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr string) (tokenStr, inviteID string, err error) {
+	ownerStoreFlag := staffPersistentString(cmd, "owner-store")
+	ownerStore := owner.NewStore(ownerStoreFlag)
+	ownerRecord, _ := ownerStore.LoadOwner()
+
+	var secret []byte
+	if ownerRecord != nil && ownerRecord.IsVerified() && ownerRecord.RootSigningSecret != "" {
+		secret = []byte(ownerRecord.RootSigningSecret)
+	} else if env := os.Getenv("ORBIT_INVITE_SECRET"); env != "" {
+		secret = []byte(env)
+	} else if env := os.Getenv("MANOVA_INVITE_SECRET"); env != "" {
+		secret = []byte(env)
+	} else {
+		secret = []byte(DefaultFallbackSecret)
+	}
+
+	ttl, err := parseDuration(ttlStr)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid --invite-ttl: %w", err)
+	}
+
+	createdBy := ""
+	if ownerRecord != nil && ownerRecord.IsVerified() {
+		createdBy = ownerRecord.Email
+	}
+
+	req := invite.InviteRequest{
+		Email:       email,
+		DisplayName: displayName,
+		Scope:       "core",
+		TTL:         ttl,
+		CreatedBy:   createdBy,
+	}
+
+	tokenStr, claims, err := invite.GenerateToken(req, secret)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate invite token: %w", err)
+	}
+
+	store, err := invite.NewStore("")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to open invite store: %w", err)
+	}
+
+	rec := &invite.InviteRecord{
+		ID:          claims.ID,
+		Email:       claims.Email,
+		DisplayName: claims.DisplayName,
+		Scope:       claims.Scope,
+		Token:       tokenStr,
+		Revoked:     false,
+		IssuedAt:    claims.IssuedAt,
+		ExpiresAt:   claims.ExpiresAt,
+		CreatedBy:   claims.CreatedBy,
+	}
+	if err := store.SaveInvite(rec); err != nil {
+		return "", "", fmt.Errorf("failed to save invite: %w", err)
+	}
+
+	return tokenStr, claims.ID, nil
 }
