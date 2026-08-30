@@ -31,6 +31,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
+	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
@@ -203,7 +204,19 @@ func runOnboard(cmd *cobra.Command, args []string, opts *onboardOptions) error {
 		return nil
 	}
 
-	// 5. Render Banner
+	// 5. Launch interactive TUI wizard if running in an interactive terminal
+	// and neither --non-interactive nor --json nor --dry-run is set.
+	if istty.IsInteractiveSession() && !opts.nonInteractive && !opts.json && !opts.dryRun {
+		return tuiOnboard.RunWizard(tuiOnboard.WizardOptions{
+			SessionManager: sm,
+			PreSetToken:    opts.token,
+			Resume:         opts.resume,
+			Reset:          opts.ignoreAndRemoveCheckpoint || opts.reset,
+			Rollback:       opts.rollback,
+		})
+	}
+
+	// 6. Render Banner (headless / non-interactive path)
 	if !opts.json {
 		banner := `
 ╔══════════════════════════════════════════════════════════════╗
@@ -682,7 +695,7 @@ func ensureSSHKey(customSSHDir string, email string) (string, error) {
 
 	comment := email
 	if comment == "" {
-		comment = "manova-developer"
+		comment = "orbit-developer"
 	}
 
 	// Try ssh-keygen first if available
@@ -852,7 +865,7 @@ func saveWireGuardConfig(configData string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	wgDir := filepath.Join(home, ".config", "manova")
+	wgDir := filepath.Join(home, ".config", "orbit")
 	if err := os.MkdirAll(wgDir, 0700); err != nil {
 		return "", err
 	}
@@ -869,7 +882,7 @@ func generateDiagnosticBundle(workspaceRoot string, sm *session.SessionManager, 
 		outPath = customOutPath
 	} else {
 		timestamp := time.Now().UTC().Format("20060102-150405")
-		outPath = fmt.Sprintf("manova-diag-%s.tar.gz", timestamp)
+		outPath = fmt.Sprintf("orbit-diag-%s.tar.gz", timestamp)
 	}
 
 	outDir := filepath.Dir(outPath)
@@ -908,7 +921,7 @@ func generateDiagnosticBundle(workspaceRoot string, sm *session.SessionManager, 
 				if len(sanitized.InviteToken) > 16 {
 					sanitized.InviteToken = sanitized.InviteToken[:10] + "..." + sanitized.InviteToken[len(sanitized.InviteToken)-4:]
 				} else {
-					sanitized.InviteToken = "manova-inv.***"
+					sanitized.InviteToken = "orbit-inv.***"
 				}
 			}
 			if sanitized.ForgejoToken != "" {
@@ -1055,7 +1068,7 @@ func executeRollback(ctx context.Context, workspaceRoot, edgeURL string, sm *ses
 	// 3. Remove WireGuard config if created
 	home, _ := os.UserHomeDir()
 	if home != "" {
-		wgPath := filepath.Join(home, ".config", "manova", "wg0.conf")
+		wgPath := filepath.Join(home, ".config", "orbit", "wg0.conf")
 		if _, err := os.Stat(wgPath); err == nil {
 			fmt.Fprintf(out, "  %s  Removing WireGuard config %s\n", iconOK, subtleStyle.Render(wgPath))
 			_ = os.Remove(wgPath)
