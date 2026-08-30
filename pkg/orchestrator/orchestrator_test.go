@@ -50,8 +50,8 @@ func TestInspectRepo(t *testing.T) {
 		if err == nil {
 			t.Errorf("expected error for non-existent dir, got nil")
 		}
-		if status == nil || status.Error == "" {
-			t.Errorf("expected status with error message, got %+v", status)
+		if status == nil || status.Error != ErrMissing {
+			t.Errorf("expected status Error=%q, got %+v", ErrMissing, status)
 		}
 	})
 
@@ -63,7 +63,7 @@ func TestInspectRepo(t *testing.T) {
 		if err == nil {
 			t.Errorf("expected error for non-git dir, got nil")
 		}
-		if status == nil || status.Error != "not a git repository" {
+		if status == nil || status.Error != ErrGitless {
 			t.Errorf("expected 'not a git repository' error, got %+v", status)
 		}
 	})
@@ -296,8 +296,8 @@ func TestCloneTarget(t *testing.T) {
 		Path:      "existing-dir",
 		RemoteURL: bareDir,
 	})
-	if !resNonEmpty.Success || !resNonEmpty.AlreadyExists {
-		t.Errorf("expected AlreadyExists: true for existing non-empty dir, got %+v", resNonEmpty)
+	if resNonEmpty.Success || resNonEmpty.Error == "" {
+		t.Errorf("expected error for existing non-empty gitless dir, got %+v", resNonEmpty)
 	}
 }
 
@@ -521,5 +521,68 @@ func TestSyncTargets(t *testing.T) {
 	emptyResults := SyncTargets(workspaceRoot, nil, 2)
 	if len(emptyResults) != 0 {
 		t.Errorf("expected empty results for nil targets, got %d", len(emptyResults))
+	}
+}
+
+func TestRepairTargetGitless(t *testing.T) {
+	tmpDir := t.TempDir()
+	workspaceRoot := filepath.Join(tmpDir, "workspace")
+	_ = os.MkdirAll(workspaceRoot, 0755)
+
+	bareDir := filepath.Join(tmpDir, "remote.git")
+	createBareRepo(t, bareDir)
+	seedDir := filepath.Join(tmpDir, "seed")
+	createTestRepo(t, seedDir, "main")
+	_ = os.WriteFile(filepath.Join(seedDir, "file.txt"), []byte("seed\n"), 0644)
+	runGitCmd(t, seedDir, "add", "file.txt")
+	runGitCmd(t, seedDir, "commit", "-m", "seed")
+	runGitCmd(t, seedDir, "remote", "add", "origin", bareDir)
+	runGitCmd(t, seedDir, "push", "origin", "main")
+
+	dest := filepath.Join(workspaceRoot, "orbit-frontend")
+	_ = os.MkdirAll(dest, 0755)
+	_ = os.WriteFile(filepath.Join(dest, "local.txt"), []byte("keep me\n"), 0644)
+
+	target := manifest.RepoTarget{
+		Name:      "orbit-frontend",
+		Path:      "orbit-frontend",
+		RemoteURL: bareDir,
+	}
+	res := RepairTarget(workspaceRoot, target)
+	if !res.Success || res.Error != "" || res.Skipped != "" {
+		t.Fatalf("expected successful repair, got %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".git")); err != nil {
+		t.Fatalf("expected .git after repair: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "local.txt")); err != nil {
+		t.Fatalf("repair must not delete working files: %v", err)
+	}
+
+	again := RepairTarget(workspaceRoot, target)
+	if !again.Success || again.Skipped == "" {
+		t.Fatalf("expected skip on second repair, got %+v", again)
+	}
+}
+
+func TestGetWorkspaceStatusMissingVsGitless(t *testing.T) {
+	tmpDir := t.TempDir()
+	workspaceRoot := filepath.Join(tmpDir, "workspace")
+	gitless := filepath.Join(workspaceRoot, "gitless")
+	_ = os.MkdirAll(gitless, 0755)
+	_ = os.WriteFile(filepath.Join(gitless, "code.go"), []byte("package main\n"), 0644)
+
+	statuses := GetWorkspaceStatus(workspaceRoot, []manifest.RepoTarget{
+		{Name: "gone", Path: "gone"},
+		{Name: "gitless", Path: "gitless"},
+	})
+	if len(statuses) != 2 {
+		t.Fatalf("expected 2 statuses, got %d", len(statuses))
+	}
+	if statuses[0].Error != ErrMissing {
+		t.Errorf("missing: got %q", statuses[0].Error)
+	}
+	if statuses[1].Error != ErrGitless {
+		t.Errorf("gitless: got %q", statuses[1].Error)
 	}
 }

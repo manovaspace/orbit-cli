@@ -1,5 +1,11 @@
 package orchestrator
 
+// Stable InspectRepo / status Error values. The CLI must not collapse these.
+const (
+	ErrMissing = "missing"
+	ErrGitless = "not a git repository"
+)
+
 // RepoStatus represents the git status of a repository in the workspace.
 type RepoStatus struct {
 	Name          string `json:"name" yaml:"name"`
@@ -30,4 +36,13 @@ type SyncResult struct {
 	SkippedReason string `json:"skipped_reason,omitempty" yaml:"skipped_reason,omitempty"`
 	Error         string `json:"error,omitempty" yaml:"error,omitempty"`
 	AssetError    string `json:"asset_error,omitempty" yaml:"asset_error,omitempty"`
+}
+
+// RepairResult captures the outcome of attaching .git to a gitless tree.
+type RepairResult struct {
+	Name    string `json:"name" yaml:"name"`
+	Path    string `json:"path" yaml:"path"`
+	Success bool   `json:"success" yaml:"success"`
+	Skipped string `json:"skipped,omitempty" yaml:"skipped,omitempty"`
+	Error   string `json:"error,omitempty" yaml:"error,omitempty"`
 }

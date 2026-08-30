@@ -10,6 +10,8 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
 	"github.com/manovaspace/orbit-cli/pkg/istty"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +35,7 @@ func newDoctorCmd() *cobra.Command {
 
 			report := doctor.RunDiagnostics()
 			addAssetDiagnostics(cmd.Context(), report, fix)
+			addWorkspaceGitDiagnostics(report)
 
 			if jsonOutput {
 				if fix {
@@ -42,6 +45,7 @@ func newDoctorCmd() *cobra.Command {
 						_, _ = reg.Run(ctx, report.Results, nil)
 						report = doctor.RunDiagnostics()
 						addAssetDiagnostics(ctx, report, true)
+						addWorkspaceGitDiagnostics(report)
 					}
 				}
 
@@ -88,6 +92,7 @@ func newDoctorCmd() *cobra.Command {
 				// Re-evaluate diagnostics after auto-healing
 				report = doctor.RunDiagnostics()
 				addAssetDiagnostics(ctx, report, false)
+				addWorkspaceGitDiagnostics(report)
 				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Healing Diagnostic Report ─────────────────────────"))
 				renderDoctorReport(out, report)
 			}
@@ -106,6 +111,67 @@ func newDoctorCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output diagnostic report in JSON format")
 
 	return cmd
+}
+
+func addWorkspaceGitDiagnostics(report *doctor.DoctorReport) {
+	if report == nil {
+		return
+	}
+	root := findWorkspaceRoot("")
+	manifestPath := findManifestPath(root, "")
+	if _, err := os.Stat(manifestPath); err != nil {
+		return
+	}
+	m, err := manifest.Load(manifestPath)
+	if err != nil {
+		report.Add(doctor.DiagnosticResult{
+			Category:      "Workspace",
+			Name:          "Manifest",
+			Status:        doctor.StatusWarning,
+			Message:       err.Error(),
+			FixSuggestion: "Fix workspace.yaml parse errors.",
+		})
+		return
+	}
+	statuses := orchestrator.GetWorkspaceStatus(root, m.ResolveScope("all"))
+	gitless := 0
+	missing := 0
+	for _, s := range statuses {
+		switch s.Error {
+		case orchestrator.ErrGitless:
+			gitless++
+		case orchestrator.ErrMissing:
+			missing++
+		}
+	}
+	switch {
+	case gitless == 0 && missing == 0:
+		report.Add(doctor.DiagnosticResult{
+			Category: "Workspace",
+			Name:     "Git trees",
+			Status:   doctor.StatusOK,
+			Message:  fmt.Sprintf("all %d manifest repos have .git", len(statuses)),
+		})
+	default:
+		if gitless > 0 {
+			report.Add(doctor.DiagnosticResult{
+				Category:      "Workspace",
+				Name:          "Gitless trees",
+				Status:        doctor.StatusWarning,
+				Message:       fmt.Sprintf("%d manifest path(s) have files but no .git", gitless),
+				FixSuggestion: "orbit repair",
+			})
+		}
+		if missing > 0 {
+			report.Add(doctor.DiagnosticResult{
+				Category:      "Workspace",
+				Name:          "Uncloned repos",
+				Status:        doctor.StatusWarning,
+				Message:       fmt.Sprintf("%d manifest path(s) are not cloned", missing),
+				FixSuggestion: "orbit init all",
+			})
+		}
+	}
 }
 
 func countErrors(report *doctor.DoctorReport) int {

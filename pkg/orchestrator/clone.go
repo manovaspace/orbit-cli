@@ -14,8 +14,8 @@ import (
 const defaultCloneConcurrency = 4
 
 // CloneTarget clones a single repository target into the workspace.
-// If the destination directory already contains a .git directory/file, it skips cloning
-// and returns AlreadyExists: true.
+// If the destination already has .git, it skips. A non-empty gitless directory
+// is an error (use orbit repair). An empty directory is cloned into.
 func CloneTarget(workspaceRoot string, target manifest.RepoTarget) CloneResult {
 	if target.Path == "" {
 		return CloneResult{
@@ -29,9 +29,7 @@ func CloneTarget(workspaceRoot string, target manifest.RepoTarget) CloneResult {
 	destPath := filepath.Join(workspaceRoot, target.Path)
 	gitPath := filepath.Join(destPath, ".git")
 
-	// Check if destination directory already exists
 	if fi, err := os.Stat(destPath); err == nil && fi.IsDir() {
-		// If .git exists, it's an existing repo
 		if _, err := os.Stat(gitPath); err == nil {
 			return CloneResult{
 				Name:          target.Name,
@@ -40,15 +38,21 @@ func CloneTarget(workspaceRoot string, target manifest.RepoTarget) CloneResult {
 				AlreadyExists: true,
 			}
 		}
-
-		// If directory has files, treat as already present
-		entries, err := os.ReadDir(destPath)
-		if err == nil && len(entries) > 0 {
+		entries, readErr := os.ReadDir(destPath)
+		if readErr != nil {
 			return CloneResult{
-				Name:          target.Name,
-				Path:          target.Path,
-				Success:       true,
-				AlreadyExists: true,
+				Name:    target.Name,
+				Path:    target.Path,
+				Success: false,
+				Error:   readErr.Error(),
+			}
+		}
+		if len(entries) > 0 {
+			return CloneResult{
+				Name:    target.Name,
+				Path:    target.Path,
+				Success: false,
+				Error:   "exists but is not a git repository; run orbit repair",
 			}
 		}
 	}
@@ -62,7 +66,6 @@ func CloneTarget(workspaceRoot string, target manifest.RepoTarget) CloneResult {
 		}
 	}
 
-	// Ensure parent directory exists
 	parentDir := filepath.Dir(destPath)
 	if err := os.MkdirAll(parentDir, 0755); err != nil {
 		return CloneResult{
@@ -80,10 +83,10 @@ func CloneTarget(workspaceRoot string, target manifest.RepoTarget) CloneResult {
 		errMsg := strings.TrimSpace(string(out))
 		if strings.Contains(errMsg, "already exists and is not an empty directory") {
 			return CloneResult{
-				Name:          target.Name,
-				Path:          target.Path,
-				Success:       true,
-				AlreadyExists: true,
+				Name:    target.Name,
+				Path:    target.Path,
+				Success: false,
+				Error:   "exists but is not a git repository; run orbit repair",
 			}
 		}
 		if errMsg == "" {

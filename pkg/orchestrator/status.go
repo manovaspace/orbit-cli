@@ -18,6 +18,13 @@ func InspectRepo(repoPath string) (*RepoStatus, error) {
 
 	info, err := os.Stat(repoPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return &RepoStatus{
+				Name:  name,
+				Path:  repoPath,
+				Error: ErrMissing,
+			}, fmt.Errorf("%s", ErrMissing)
+		}
 		return &RepoStatus{
 			Name:  name,
 			Path:  repoPath,
@@ -38,8 +45,8 @@ func InspectRepo(repoPath string) (*RepoStatus, error) {
 		return &RepoStatus{
 			Name:  name,
 			Path:  repoPath,
-			Error: "not a git repository",
-		}, fmt.Errorf("not a git repository (%s): %v", strings.TrimSpace(string(out)), err)
+			Error: ErrGitless,
+		}, fmt.Errorf("%s (%s): %v", ErrGitless, strings.TrimSpace(string(out)), err)
 	}
 
 	// 1. Get current branch name
@@ -137,17 +144,21 @@ func GetWorkspaceStatus(workspaceRoot string, targets []manifest.RepoTarget) []R
 			for j := range jobs {
 				targetPath := filepath.Join(workspaceRoot, j.target.Path)
 				status, err := InspectRepo(targetPath)
-				if err != nil {
+				if status == nil {
+					msg := ErrMissing
+					if err != nil {
+						msg = err.Error()
+					}
 					results[j.index] = RepoStatus{
 						Name:  j.target.Name,
 						Path:  j.target.Path,
-						Error: err.Error(),
+						Error: msg,
 					}
-				} else {
-					status.Name = j.target.Name
-					status.Path = j.target.Path
-					results[j.index] = *status
+					continue
 				}
+				status.Name = j.target.Name
+				status.Path = j.target.Path
+				results[j.index] = *status
 			}
 		}()
 	}

@@ -104,6 +104,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newInitCmd())
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newRepairCmd())
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newEnvCmd())
 	cmd.AddCommand(newPortCmd())

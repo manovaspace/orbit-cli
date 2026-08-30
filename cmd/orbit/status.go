@@ -58,20 +58,45 @@ func newStatusCmd() *cobra.Command {
 
 			cleanCount := 0
 			dirtyCount := 0
-			notClonedCount := 0
+			missingCount := 0
+			gitlessCount := 0
+			otherErrCount := 0
 
 			for _, s := range statuses {
 				repoCol := boldStyle.Render(padRight(s.Name, 22))
 				pathCol := subtleStyle.Render(padRight(s.Path, 28))
 
-				if s.Error != "" {
-					notClonedCount++
+				switch s.Error {
+				case "":
+					// ok
+				case orchestrator.ErrMissing:
+					missingCount++
 					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
 						repoCol,
 						pathCol,
 						subtleStyle.Render("-"),
 						subtleStyle.Render("-"),
-						warningStyle.Render("not cloned / missing"),
+						subtleStyle.Render("not cloned"),
+					)
+					continue
+				case orchestrator.ErrGitless:
+					gitlessCount++
+					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
+						repoCol,
+						pathCol,
+						subtleStyle.Render("-"),
+						subtleStyle.Render("-"),
+						warningStyle.Render("gitless — run orbit repair"),
+					)
+					continue
+				default:
+					otherErrCount++
+					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
+						repoCol,
+						pathCol,
+						subtleStyle.Render("-"),
+						subtleStyle.Render("-"),
+						errorStyle.Render(s.Error),
 					)
 					continue
 				}
@@ -112,12 +137,19 @@ func newStatusCmd() *cobra.Command {
 			}
 
 			// Summary footer
-			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
+			fmt.Fprintf(out, "\n%s  %s  %s  %s  %s\n",
 				infoStyle.Render(fmt.Sprintf("Total: %d", len(statuses))),
 				successStyle.Render(fmt.Sprintf("✔ %d clean", cleanCount)),
 				warningStyle.Render(fmt.Sprintf("⚠ %d dirty", dirtyCount)),
-				subtleStyle.Render(fmt.Sprintf("○ %d not cloned", notClonedCount)),
+				subtleStyle.Render(fmt.Sprintf("○ %d not cloned", missingCount)),
+				warningStyle.Render(fmt.Sprintf("✖ %d gitless", gitlessCount)),
 			)
+			if otherErrCount > 0 {
+				fmt.Fprintf(out, "%s\n", errorStyle.Render(fmt.Sprintf("  %d other errors", otherErrCount)))
+			}
+			if gitlessCount > 0 {
+				fmt.Fprintf(out, "  %s  %s\n", iconInfo, subtleStyle.Render("gitless trees: orbit repair [scope]  (copies .git only; never checkout -f)"))
+			}
 
 			return nil
 		},

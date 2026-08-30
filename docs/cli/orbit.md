@@ -31,6 +31,7 @@ orbit [flags]
 * [orbit migrate](orbit_migrate.md)	 - Run and inspect workspace state migrations
 * [orbit onboard](orbit_onboard.md)	 - Interactive onboarding wizard with resume, claims, and stack provisioning
 * [orbit port](orbit_port.md)	 - Manage and inspect the hybrid 50-port allocation model
+* [orbit repair](orbit_repair.md)	 - Attach .git to gitless workspace trees without overwriting files
 * [orbit self-update](orbit_self-update.md)	 - Update the Orbit CLI binary to the latest release
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
 * [orbit status](orbit_status.md)	 - Show git status and working tree cleanliness across workspace repositories
