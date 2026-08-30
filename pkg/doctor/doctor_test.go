@@ -2,7 +2,10 @@ package doctor
 
 import (
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/manovaspace/orbit-cli/pkg/host"
 )
 
 func TestParseVersionString(t *testing.T) {
@@ -145,125 +148,38 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
-func TestParseOSRelease(t *testing.T) {
-	content := `
-# OS Release test file
-NAME="Ubuntu"
-VERSION="26.04 LTS (Resolute Raccoon)"
-ID=ubuntu
-ID_LIKE=debian
-PRETTY_NAME="Ubuntu 26.04 LTS"
-VERSION_ID="26.04"
-HOME_URL="https://www.ubuntu.com/"
-SUPPORT_URL="https://help.ubuntu.com/"
-UBUNTU_CODENAME=resolute
-`
-	info := ParseOSRelease(content)
-	if info["ID"] != "ubuntu" {
-		t.Errorf("expected ID 'ubuntu', got %q", info["ID"])
+func TestCheckHostFromReport(t *testing.T) {
+	okReport := host.Report{OK: true}
+	okRes := hostResult(okReport)
+	if okRes.Status != StatusOK {
+		t.Errorf("expected StatusOK, got %v", okRes.Status)
 	}
-	if info["VERSION_ID"] != "26.04" {
-		t.Errorf("expected VERSION_ID '26.04', got %q", info["VERSION_ID"])
+	if okRes.Category != "System" || okRes.Name != "Host" {
+		t.Errorf("expected System/Host, got %s/%s", okRes.Category, okRes.Name)
 	}
-	if info["PRETTY_NAME"] != "Ubuntu 26.04 LTS" {
-		t.Errorf("expected PRETTY_NAME 'Ubuntu 26.04 LTS', got %q", info["PRETTY_NAME"])
-	}
-}
-
-func TestEvaluateOS(t *testing.T) {
-	tests := []struct {
-		name           string
-		goos           string
-		osInfo         map[string]string
-		expectedStatus CheckStatus
-	}{
-		{
-			name: "Ubuntu 26.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "26.04",
-				"PRETTY_NAME": "Ubuntu 26.04 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu 24.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "24.04",
-				"PRETTY_NAME": "Ubuntu 24.04 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu 22.04 LTS",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "22.04.4",
-				"PRETTY_NAME": "Ubuntu 22.04.4 LTS",
-			},
-			expectedStatus: StatusOK,
-		},
-		{
-			name: "Ubuntu Non-LTS (23.10)",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "ubuntu",
-				"VERSION_ID":  "23.10",
-				"PRETTY_NAME": "Ubuntu 23.10",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name: "Debian GNU/Linux",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "debian",
-				"VERSION_ID":  "12",
-				"PRETTY_NAME": "Debian GNU/Linux 12 (bookworm)",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name: "Fedora Linux",
-			goos: "linux",
-			osInfo: map[string]string{
-				"ID":          "fedora",
-				"VERSION_ID":  "40",
-				"PRETTY_NAME": "Fedora Linux 40",
-			},
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "macOS Darwin",
-			goos:           "darwin",
-			osInfo:         nil,
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "Windows",
-			goos:           "windows",
-			osInfo:         nil,
-			expectedStatus: StatusWarning,
-		},
-		{
-			name:           "Empty Linux os-release",
-			goos:           "linux",
-			osInfo:         map[string]string{},
-			expectedStatus: StatusWarning,
-		},
+	if okRes.Message != "Supported host: Ubuntu 24.04/26.04 LTS amd64, zsh, ~/.local/bin" {
+		t.Errorf("unexpected OK message: %q", okRes.Message)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			res := EvaluateOS(tc.osInfo, tc.goos)
-			if res.Status != tc.expectedStatus {
-				t.Errorf("expected status %v, got %v (message: %s)", tc.expectedStatus, res.Status, res.Message)
-			}
-		})
+	failReport := host.Report{
+		OK: false,
+		Failures: []host.Failure{
+			{Code: "os", Message: "darwin is not supported"},
+		},
+	}
+	failRes := hostResult(failReport)
+	if failRes.Status != StatusError {
+		t.Errorf("expected StatusError, got %v", failRes.Status)
+	}
+	if failRes.Category != "System" || failRes.Name != "Host" {
+		t.Errorf("expected System/Host, got %s/%s", failRes.Category, failRes.Name)
+	}
+	wantMsg := strings.TrimSpace(host.Format(failReport))
+	if failRes.Message != wantMsg {
+		t.Errorf("expected message %q, got %q", wantMsg, failRes.Message)
+	}
+	if failRes.FixSuggestion == "" {
+		t.Error("expected non-empty FixSuggestion on failure")
 	}
 }
 
