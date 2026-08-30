@@ -145,6 +145,16 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		return w, cmd
 	}
 
+	// Wire Environment stage component
+	envModel := NewEnvModel(m)
+	m.StageViews[session.StageEnvironment] = func(w *WizardModel) string {
+		return envModel.View()
+	}
+	m.StageUpdates[session.StageEnvironment] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := envModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 
