@@ -184,22 +184,22 @@ func TestCheckHostFromReport(t *testing.T) {
 }
 
 func TestEvaluateGoVersion(t *testing.T) {
-	// 1. Success case >= 1.24
+	// 1. Success case >= 1.26.0
 	res := EvaluateGoVersion("go version go1.26.0 linux/amd64", nil)
 	if res.Status != StatusOK {
 		t.Errorf("expected StatusOK for go1.26.0, got %v", res.Status)
 	}
 
-	// 2. Outdated case < 1.24
-	resOutdated := EvaluateGoVersion("go version go1.23.1 linux/amd64", nil)
+	// 2. Outdated case < 1.26.0 (e.g. 1.24.2)
+	resOutdated := EvaluateGoVersion("go version go1.24.2 linux/amd64", nil)
 	if resOutdated.Status != StatusError {
-		t.Errorf("expected StatusError for go1.23.1, got %v", resOutdated.Status)
+		t.Errorf("expected StatusError for go1.24.2, got %v", resOutdated.Status)
 	}
 
-	// 3. Below 1.24
-	resOld := EvaluateGoVersion("go version go1.22.2 linux/amd64", nil)
+	// 3. Below 1.26.0 (e.g. 1.23.1)
+	resOld := EvaluateGoVersion("go version go1.23.1 linux/amd64", nil)
 	if resOld.Status != StatusError {
-		t.Errorf("expected StatusError for go1.22.2, got %v", resOld.Status)
+		t.Errorf("expected StatusError for go1.23.1, got %v", resOld.Status)
 	}
 
 	// 4. Exec error case

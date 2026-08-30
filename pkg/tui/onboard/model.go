@@ -115,6 +115,16 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		return w, cmd
 	}
 
+	// Wire Doctor stage component
+	doctorModel := NewDoctorModel(m)
+	m.StageViews[session.StageDoctor] = func(w *WizardModel) string {
+		return doctorModel.View()
+	}
+	m.StageUpdates[session.StageDoctor] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := doctorModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 

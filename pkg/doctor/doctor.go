@@ -102,7 +102,7 @@ func EvaluateGitVersion(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.24).
+// CheckGo checks if Go compiler is installed and meets the version requirement (>= 1.26.0).
 func CheckGo() DiagnosticResult {
 	out, err := runCommand(defaultCommandTimeout, "go", "version")
 	return EvaluateGoVersion(out, err)
@@ -119,7 +119,7 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 			Name:          name,
 			Status:        StatusError,
 			Message:       "Go compiler not found in PATH",
-			FixSuggestion: "Install Go >= 1.24: sudo apt install golang-go or visit https://go.dev/dl/",
+			FixSuggestion: "Install Go >= 1.26.0: sudo apt install golang-go or visit https://go.dev/dl/",
 		}
 	}
 
@@ -134,13 +134,13 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.24") < 0 {
+	if CompareVersions(v, "1.26.0") < 0 {
 		return DiagnosticResult{
 			Category:      category,
 			Name:          name,
 			Status:        StatusError,
-			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.24)", v),
-			FixSuggestion: "Upgrade Go to >= 1.24: visit https://go.dev/dl/ or use mise/asdf.",
+			Message:       fmt.Sprintf("Go v%s is below required version (>= 1.26.0)", v),
+			FixSuggestion: "Upgrade Go to >= 1.26.0: visit https://go.dev/dl/ or use mise/asdf.",
 		}
 	}
 
@@ -148,7 +148,7 @@ func EvaluateGoVersion(rawOutput string, execErr error) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  fmt.Sprintf("Go v%s installed (>= 1.24 required)", v),
+		Message:  fmt.Sprintf("Go v%s installed (>= 1.26.0 required)", v),
 	}
 }
 
