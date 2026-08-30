@@ -12,7 +12,7 @@ Orbit CLI follows a dual-binary architecture:
 
 ### Core Capabilities
 
-- **Workspace Management**: `orbit init`, `orbit sync`, `orbit status`, `orbit update` — parses `workspace.yaml` manifest and orchestrates git repositories and dependencies.
+- **Workspace Management**: `orbit init`, `orbit sync`, `orbit status`, `orbit repair`, `orbit update` — parses `workspace.yaml` manifest and orchestrates git repositories and dependencies. `orbit status` distinguishes **not cloned** vs **gitless** (files, no `.git`). `orbit repair` copies `.git` onto gitless trees; it never `checkout -f`.
 - **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
 - **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/Bun, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
@@ -39,7 +39,8 @@ orbit doctor              # run system and workspace diagnostics
 orbit doctor --fix        # auto-heal detected issues
 orbit init                # initialize workspace from workspace.yaml
 orbit sync                # synchronize repositories and dependencies
-orbit status              # multi-repo git status and dirty tree check
+orbit status              # multi-repo git status (missing vs gitless vs dirty)
+orbit repair              # attach .git to gitless trees (no checkout -f)
 orbit env check           # validate environment variables against .env.example
 orbit env setup           # generate missing .env files from schemas
 orbit port list           # display dev port allocations (ADR-006)
@@ -110,6 +111,9 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 
 ## Do / don't
 
+- Invite and owner-challenge mail HTML/text come from `github.com/manovaspace/orbit-notifications/pkg/mailtemplates` (local replace `../orbit-notifications`). Do not add HTML strings in `pkg/invite`.
+- Invite curl host is `https://orbit.manova.space` (not `get.manova.space`).
+- Never put the HMAC token or OTP in the email subject.
 - Use `pkg/tui` Lipgloss styling for output formatting — do not write unformatted console prints.
 - Keep workstation CLI commands as pure API clients — do not embed server SMTP credentials in workstation commands.
 - Adhere strictly to ADR-006 50-port block allocations (`1nxxx` range).
