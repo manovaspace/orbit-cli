@@ -426,11 +426,7 @@ Actions that will be executed during onboarding:
 
 		edgeURL := opts.edgeURL
 		if edgeURL == "" {
-			if envURL := os.Getenv("ORBIT_SERVER"); envURL != "" {
-				edgeURL = envURL
-			} else if envURL := os.Getenv("MANOVA_EDGE_URL"); envURL != "" {
-				edgeURL = envURL
-			} else if envURL := os.Getenv("ORBIT_EDGE_URL"); envURL != "" {
+			if envURL := strings.TrimSpace(os.Getenv("ORBIT_SERVER")); envURL != "" {
 				edgeURL = envURL
 			} else {
 				edgeURL = "http://localhost:8080"
