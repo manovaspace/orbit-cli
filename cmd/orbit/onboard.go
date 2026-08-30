@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -476,16 +477,6 @@ Actions that will be executed during onboarding:
 		s.WireGuardConfig = claimResp.Credentials.WireGuardConfig
 		s.CurrentStage = session.StageTokenClaimed
 
-		// Save WireGuard config if provided
-		if s.WireGuardConfig != "" {
-			if wgPath, wgErr := saveWireGuardConfig(s.WireGuardConfig); wgErr == nil {
-				s.CurrentStage = session.StageNetworkConfigured
-				if !opts.json {
-					fmt.Fprintf(out, "  %s  WireGuard VPN profile saved to %s\n", iconOK, subtleStyle.Render(wgPath))
-				}
-			}
-		}
-
 		if err := sm.SaveSession(s); err != nil {
 			return err
 		}
@@ -510,11 +501,60 @@ Actions that will be executed during onboarding:
 		fmt.Fprintf(out, "  %s  Identity claimed: %s (cached checkpoint)\n", iconOK, boldStyle.Render(s.UID))
 	}
 
-	// ── STATE 4: Workspace Initialization & Repository Cloning ────────────────
+	// ── STATE 4: Dev Network Validation & Dev CA Trust ────────────────────────
+	if !isStageCompleted(s.CurrentStage, session.StageNetworkConfigured) {
+		emitter.Emit(session.StageNetworkConfigured, "in_progress", "Configuring network and local dev certificates", nil)
+		if !opts.json {
+			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 4: Network & Local TLS Setup ───────────────────────"))
+		}
+
+		// Save WireGuard config if provided
+		if s.WireGuardConfig != "" {
+			if wgPath, wgErr := saveWireGuardConfig(s.WireGuardConfig); wgErr == nil {
+				if !opts.json {
+					fmt.Fprintf(out, "  %s  WireGuard VPN profile saved to %s\n", iconOK, subtleStyle.Render(wgPath))
+				}
+			}
+		}
+
+		// Validate loopback / DNS resolution for local dev domain
+		devDomain := "dev.manova.space"
+		if addrs, err := net.LookupHost(devDomain); err == nil && len(addrs) > 0 {
+			if !opts.json {
+				fmt.Fprintf(out, "  %s  Local dev DNS: %s -> %s\n", iconOK, codeStyle.Render(devDomain), subtleStyle.Render(strings.Join(addrs, ", ")))
+			}
+		} else {
+			if !opts.json {
+				fmt.Fprintf(out, "  %s  Local dev DNS: %s not resolvable (configure /etc/hosts or VPN if offline)\n", iconInfo, codeStyle.Render(devDomain))
+			}
+		}
+
+		// Dev CA trust logic
+		if caddyPath, err := exec.LookPath("caddy"); err == nil {
+			trustCmd := exec.CommandContext(cmd.Context(), caddyPath, "trust")
+			if trustErr := trustCmd.Run(); trustErr == nil {
+				if !opts.json {
+					fmt.Fprintf(out, "  %s  Caddy local root CA trusted\n", iconOK)
+				}
+			} else if !opts.json {
+				fmt.Fprintf(out, "  %s  Caddy root CA trust skipped (requires elevated privileges)\n", iconInfo)
+			}
+		}
+
+		s.CurrentStage = session.StageNetworkConfigured
+		if err := sm.SaveSession(s); err != nil {
+			return err
+		}
+		emitter.Emit(session.StageNetworkConfigured, "completed", "Network and local TLS configured", nil)
+	} else if !opts.json {
+		fmt.Fprintf(out, "  %s  Network & TLS setup ready (cached checkpoint)\n", iconOK)
+	}
+
+	// ── STATE 5: Workspace Initialization & Repository Cloning ────────────────
 	if !isStageCompleted(s.CurrentStage, session.StageReposCloned) {
 		emitter.Emit(session.StageReposCloned, "in_progress", "Cloning workspace repositories", nil)
 		if !opts.json {
-			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 4: Workspace & Repositories ───────────────────────"))
+			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 5: Workspace & Repositories ───────────────────────"))
 			fmt.Fprintf(out, "  Workspace Root: %s\n", subtleStyle.Render(workspaceRoot))
 		}
 
@@ -570,11 +610,11 @@ Actions that will be executed during onboarding:
 		fmt.Fprintf(out, "  %s  Workspace repositories ready (cached checkpoint)\n", iconOK)
 	}
 
-	// ── STATE 5: Cursor MCP & IDE Integration ──────────────────────────────────
+	// ── STATE 6: Cursor MCP & IDE Integration ──────────────────────────────────
 	if !isStageCompleted(s.CurrentStage, session.StageMCPConfigured) {
 		emitter.Emit(session.StageMCPConfigured, "in_progress", "Configuring Cursor MCP environment", nil)
 		if !opts.json {
-			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 5: Cursor MCP & IDE Integration ───────────────────"))
+			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 6: Cursor MCP & IDE Integration ───────────────────"))
 		}
 
 		if err := configureMCPEnvironment(workspaceRoot, s.ForgejoToken, s.UID); err != nil {
@@ -586,6 +626,14 @@ Actions that will be executed during onboarding:
 			fmt.Fprintf(out, "  %s  Symlinked Cursor agent skills and workspace rules\n", iconOK)
 		}
 
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			_ = configureShellEnvironment(home)
+			if !opts.json {
+				fmt.Fprintf(out, "  %s  Configured shell profiles (~/.zshrc, ~/.bashrc) with Go proxy/private settings\n", iconOK)
+			}
+		}
+
 		s.CurrentStage = session.StageMCPConfigured
 		if err := sm.SaveSession(s); err != nil {
 			return err
@@ -595,11 +643,11 @@ Actions that will be executed during onboarding:
 		fmt.Fprintf(out, "  %s  Cursor MCP environment ready (cached checkpoint)\n", iconOK)
 	}
 
-	// ── STATE 6: Local Dev Stack ───────────────────────────────────────────────
+	// ── STATE 7: Local Dev Stack ───────────────────────────────────────────────
 	if !isStageCompleted(s.CurrentStage, session.StageDevStackReady) {
 		emitter.Emit(session.StageDevStackReady, "in_progress", "Checking dev stack startup", nil)
 		if !opts.json {
-			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 6: Local Development Stack ────────────────────────"))
+			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Step 7: Local Development Stack ────────────────────────"))
 		}
 
 		shouldStart := opts.startStack
@@ -629,12 +677,29 @@ Actions that will be executed during onboarding:
 
 	// ── Summary Card ───────────────────────────────────────────────────────────
 	if !opts.json {
+		var extraDetails string
+		totpVal := ""
+		if s.Metadata != nil {
+			for _, k := range []string{"totp_uri", "otpauth", "totp_secret", "totp"} {
+				if v, ok := s.Metadata[k]; ok && v != "" {
+					totpVal = v
+					break
+				}
+			}
+		}
+		if totpVal != "" {
+			extraDetails = fmt.Sprintf("\nAuthelia 2FA:   %s\n                %s",
+				infoStyle.Render("TOTP Enrollment Ready"),
+				subtleStyle.Render(totpVal),
+			)
+		}
+
 		summaryText := fmt.Sprintf(
 			"Developer ID:   %s\n"+
 				"Email:          %s\n"+
 				"Workspace:      %s\n"+
 				"Cursor MCP:     %s\n"+
-				"VPN Profile:    %s\n\n"+
+				"VPN Profile:    %s%s\n\n"+
 				"Next Steps:\n"+
 				"  1. Launch Cursor in this workspace:\n"+
 				"     %s\n"+
@@ -647,6 +712,7 @@ Actions that will be executed during onboarding:
 			subtleStyle.Render(workspaceRoot),
 			successStyle.Render(".cursor/mcp.env (configured)"),
 			infoStyle.Render("~/.config/orbit/wg0.conf"),
+			extraDetails,
 			codeStyle.Render("cursor "+workspaceRoot),
 			codeStyle.Render("orbit status"),
 			codeStyle.Render("orbit dev portal"),
@@ -874,6 +940,48 @@ func saveWireGuardConfig(configData string) (string, error) {
 		return "", err
 	}
 	return wgPath, nil
+}
+
+func configureShellEnvironment(homeDir string) error {
+	if homeDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home dir: %w", err)
+		}
+		homeDir = home
+	}
+
+	rcFiles := []string{".zshrc", ".bashrc"}
+	goprivateLine := `export GOPRIVATE="git.dev.manova.space/*"`
+	goproxyLine := `export GOPROXY="https://proxy.golang.org,direct"`
+
+	for _, rc := range rcFiles {
+		rcPath := filepath.Join(homeDir, rc)
+		var existingContent string
+		if data, err := os.ReadFile(rcPath); err == nil {
+			existingContent = string(data)
+		}
+
+		var additions []string
+		if !strings.Contains(existingContent, "GOPRIVATE=") && !strings.Contains(existingContent, "git.dev.manova.space") {
+			additions = append(additions, goprivateLine)
+		}
+		if !strings.Contains(existingContent, "GOPROXY=") {
+			additions = append(additions, goproxyLine)
+		}
+
+		if len(additions) > 0 {
+			newContent := existingContent
+			if newContent != "" && !strings.HasSuffix(newContent, "\n") {
+				newContent += "\n"
+			}
+			newContent += strings.Join(additions, "\n") + "\n"
+			if err := os.WriteFile(rcPath, []byte(newContent), 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", rcPath, err)
+			}
+		}
+	}
+	return nil
 }
 
 func generateDiagnosticBundle(workspaceRoot string, sm *session.SessionManager, customOutPath string) (string, error) {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -20,15 +21,21 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/session"
 )
 
-func requireNode22(t *testing.T) {
+func requireNode24(t *testing.T) {
 	t.Helper()
 	out, err := exec.Command("node", "-v").Output()
 	if err != nil {
 		t.Skipf("skipping: node not available (%v)", err)
 	}
 	ver := strings.TrimSpace(string(out))
-	if !strings.HasPrefix(ver, "v22.") {
-		t.Skipf("skipping: requires Node.js 22.x for live doctor checks (host has %s)", ver)
+	trimmed := strings.TrimPrefix(ver, "v")
+	parts := strings.Split(trimmed, ".")
+	if len(parts) == 0 {
+		t.Skipf("skipping: could not parse node version %s", ver)
+	}
+	var major int
+	if _, err := fmt.Sscanf(parts[0], "%d", &major); err != nil || major < 24 {
+		t.Skipf("skipping: requires Node.js >= 24.x for live doctor checks (host has %s)", ver)
 	}
 }
 
@@ -58,7 +65,7 @@ func TestOnboardFlagsAndResumePrompt(t *testing.T) {
 }
 
 func TestOnboardNonInteractiveFullProgression(t *testing.T) {
-	requireNode22(t)
+	requireNode24(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -518,7 +525,7 @@ func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
 }
 
 func TestOnboardAutoFixFullProgression(t *testing.T) {
-	requireNode22(t)
+	requireNode24(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -619,3 +626,88 @@ func TestOnboardInteractivePromptDecline(t *testing.T) {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
 }
+
+func TestConfigureShellEnvironment(t *testing.T) {
+	tempHome := t.TempDir()
+
+	if err := configureShellEnvironment(tempHome); err != nil {
+		t.Fatalf("configureShellEnvironment failed: %v", err)
+	}
+
+	for _, rc := range []string{".zshrc", ".bashrc"} {
+		path := filepath.Join(tempHome, rc)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", rc, err)
+		}
+		content := string(data)
+		if !strings.Contains(content, `export GOPRIVATE="git.dev.manova.space/*"`) {
+			t.Errorf("expected GOPRIVATE in %s, got: %s", rc, content)
+		}
+		if !strings.Contains(content, `export GOPROXY="https://proxy.golang.org,direct"`) {
+			t.Errorf("expected GOPROXY in %s, got: %s", rc, content)
+		}
+	}
+
+	// Idempotency check: running again should not duplicate
+	if err := configureShellEnvironment(tempHome); err != nil {
+		t.Fatalf("second configureShellEnvironment call failed: %v", err)
+	}
+
+	for _, rc := range []string{".zshrc", ".bashrc"} {
+		path := filepath.Join(tempHome, rc)
+		data, _ := os.ReadFile(path)
+		content := string(data)
+		if strings.Count(content, "git.dev.manova.space") != 1 {
+			t.Errorf("expected exactly 1 GOPRIVATE in %s, got %d", rc, strings.Count(content, "git.dev.manova.space"))
+		}
+		if strings.Count(content, "proxy.golang.org") != 1 {
+			t.Errorf("expected exactly 1 GOPROXY in %s, got %d", rc, strings.Count(content, "proxy.golang.org"))
+		}
+	}
+}
+
+func TestOnboardTOTPPresentation(t *testing.T) {
+	tempDir := t.TempDir()
+	sessionPath := filepath.Join(tempDir, "session.json")
+	workspaceDir := filepath.Join(tempDir, "workspace")
+	sshDir := filepath.Join(tempDir, "ssh")
+	_ = os.MkdirAll(workspaceDir, 0755)
+	_ = os.MkdirAll(sshDir, 0700)
+
+	// Pre-create session with metadata containing TOTP
+	sm, _ := session.NewSessionManager(sessionPath)
+	s := sm.CreateSession("totp-dev@manova.space", "TOTP Dev")
+	s.UID = "totp-dev"
+	s.CurrentStage = session.StageDevStackReady
+	s.Metadata = map[string]string{
+		"totp_uri": "otpauth://totp/Orbit:totp-dev?secret=JBSWY3DPEHPK3PXP&issuer=Orbit",
+	}
+	_ = sm.SaveSession(s)
+
+	buf := new(bytes.Buffer)
+	cmd := newOnboardCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"--resume",
+		"--session-file", sessionPath,
+		"--workspace", workspaceDir,
+		"--ssh-dir", sshDir,
+		"--skip-stack",
+		"--non-interactive",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("onboard failed: %v\nOutput: %s", err, buf.String())
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Authelia 2FA") {
+		t.Errorf("expected Authelia 2FA in summary card: %s", out)
+	}
+	if !strings.Contains(out, "otpauth://totp/Orbit:totp-dev") {
+		t.Errorf("expected TOTP URI in summary card: %s", out)
+	}
+}
+
