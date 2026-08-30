@@ -138,5 +138,5 @@ func (d *DB) Grants() serverstore.GrantStore {
 
 // RateLimits returns the RateLimitStore repository implementation.
 func (d *DB) RateLimits() serverstore.RateLimitStore {
-	return nil
+	return NewRateLimitStore(d.db)
 }

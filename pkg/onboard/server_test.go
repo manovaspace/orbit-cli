@@ -18,6 +18,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
+	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
 
 func testSecret() []byte {
@@ -940,4 +941,164 @@ func TestServer_AllowedAdminEmails_EnforcesAllowlist(t *testing.T) {
 		t.Fatalf("expected 200 for allowlisted email, got %d", gResp.StatusCode)
 	}
 	gResp.Body.Close()
+}
+
+func TestServer_RateLimit_HardenedReverseProxy(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("secret-key-32-bytes-long-12345678"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		TrustedProxies:   []string{"127.0.0.1/32"},
+		RateLimit:        2, // 2 reqs per window
+		RateInterval:     time.Minute,
+		DisableRateLimit: false,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	client := &http.Client{}
+
+	// Scenario 1: Trusted proxy (127.0.0.1) forwarding client A (203.0.113.1)
+	sendViaTrustedProxy := func(clientIP string) int {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/admin/challenge", strings.NewReader(`{"email":"admin1@manova.space"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("CF-Connecting-IP", clientIP)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	// Client A: 1st request -> 200
+	if code := sendViaTrustedProxy("203.0.113.1"); code != http.StatusOK {
+		t.Errorf("Client A 1st req expected 200, got %d", code)
+	}
+	// Client A: 2nd request -> 200
+	if code := sendViaTrustedProxy("203.0.113.1"); code != http.StatusOK {
+		t.Errorf("Client A 2nd req expected 200, got %d", code)
+	}
+	// Client A: 3rd request -> 429
+	if code := sendViaTrustedProxy("203.0.113.1"); code != http.StatusTooManyRequests {
+		t.Errorf("Client A 3rd req expected 429, got %d", code)
+	}
+
+	// Client B (203.0.113.2) via same trusted proxy is NOT rate limited yet
+	if code := sendViaTrustedProxy("203.0.113.2"); code != http.StatusOK {
+		t.Errorf("Client B 1st req expected 200, got %d", code)
+	}
+}
+
+func TestServer_RateLimit_ChallengeEmailExhaustion(t *testing.T) {
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+	srv, err := NewServer(ServerConfig{
+		Secret:           []byte("secret-key-32-bytes-long-12345678"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		RateLimit:        100, // High IP limit
+		DisableRateLimit: false,
+	})
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	client := &http.Client{}
+
+	sendChallenge := func(email string) int {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/admin/challenge", strings.NewReader(fmt.Sprintf(`{"email":%q}`, email)))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("challenge request failed: %v", err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	targetEmail := "target@manova.space"
+	// Default challenge email limit is 3 requests / 10 minutes
+	if code := sendChallenge(targetEmail); code != http.StatusOK {
+		t.Errorf("1st email challenge expected 200, got %d", code)
+	}
+	if code := sendChallenge(targetEmail); code != http.StatusOK {
+		t.Errorf("2nd email challenge expected 200, got %d", code)
+	}
+	if code := sendChallenge(targetEmail); code != http.StatusOK {
+		t.Errorf("3rd email challenge expected 200, got %d", code)
+	}
+	// 4th challenge for same email should trigger 429
+	if code := sendChallenge(targetEmail); code != http.StatusTooManyRequests {
+		t.Errorf("4th email challenge expected 429 Too Many Requests, got %d", code)
+	}
+
+	// Different email should still be allowed
+	if code := sendChallenge("different@manova.space"); code != http.StatusOK {
+		t.Errorf("different email challenge expected 200, got %d", code)
+	}
+}
+
+func TestServer_RateLimit_SQLitePersistence(t *testing.T) {
+	db := sqlite.NewTestDB(t)
+	mockMailer := &mockMailer{}
+	cm := owner.NewChallengeManager()
+
+	cfg := ServerConfig{
+		Secret:           []byte("secret-key-32-bytes-long-12345678"),
+		ChallengeManager: cm,
+		Mailer:           mockMailer,
+		RateLimitStore:   db.RateLimits(),
+		RateLimit:        2,
+		RateInterval:     time.Minute,
+		DisableRateLimit: false,
+	}
+
+	// Server Instance 1
+	srv1, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("failed to create server 1: %v", err)
+	}
+	ts1 := httptest.NewServer(srv1.Handler())
+	defer ts1.Close()
+
+	// Exhaust 2 allowed requests on Instance 1
+	r1, err := http.Get(ts1.URL + "/health")
+	if err != nil {
+		t.Fatalf("r1 failed: %v", err)
+	}
+	r1.Body.Close()
+	r2, err := http.Get(ts1.URL + "/health")
+	if err != nil {
+		t.Fatalf("r2 failed: %v", err)
+	}
+	r2.Body.Close()
+
+	// Server Instance 2 sharing the SAME SQLite db
+	srv2, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("failed to create server 2: %v", err)
+	}
+	ts2 := httptest.NewServer(srv2.Handler())
+	defer ts2.Close()
+
+	// Request on Instance 2 from same IP should immediately be 429 Too Many Requests
+	r3, err := http.Get(ts2.URL + "/health")
+	if err != nil {
+		t.Fatalf("request to instance 2 failed: %v", err)
+	}
+	defer r3.Body.Close()
+
+	if r3.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("expected status 429 on instance 2 due to persistent sqlite rate limits, got %d", r3.StatusCode)
+	}
 }

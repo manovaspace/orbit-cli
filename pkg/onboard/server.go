@@ -15,8 +15,10 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/ratelimit"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
+	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 )
 
 //go:embed install.sh
@@ -27,21 +29,25 @@ var installLandingHTML []byte
 
 // ServerConfig configures the onboard edge HTTP server.
 type ServerConfig struct {
-	Addr                     string
-	Secret                   []byte
-	Provisioner              provisioner.Provisioner
-	InviteStore              *invite.Store
-	ChallengeManager         *owner.ChallengeManager
-	GrantManager             *owner.GrantManager
-	Mailer                   invite.Mailer
-	DisablePublicChallenges  bool          // When true, rejects unauthenticated /api/v1/admin/challenge requests
-	AllowedAdminEmails       []string      // When non-empty, restricts challenge requests to specific emails
-	RateLimit                int           // Maximum requests per window per IP (default 10)
-	RateInterval             time.Duration // Sliding window duration (default 1 minute)
-	IdempotencyTTL           time.Duration // Retention time for cached claims (default 24h)
-	DisableRateLimit         bool          // Disables rate limiting for tests
-	ReadTimeout              time.Duration
-	WriteTimeout             time.Duration
+	Addr                    string
+	Secret                  []byte
+	Provisioner             provisioner.Provisioner
+	InviteStore             *invite.Store
+	Store                   serverstore.Store
+	RateLimitStore          serverstore.RateLimitStore
+	ChallengeManager        *owner.ChallengeManager
+	GrantManager            *owner.GrantManager
+	Mailer                  invite.Mailer
+	DisablePublicChallenges bool          // When true, rejects unauthenticated /api/v1/admin/challenge requests
+	AllowedAdminEmails      []string      // When non-empty, restricts challenge requests to specific emails
+	RateLimit               int           // Maximum requests per window per IP (default 10)
+	RateInterval            time.Duration // Sliding window duration (default 1 minute)
+	IdempotencyTTL          time.Duration // Retention time for cached claims (default 24h)
+	DisableRateLimit        bool          // Disables rate limiting for tests
+	TrustedProxies          []string      // Trusted reverse proxy CIDRs or IP addresses
+	Limiter                 *ratelimit.Limiter
+	ReadTimeout             time.Duration
+	WriteTimeout            time.Duration
 }
 
 // ErrorResponse defines the standard structured JSON error format.
@@ -101,66 +107,28 @@ func (c *idempotencyCache) Set(key string, resp *provisioner.ClaimResponse, ttl 
 	}
 }
 
-// ipRateLimiter provides in-memory sliding window rate limiting per IP address.
-type ipRateLimiter struct {
-	mu       sync.Mutex
-	limit    int
-	window   time.Duration
-	requests map[string][]time.Time
-}
-
-func newIPRateLimiter(limit int, window time.Duration) *ipRateLimiter {
-	if limit <= 0 {
-		limit = 10
-	}
-	if window <= 0 {
-		window = time.Minute
-	}
-	return &ipRateLimiter{
-		limit:    limit,
-		window:   window,
-		requests: make(map[string][]time.Time),
-	}
-}
-
-func (l *ipRateLimiter) Allow(ip string) (bool, time.Duration) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := time.Now().UTC()
-	cutoff := now.Add(-l.window)
-
-	timestamps := l.requests[ip]
-	valid := make([]time.Time, 0, len(timestamps))
-	for _, t := range timestamps {
-		if t.After(cutoff) {
-			valid = append(valid, t)
-		}
-	}
-
-	if len(valid) >= l.limit {
-		oldest := valid[0]
-		retryAfter := oldest.Add(l.window).Sub(now)
-		if retryAfter < 0 {
-			retryAfter = time.Second
-		}
-		l.requests[ip] = valid
-		return false, retryAfter
-	}
-
-	valid = append(valid, now)
-	l.requests[ip] = valid
-	return true, 0
-}
-
 // Server is the HTTP edge service handling onboarding claims and health status.
 type Server struct {
 	config     ServerConfig
 	mux        *http.ServeMux
 	idemCache  *idempotencyCache
-	limiter    *ipRateLimiter
+	limiter    *ratelimit.Limiter
 	httpServer *http.Server
 	mu         sync.Mutex
+
+	// Tier limit configurations:
+	claimIPLimit         int
+	claimIPWindow        time.Duration
+	claimKeyLimit        int
+	claimKeyWindow       time.Duration
+	challengeIPLimit     int
+	challengeIPWindow    time.Duration
+	challengeEmailLimit  int
+	challengeEmailWindow time.Duration
+	verifyIPLimit        int
+	verifyIPWindow       time.Duration
+	healthIPLimit        int
+	healthIPWindow       time.Duration
 }
 
 // NewServer initializes an onboard edge Server with the provided configuration.
@@ -196,11 +164,60 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		cfg.Mailer = invite.NewMailerFromEnv()
 	}
 
+	rateStore := cfg.RateLimitStore
+	if rateStore == nil && cfg.Store != nil {
+		rateStore = cfg.Store.RateLimits()
+	}
+
+	lim := cfg.Limiter
+	if lim == nil {
+		lim = ratelimit.NewLimiter(rateStore, ratelimit.LimiterOptions{
+			TrustedProxies: cfg.TrustedProxies,
+			DefaultLimit:   cfg.RateLimit,
+			DefaultWindow:  cfg.RateInterval,
+		})
+	}
+
+	// Sensible default tier limits
+	claimIPLimit := 10
+	claimIPWindow := time.Minute
+	challengeIPLimit := 5
+	challengeIPWindow := 5 * time.Minute
+	verifyIPLimit := 10
+	verifyIPWindow := 5 * time.Minute
+	healthIPLimit := 60
+	healthIPWindow := time.Minute
+
+	if cfg.RateLimit > 0 && cfg.RateLimit != 10 {
+		claimIPLimit = cfg.RateLimit
+		challengeIPLimit = cfg.RateLimit
+		verifyIPLimit = cfg.RateLimit
+		healthIPLimit = cfg.RateLimit
+	}
+	if cfg.RateInterval > 0 && cfg.RateInterval != time.Minute {
+		claimIPWindow = cfg.RateInterval
+		challengeIPWindow = cfg.RateInterval
+		verifyIPWindow = cfg.RateInterval
+		healthIPWindow = cfg.RateInterval
+	}
+
 	s := &Server{
-		config:    cfg,
-		mux:       http.NewServeMux(),
-		idemCache: newIdempotencyCache(),
-		limiter:   newIPRateLimiter(cfg.RateLimit, cfg.RateInterval),
+		config:               cfg,
+		mux:                  http.NewServeMux(),
+		idemCache:            newIdempotencyCache(),
+		limiter:              lim,
+		claimIPLimit:         claimIPLimit,
+		claimIPWindow:        claimIPWindow,
+		claimKeyLimit:        5,
+		claimKeyWindow:       10 * time.Minute,
+		challengeIPLimit:     challengeIPLimit,
+		challengeIPWindow:    challengeIPWindow,
+		challengeEmailLimit:  3,
+		challengeEmailWindow: 10 * time.Minute,
+		verifyIPLimit:        verifyIPLimit,
+		verifyIPWindow:       verifyIPWindow,
+		healthIPLimit:        healthIPLimit,
+		healthIPWindow:       healthIPWindow,
 	}
 
 	s.routes()
@@ -228,6 +245,11 @@ func (s *Server) Handler() http.Handler {
 	return s.mux
 }
 
+// Limiter returns the active rate limiter instance.
+func (s *Server) Limiter() *ratelimit.Limiter {
+	return s.limiter
+}
+
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -247,6 +269,16 @@ func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if !s.config.DisableRateLimit && s.limiter != nil {
+		allowed, retryAfter, _ := s.limiter.AllowIP(r.Context(), r, "/health", s.healthIPLimit, s.healthIPWindow)
+		if !allowed {
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", retrySec)
+			return
+		}
+	}
+
 	ctx := r.Context()
 	err := s.config.Provisioner.Health(ctx)
 
@@ -267,13 +299,13 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
-	// 1. Rate Limiting
-	if !s.config.DisableRateLimit {
-		ip := s.getClientIP(r)
-		allowed, retryAfter := s.limiter.Allow(ip)
+	// 1. IP Rate Limiting
+	if !s.config.DisableRateLimit && s.limiter != nil {
+		allowed, retryAfter, _ := s.limiter.AllowIP(r.Context(), r, "/api/v1/onboard/claim", s.claimIPLimit, s.claimIPWindow)
 		if !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
-			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", int(retryAfter.Seconds())+1)
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", retrySec)
 			return
 		}
 	}
@@ -286,7 +318,18 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Idempotency Key Determination & Cache Lookup
+	// 3. Token / Key Rate Limiting
+	if !s.config.DisableRateLimit && s.limiter != nil && req.InviteToken != "" {
+		allowed, retryAfter, _ := s.limiter.AllowKey(r.Context(), req.InviteToken, "/api/v1/onboard/claim/token", s.claimKeyLimit, s.claimKeyWindow)
+		if !allowed {
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded for token, please try again later", retrySec)
+			return
+		}
+	}
+
+	// 4. Idempotency Key Determination & Cache Lookup
 	idempKey := r.Header.Get("Idempotency-Key")
 	if idempKey == "" {
 		idempKey = r.Header.Get("X-Idempotency-Key")
@@ -304,7 +347,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 4. Token validation
+	// 5. Token validation
 	if req.InviteToken == "" {
 		writeJSONError(w, http.StatusBadRequest, "missing invite_token", 0)
 		return
@@ -328,7 +371,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5. Revocation check via Store (if configured)
+	// 6. Revocation check via Store (if configured)
 	if s.config.InviteStore != nil {
 		rec, err := s.config.InviteStore.GetInvite(claims.ID)
 		if err == nil && rec != nil && rec.Revoked {
@@ -337,7 +380,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 6. Enrich request with validated claims data
+	// 7. Enrich request with validated claims data
 	req.Email = claims.Email
 	if req.DisplayName == "" {
 		req.DisplayName = claims.DisplayName
@@ -350,7 +393,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		req.DesiredUID = strings.Split(claims.Email, "@")[0]
 	}
 
-	// 7. Invoke Provisioner
+	// 8. Invoke Provisioner
 	resp, err := s.config.Provisioner.Provision(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, provisioner.ErrUserAlreadyExists) {
@@ -365,7 +408,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 8. Cache response for idempotency replay
+	// 9. Cache response for idempotency replay
 	resp.IdempotentReplay = false
 	if idempKey != "" {
 		s.idemCache.Set(idempKey, resp, s.config.IdempotencyTTL)
@@ -375,13 +418,13 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
-	// 1. Rate Limiting
-	if !s.config.DisableRateLimit {
-		ip := s.getClientIP(r)
-		allowed, retryAfter := s.limiter.Allow(ip)
+	// 1. IP Rate Limiting
+	if !s.config.DisableRateLimit && s.limiter != nil {
+		allowed, retryAfter, _ := s.limiter.AllowIP(r.Context(), r, "/api/v1/admin/challenge", s.challengeIPLimit, s.challengeIPWindow)
 		if !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
-			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", int(retryAfter.Seconds())+1)
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", retrySec)
 			return
 		}
 	}
@@ -404,13 +447,24 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Security: Check if public challenges are disabled
+	// 3. Email Rate Limiting
+	if !s.config.DisableRateLimit && s.limiter != nil {
+		allowed, retryAfter, _ := s.limiter.AllowKey(r.Context(), normEmail, "/api/v1/admin/challenge/email", s.challengeEmailLimit, s.challengeEmailWindow)
+		if !allowed {
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, fmt.Sprintf("rate limit exceeded for email %s, please try again later", normEmail), retrySec)
+			return
+		}
+	}
+
+	// 4. Security: Check if public challenges are disabled
 	if s.config.DisablePublicChallenges {
 		writeJSONError(w, http.StatusForbidden, "public challenge requests are disabled for security; please use an owner-issued 8-digit admin grant code (orbit admin grant <email>)", 0)
 		return
 	}
 
-	// 4. Security: Check allowlist if configured
+	// 5. Security: Check allowlist if configured
 	if len(s.config.AllowedAdminEmails) > 0 {
 		allowed := false
 		for _, ae := range s.config.AllowedAdminEmails {
@@ -425,7 +479,7 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 5. Create Challenge
+	// 6. Create Challenge
 	if s.config.ChallengeManager == nil {
 		writeJSONError(w, http.StatusInternalServerError, "challenge manager not initialized", 0)
 		return
@@ -437,7 +491,7 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6. Dispatch Email via Mailer
+	// 7. Dispatch Email via Mailer
 	if s.config.Mailer == nil {
 		writeJSONError(w, http.StatusInternalServerError, "mailer service not configured", 0)
 		return
@@ -465,13 +519,13 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
-	// 1. Rate Limiting
-	if !s.config.DisableRateLimit {
-		ip := s.getClientIP(r)
-		allowed, retryAfter := s.limiter.Allow(ip)
+	// 1. IP Rate Limiting
+	if !s.config.DisableRateLimit && s.limiter != nil {
+		allowed, retryAfter, _ := s.limiter.AllowIP(r.Context(), r, "/api/v1/admin/verify", s.verifyIPLimit, s.verifyIPWindow)
 		if !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
-			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", int(retryAfter.Seconds())+1)
+			retrySec := int(retryAfter.Seconds()) + 1
+			w.Header().Set("Retry-After", strconv.Itoa(retrySec))
+			writeJSONError(w, http.StatusTooManyRequests, "rate limit exceeded, please try again later", retrySec)
 			return
 		}
 	}
@@ -626,12 +680,8 @@ func (s *Server) handleAdminGrantList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-		return strings.TrimSpace(xrip)
+	if s.limiter != nil {
+		return s.limiter.ExtractClientIP(r)
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
