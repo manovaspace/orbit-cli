@@ -58,10 +58,10 @@ type GoHealer struct {
 	IsRoot  func() bool
 }
 
-// NewGoHealer creates a new GoHealer instance with default parameters (Go 1.24.0).
+// NewGoHealer creates a new GoHealer instance with default parameters (Go 1.26.4).
 func NewGoHealer() *GoHealer {
 	return &GoHealer{
-		Version: "1.24.0",
+		Version: "1.26.4",
 		GOOS:    runtime.GOOS,
 		GOARCH:  runtime.GOARCH,
 		IsRoot:  defaultIsRoot,
@@ -70,7 +70,7 @@ func NewGoHealer() *GoHealer {
 
 // Name returns the identifier of the healer.
 func (h *GoHealer) Name() string {
-	return "Go 1.24"
+	return "Go 1.26"
 }
 
 // CanHeal checks whether the result represents a missing or outdated Go installation.
@@ -91,7 +91,7 @@ func (h *GoHealer) CanHeal(result doctor.DiagnosticResult) bool {
 	return false
 }
 
-// Heal installs Go 1.24 to /usr/local/go and configures environment PATH.
+// Heal installs Go 1.26 to /usr/local/go and configures environment PATH.
 func (h *GoHealer) Heal(ctx context.Context, progress func(step string)) error {
 	if progress == nil {
 		progress = func(string) {}
@@ -110,13 +110,13 @@ func (h *GoHealer) Heal(ctx context.Context, progress func(step string)) error {
 	if goarch == "" {
 		goarch = runtime.GOARCH
 	}
-	if goarch != "amd64" && goarch != "arm64" {
-		return fmt.Errorf("unsupported architecture for Go auto-healing: %s (supported: amd64, arm64)", goarch)
+	if goarch != "amd64" {
+		return fmt.Errorf("unsupported architecture for Go auto-healing: %s (supported: amd64)", goarch)
 	}
 
 	version := h.Version
 	if version == "" {
-		version = "1.24.0"
+		version = "1.26.4"
 	}
 
 	isRootUser := defaultIsRoot()
