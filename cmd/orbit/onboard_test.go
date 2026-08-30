@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,6 +19,18 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 )
+
+func requireNode22(t *testing.T) {
+	t.Helper()
+	out, err := exec.Command("node", "-v").Output()
+	if err != nil {
+		t.Skipf("skipping: node not available (%v)", err)
+	}
+	ver := strings.TrimSpace(string(out))
+	if !strings.HasPrefix(ver, "v22.") {
+		t.Skipf("skipping: requires Node.js 22.x for live doctor checks (host has %s)", ver)
+	}
+}
 
 func testSigningSecret() []byte {
 	return []byte("test-super-secret-signing-key-32bytes-long!")
@@ -45,6 +58,7 @@ func TestOnboardFlagsAndResumePrompt(t *testing.T) {
 }
 
 func TestOnboardNonInteractiveFullProgression(t *testing.T) {
+	requireNode22(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -504,6 +518,7 @@ func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
 }
 
 func TestOnboardAutoFixFullProgression(t *testing.T) {
+	requireNode22(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")

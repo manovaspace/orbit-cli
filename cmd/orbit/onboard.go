@@ -127,7 +127,7 @@ Pro capabilities:
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Developer display name")
 	cmd.Flags().StringVar(&opts.email, "email", "", "Developer email address")
 	cmd.Flags().StringVarP(&opts.uid, "uid", "u", "", "Desired username / UID")
-	cmd.Flags().StringVar(&opts.edgeURL, "edge-url", "", "Onboarding edge gateway URL (default: $ORBIT_SERVER or https://orbit.manova.space)")
+	cmd.Flags().StringVar(&opts.edgeURL, "edge-url", "", "Onboarding edge gateway URL (default: $ORBIT_SERVER or http://localhost:8080)")
 	cmd.Flags().StringVarP(&opts.edgeURL, "server", "s", "", "Orbit server URL (alias for --edge-url)")
 	cmd.Flags().StringVar(&opts.workspace, "workspace", "", "Target workspace root directory")
 	cmd.Flags().StringVar(&opts.manifest, "manifest", "", "Path to workspace.yaml manifest")

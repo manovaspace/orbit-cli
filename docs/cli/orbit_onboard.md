@@ -25,7 +25,7 @@ orbit onboard [flags]
   -f, --auto-fix                         Automatically install missing prerequisites and toolchain dependencies
       --diag-bundle string[="default"]   Generate a sanitized diagnostic tar.gz bundle (optional filename)
       --dry-run                          Run pre-flight check and preview onboarding actions without making changes
-      --edge-url string                  Onboarding edge gateway URL (default: $ORBIT_SERVER or https://orbit.manova.space)
+      --edge-url string                  Onboarding edge gateway URL (default: $ORBIT_SERVER or http://localhost:8080)
       --email string                     Developer email address
   -h, --help                             help for onboard
       --ignore-and-remove-checkpoint     Discard saved incomplete session checkpoint and start fresh
