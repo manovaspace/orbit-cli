@@ -123,7 +123,7 @@ func (d *DB) Close() error {
 
 // Invites returns the InviteStore repository implementation.
 func (d *DB) Invites() serverstore.InviteStore {
-	return nil
+	return NewInviteStore(d.db)
 }
 
 // Challenges returns the ChallengeStore repository implementation.
