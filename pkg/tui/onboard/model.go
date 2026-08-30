@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/session"
@@ -82,7 +83,7 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 
 	// Determine starting stage
 	startStage := sess.CurrentStage
-	if startStage == "" || startStage == session.StageInit {
+	if !opts.Resume || startStage == "" || startStage == session.StageInit {
 		startStage = session.StageWelcome
 		sess.CurrentStage = startStage
 	}
@@ -104,12 +105,22 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		StageUpdates:   make(map[session.Stage]func(m *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd)),
 	}
 
+	// Wire Welcome stage component
+	welcomeModel := NewWelcomeModel(m)
+	m.StageViews[session.StageWelcome] = func(w *WizardModel) string {
+		return welcomeModel.View()
+	}
+	m.StageUpdates[session.StageWelcome] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+		_, cmd := welcomeModel.Update(msg)
+		return w, cmd
+	}
+
 	return m
 }
 
 // Init initializes the Bubble Tea program with the spinner tick command.
 func (m *WizardModel) Init() tea.Cmd {
-	return m.Spinner.Tick
+	return tea.Batch(m.Spinner.Tick, textinput.Blink)
 }
 
 // SetStage transitions the wizard to a new stage and persists a checkpoint.
