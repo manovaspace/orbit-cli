@@ -243,7 +243,7 @@ func newInviteCreateCmd() *cobra.Command {
 					ExpiresAt:      claims.ExpiresAt,
 					ExpiresInHuman: invite.FormatRemaining(time.Until(claims.ExpiresAt)),
 					CLICommand:     fmt.Sprintf("orbit onboard --token %s", tokenStr),
-					CurlCommand:    fmt.Sprintf("curl -fsSL https://get.manova.space | bash -s -- onboard --token %s", tokenStr),
+					CurlCommand:    fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", tokenStr),
 				}
 
 				if sendErr := mailer.SendInvite(cmd.Context(), claims.Email, emailData); sendErr != nil {
