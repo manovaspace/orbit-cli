@@ -16,7 +16,7 @@ func TestRenderInviteEmail(t *testing.T) {
 		ExpiresAt:      time.Now().Add(7 * 24 * time.Hour).UTC(),
 		ExpiresInHuman: "7 days",
 		CLICommand:     "orbit onboard --token 9x7k2m4p",
-		CurlCommand:    "curl -fsSL https://get.manova.space | bash -s -- onboard --token 9x7k2m4p",
+		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- onboard --token 9x7k2m4p",
 	}
 
 	subject, textBody, htmlBody, err := RenderInviteEmail(data)
@@ -24,12 +24,13 @@ func TestRenderInviteEmail(t *testing.T) {
 		t.Fatalf("RenderInviteEmail returned unexpected error: %v", err)
 	}
 
-	// Verify Subject
-	if !strings.Contains(subject, "Manova") || !strings.Contains(subject, "9x7k2m4p") {
-		t.Errorf("expected subject to contain token and Manova, got %q", subject)
+	if subject != "Welcome to Manova — developer workspace invitation" {
+		t.Errorf("expected exact subject, got %q", subject)
+	}
+	if strings.Contains(subject, data.Token) {
+		t.Fatal("subject leaked token")
 	}
 
-	// Verify PlainText Body
 	if !strings.Contains(textBody, "Alex Smith") {
 		t.Errorf("textBody missing recipient name: %s", textBody)
 	}
@@ -40,7 +41,6 @@ func TestRenderInviteEmail(t *testing.T) {
 		t.Errorf("textBody missing CLI command: %s", textBody)
 	}
 
-	// Verify HTML Body
 	if !strings.Contains(htmlBody, "Alex Smith") {
 		t.Errorf("htmlBody missing recipient name: %s", htmlBody)
 	}
@@ -50,8 +50,11 @@ func TestRenderInviteEmail(t *testing.T) {
 	if !strings.Contains(htmlBody, data.CLICommand) {
 		t.Errorf("htmlBody missing CLI command: %s", htmlBody)
 	}
-	if !strings.Contains(htmlBody, "#09090b") || !strings.Contains(htmlBody, "Manova") {
+	if !strings.Contains(htmlBody, "#fafafa") || !strings.Contains(htmlBody, "#2563eb") {
 		t.Errorf("htmlBody missing expected styling: %s", htmlBody)
+	}
+	if strings.Contains(htmlBody, "#09090b") {
+		t.Fatal("htmlBody still uses zinc dark palette")
 	}
 }
 
@@ -91,13 +94,13 @@ func TestRenderOwnerChallengeEmail(t *testing.T) {
 		t.Fatalf("RenderOwnerChallengeEmail returned unexpected error: %v", err)
 	}
 
-	// Verify Subject
-	expectedSubject := "Orbit Platform — Server Ownership Verification Code (749102)"
-	if subject != expectedSubject {
-		t.Errorf("expected subject %q, got %q", expectedSubject, subject)
+	if subject != "Orbit — server ownership verification" {
+		t.Errorf("expected subject %q, got %q", "Orbit — server ownership verification", subject)
+	}
+	if strings.Contains(subject, "749102") {
+		t.Fatal("subject leaked OTP code")
 	}
 
-	// Verify PlainText Body
 	if !strings.Contains(textBody, "749102") {
 		t.Errorf("textBody missing OTP code: %s", textBody)
 	}
@@ -110,25 +113,18 @@ func TestRenderOwnerChallengeEmail(t *testing.T) {
 	if !strings.Contains(textBody, "mail.manova.space") {
 		t.Errorf("textBody missing server host: %s", textBody)
 	}
-	if !strings.Contains(textBody, "SECURITY NOTICE") {
-		t.Errorf("textBody missing security notice: %s", textBody)
-	}
 
-	// Verify HTML Body
 	if !strings.Contains(htmlBody, "749102") {
 		t.Errorf("htmlBody missing OTP code: %s", htmlBody)
 	}
 	if !strings.Contains(htmlBody, "alirezaopmc@gmail.com") {
 		t.Errorf("htmlBody missing owner email: %s", htmlBody)
 	}
-	if !strings.Contains(htmlBody, "#09090b") || !strings.Contains(htmlBody, "#18181b") || !strings.Contains(htmlBody, "#27272a") {
-		t.Errorf("htmlBody missing expected dark theme palette: %s", htmlBody)
+	if !strings.Contains(htmlBody, "#fafafa") || !strings.Contains(htmlBody, "#2563eb") {
+		t.Errorf("htmlBody missing expected styling: %s", htmlBody)
 	}
-	if !strings.Contains(htmlBody, "#38bdf8") && !strings.Contains(htmlBody, "#10b981") {
-		t.Errorf("htmlBody missing accent styling: %s", htmlBody)
-	}
-	if !strings.Contains(htmlBody, "Security Notice") {
-		t.Errorf("htmlBody missing security notice: %s", htmlBody)
+	if strings.Contains(htmlBody, "#09090b") {
+		t.Fatal("htmlBody still uses zinc dark palette")
 	}
 }
 
@@ -143,8 +139,8 @@ func TestRenderOwnerChallengeEmail_Defaults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(subject, "555123") {
-		t.Errorf("expected subject to contain code 555123, got %q", subject)
+	if strings.Contains(subject, "555123") {
+		t.Errorf("subject must not contain OTP code, got %q", subject)
 	}
 	if !strings.Contains(textBody, "10 minutes") {
 		t.Errorf("expected default 10 minutes in textBody: %s", textBody)
@@ -165,4 +161,3 @@ func TestRenderOwnerChallengeEmail_EmptyCode(t *testing.T) {
 		t.Fatal("expected error for empty OTPCode, got nil")
 	}
 }
-
