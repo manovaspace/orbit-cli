@@ -17,7 +17,6 @@ orbit admin init [email] [flags]
 
 ```
   -c, --code string     6-digit verification code (for non-interactive execution)
-      --config string   Custom path to configuration file
   -f, --force           Force re-initialization even if already verified
   -h, --help            help for init
   -n, --name string     Owner display name (e.g. 'Alex Smith')
@@ -25,6 +24,12 @@ orbit admin init [email] [flags]
   -o, --owner string    Owner email address (e.g. admin@example.com)
   -s, --server string   Orbit server URL (e.g. https://orbit.manova.space)
       --store string    Custom path to owner storage vault file
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
 ```
 
 ### SEE ALSO

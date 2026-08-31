@@ -15,6 +15,7 @@ orbit staff disable <uid> [flags]
 ### Options inherited from parent commands
 
 ```
+      --config string        Custom path to Orbit CLI configuration file
       --owner-store string   path to owner.json vault
       --server string        staff server URL (or ORBIT_STAFF_URL)
 ```

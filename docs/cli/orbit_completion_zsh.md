@@ -12,6 +12,12 @@ orbit completion zsh [flags]
   -h, --help   help for zsh
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit completion](orbit_completion.md)	 - Generate zsh autocompletion

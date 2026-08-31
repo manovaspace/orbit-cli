@@ -14,6 +14,12 @@ Create, list, update, disable, enable, delete, recreate, and reset passwords for
       --server string        staff server URL (or ORBIT_STAFF_URL)
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator

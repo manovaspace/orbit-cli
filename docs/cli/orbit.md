@@ -13,7 +13,8 @@ orbit [flags]
 ### Options
 
 ```
-  -h, --help   help for orbit
+      --config string   Custom path to Orbit CLI configuration file
+  -h, --help            help for orbit
 ```
 
 ### SEE ALSO

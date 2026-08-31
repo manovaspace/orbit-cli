@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -183,68 +182,78 @@ and serves the canonical developer onboarding script.`,
 	return cmd
 }
 
-func runServer(cmd *cobra.Command, opts *serverOptions) error {
-	out := cmd.OutOrStdout()
-
-	// 1. Resolve configuration from file and env
-	var smtpPortInt int
-	if opts.smtpPort != "" {
-		if p, err := strconv.Atoi(opts.smtpPort); err == nil {
-			smtpPortInt = p
+func resolveSMTPConfig(opts *serverOptions) invite.MailerConfig {
+	smtpHost := strings.TrimSpace(opts.smtpHost)
+	if smtpHost == "" {
+		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_HOST")); v != "" {
+			smtpHost = v
+		} else if v := strings.TrimSpace(os.Getenv("SMTP_HOST")); v != "" {
+			smtpHost = v
+		} else {
+			smtpHost = "mail.manova.space"
 		}
 	}
 
-	cfg, _ := config.Resolve(config.ResolveOptions{
-		ConfigPath: opts.configPath,
-		SMTPHost:   opts.smtpHost,
-		SMTPPort:   smtpPortInt,
-		SMTPUser:   opts.smtpUser,
-		SMTPPass:   opts.smtpPass,
-		SMTPFrom:   opts.smtpFrom,
-	})
-
-	// 2. Resolve SMTP parameters
-	smtpHost := opts.smtpHost
-	if smtpHost == "" && cfg != nil && cfg.SMTP.Host != "" {
-		smtpHost = cfg.SMTP.Host
-	}
-	if smtpHost == "" {
-		smtpHost = "mail.manova.space"
-	}
-
-	smtpPort := opts.smtpPort
-	if smtpPort == "" && cfg != nil && cfg.SMTP.Port > 0 {
-		smtpPort = strconv.Itoa(cfg.SMTP.Port)
-	}
+	smtpPort := strings.TrimSpace(opts.smtpPort)
 	if smtpPort == "" {
-		smtpPort = "587"
+		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_PORT")); v != "" {
+			smtpPort = v
+		} else if v := strings.TrimSpace(os.Getenv("SMTP_PORT")); v != "" {
+			smtpPort = v
+		} else {
+			smtpPort = "587"
+		}
 	}
 
-	smtpUser := opts.smtpUser
-	if smtpUser == "" && cfg != nil && cfg.SMTP.User != "" {
-		smtpUser = cfg.SMTP.User
+	smtpUser := strings.TrimSpace(opts.smtpUser)
+	if smtpUser == "" {
+		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_USER")); v != "" {
+			smtpUser = v
+		} else if v := strings.TrimSpace(os.Getenv("SMTP_USER")); v != "" {
+			smtpUser = v
+		}
 	}
 
-	smtpPass := opts.smtpPass
-	if smtpPass == "" && cfg != nil && cfg.SMTP.Pass != "" {
-		smtpPass = cfg.SMTP.Pass
+	smtpPass := strings.TrimSpace(opts.smtpPass)
+	if smtpPass == "" {
+		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_PASS")); v != "" {
+			smtpPass = v
+		} else if v := strings.TrimSpace(os.Getenv("SMTP_PASS")); v != "" {
+			smtpPass = v
+		}
 	}
 
-	smtpFrom := opts.smtpFrom
-	if smtpFrom == "" && cfg != nil && cfg.SMTP.From != "" {
-		smtpFrom = cfg.SMTP.From
-	}
+	smtpFrom := strings.TrimSpace(opts.smtpFrom)
 	if smtpFrom == "" {
-		smtpFrom = "Orbit Platform <noreply@manova.space>"
+		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_FROM")); v != "" {
+			smtpFrom = v
+		} else if v := strings.TrimSpace(os.Getenv("SMTP_FROM")); v != "" {
+			smtpFrom = v
+		} else {
+			smtpFrom = "Orbit Platform <noreply@manova.space>"
+		}
 	}
 
-	mailer := invite.NewSMTPMailer(invite.MailerConfig{
+	return invite.MailerConfig{
 		Host: smtpHost,
 		Port: smtpPort,
 		User: smtpUser,
 		Pass: smtpPass,
 		From: smtpFrom,
+	}
+}
+
+func runServer(cmd *cobra.Command, opts *serverOptions) error {
+	out := cmd.OutOrStdout()
+
+	// 1. Resolve workstation configuration from file
+	_, _ = config.Resolve(config.ResolveOptions{
+		ConfigPath: opts.configPath,
 	})
+
+	// 2. Resolve SMTP parameters independently (CLI Flags -> Env Vars -> Defaults)
+	smtpCfg := resolveSMTPConfig(opts)
+	mailer := invite.NewSMTPMailer(smtpCfg)
 
 	// 3. Resolve signing secret
 	secret, secretSource := resolveSigningSecret(opts.signingSecret, opts.ownerStorePath)
@@ -329,7 +338,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	fmt.Fprintln(out, titleStyle.Render("Orbit Infrastructure Daemon (orbit-server)"))
 	fmt.Fprintf(out, "  %s  HTTP listener active on http://%s\n", iconOK, boldStyle.Render(actualAddr))
 	fmt.Fprintf(out, "  %s  SQLite database: %s\n", iconOK, subtleStyle.Render(dbPath))
-	fmt.Fprintf(out, "  %s  Mail gateway: %s\n", iconOK, subtleStyle.Render(smtpHost+":"+smtpPort))
+	fmt.Fprintf(out, "  %s  Mail gateway: %s\n", iconOK, subtleStyle.Render(smtpCfg.Host+":"+smtpCfg.Port))
 	if secretSource != "" {
 		fmt.Fprintf(out, "  %s  Signing secret: %s\n\n", iconOK, infoStyle.Render(secretSource))
 	}

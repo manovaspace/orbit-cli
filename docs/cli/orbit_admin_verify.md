@@ -13,13 +13,18 @@ orbit admin verify [email] [code] [flags]
 ### Options
 
 ```
-  -c, --code string     6-digit verification code
-      --config string   Custom path to configuration file
-  -f, --force           Force re-verification even if already verified
-  -h, --help            help for verify
-  -n, --name string     Owner display name
-  -o, --owner string    Owner email address
-      --store string    Custom path to owner storage vault file
+  -c, --code string    6-digit verification code
+  -f, --force          Force re-verification even if already verified
+  -h, --help           help for verify
+  -n, --name string    Owner display name
+  -o, --owner string   Owner email address
+      --store string   Custom path to owner storage vault file
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
 ```
 
 ### SEE ALSO

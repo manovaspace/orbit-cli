@@ -13,6 +13,12 @@ orbit assets status [scope] [flags]
       --manifest string   Path to workspace.yaml
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit assets](orbit_assets.md)	 - Sync gitignored media with private Cloudflare R2

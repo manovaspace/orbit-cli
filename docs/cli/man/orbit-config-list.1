@@ -3,23 +3,27 @@
 
 .SH NAME
 .PP
-orbit-config-set - Set a configuration key-value pair
+orbit-config-list - List all resolved configuration entries and their sources
 
 
 .SH SYNOPSIS
 .PP
-\fBorbit config set   [flags]\fP
+\fBorbit config list [flags]\fP
 
 
 .SH DESCRIPTION
 .PP
-Update a specific configuration setting by key and persist it using comment-preserving AST yaml.
+Displays all active configuration parameters across defaults, configuration file, environment variables, and flags.
 
 
 .SH OPTIONS
 .PP
+\fB-f\fP, \fB--format\fP="table"
+	Output format: table, json, or yaml
+
+.PP
 \fB-h\fP, \fB--help\fP[=false]
-	help for set
+	help for list
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS

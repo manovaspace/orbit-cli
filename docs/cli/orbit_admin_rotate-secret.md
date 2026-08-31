@@ -19,6 +19,12 @@ orbit admin rotate-secret [flags]
   -y, --yes            Skip interactive confirmation prompt
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit admin](orbit_admin.md)	 - Manage platform ownership verification and root cryptographic secrets

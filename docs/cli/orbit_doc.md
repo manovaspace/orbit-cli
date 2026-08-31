@@ -18,6 +18,12 @@ orbit doc [flags]
   -o, --output string   Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages) (default "./docs/cli")
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator

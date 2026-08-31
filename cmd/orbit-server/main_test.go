@@ -612,3 +612,133 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 }
 
+func TestResolveSMTPConfig(t *testing.T) {
+	// Case 1: Defaults when flags and env are empty
+	t.Run("Defaults", func(t *testing.T) {
+		t.Setenv("ORBIT_SMTP_HOST", "")
+		t.Setenv("SMTP_HOST", "")
+		t.Setenv("ORBIT_SMTP_PORT", "")
+		t.Setenv("SMTP_PORT", "")
+		t.Setenv("ORBIT_SMTP_USER", "")
+		t.Setenv("SMTP_USER", "")
+		t.Setenv("ORBIT_SMTP_PASS", "")
+		t.Setenv("SMTP_PASS", "")
+		t.Setenv("ORBIT_SMTP_FROM", "")
+		t.Setenv("SMTP_FROM", "")
+
+		cfg := resolveSMTPConfig(&serverOptions{})
+		if cfg.Host != "mail.manova.space" {
+			t.Errorf("expected default host 'mail.manova.space', got %q", cfg.Host)
+		}
+		if cfg.Port != "587" {
+			t.Errorf("expected default port '587', got %q", cfg.Port)
+		}
+		if cfg.User != "" {
+			t.Errorf("expected empty user, got %q", cfg.User)
+		}
+		if cfg.Pass != "" {
+			t.Errorf("expected empty pass, got %q", cfg.Pass)
+		}
+		if cfg.From != "Orbit Platform <noreply@manova.space>" {
+			t.Errorf("expected default from 'Orbit Platform <noreply@manova.space>', got %q", cfg.From)
+		}
+	})
+
+	// Case 2: CLI Flags take precedence over environment variables
+	t.Run("FlagsTakePrecedence", func(t *testing.T) {
+		t.Setenv("ORBIT_SMTP_HOST", "env.orbit.host")
+		t.Setenv("SMTP_HOST", "env.smtp.host")
+		t.Setenv("ORBIT_SMTP_PORT", "2525")
+		t.Setenv("ORBIT_SMTP_USER", "envuser")
+		t.Setenv("ORBIT_SMTP_PASS", "envpass")
+		t.Setenv("ORBIT_SMTP_FROM", "env@orbit.space")
+
+		opts := &serverOptions{
+			smtpHost: "flag.host.org",
+			smtpPort: "465",
+			smtpUser: "flaguser",
+			smtpPass: "flagpass",
+			smtpFrom: "flag@host.org",
+		}
+		cfg := resolveSMTPConfig(opts)
+		if cfg.Host != "flag.host.org" {
+			t.Errorf("expected flag host 'flag.host.org', got %q", cfg.Host)
+		}
+		if cfg.Port != "465" {
+			t.Errorf("expected flag port '465', got %q", cfg.Port)
+		}
+		if cfg.User != "flaguser" {
+			t.Errorf("expected flag user 'flaguser', got %q", cfg.User)
+		}
+		if cfg.Pass != "flagpass" {
+			t.Errorf("expected flag pass 'flagpass', got %q", cfg.Pass)
+		}
+		if cfg.From != "flag@host.org" {
+			t.Errorf("expected flag from 'flag@host.org', got %q", cfg.From)
+		}
+	})
+
+	// Case 3: ORBIT_SMTP_* takes precedence over SMTP_*
+	t.Run("OrbitEnvPrecedenceOverStandardEnv", func(t *testing.T) {
+		t.Setenv("ORBIT_SMTP_HOST", "orbit.relay.org")
+		t.Setenv("SMTP_HOST", "standard.relay.org")
+		t.Setenv("ORBIT_SMTP_PORT", "2526")
+		t.Setenv("SMTP_PORT", "25")
+		t.Setenv("ORBIT_SMTP_USER", "orbituser")
+		t.Setenv("SMTP_USER", "stduser")
+		t.Setenv("ORBIT_SMTP_PASS", "orbitpass")
+		t.Setenv("SMTP_PASS", "stdpass")
+		t.Setenv("ORBIT_SMTP_FROM", "Orbit <orbit@manova.space>")
+		t.Setenv("SMTP_FROM", "Standard <std@manova.space>")
+
+		cfg := resolveSMTPConfig(&serverOptions{})
+		if cfg.Host != "orbit.relay.org" {
+			t.Errorf("expected 'orbit.relay.org', got %q", cfg.Host)
+		}
+		if cfg.Port != "2526" {
+			t.Errorf("expected '2526', got %q", cfg.Port)
+		}
+		if cfg.User != "orbituser" {
+			t.Errorf("expected 'orbituser', got %q", cfg.User)
+		}
+		if cfg.Pass != "orbitpass" {
+			t.Errorf("expected 'orbitpass', got %q", cfg.Pass)
+		}
+		if cfg.From != "Orbit <orbit@manova.space>" {
+			t.Errorf("expected 'Orbit <orbit@manova.space>', got %q", cfg.From)
+		}
+	})
+
+	// Case 4: Standard SMTP_* fallback
+	t.Run("StandardEnvFallback", func(t *testing.T) {
+		t.Setenv("ORBIT_SMTP_HOST", "")
+		t.Setenv("SMTP_HOST", "fallback.relay.org")
+		t.Setenv("ORBIT_SMTP_PORT", "")
+		t.Setenv("SMTP_PORT", "8587")
+		t.Setenv("ORBIT_SMTP_USER", "")
+		t.Setenv("SMTP_USER", "fallbackuser")
+		t.Setenv("ORBIT_SMTP_PASS", "")
+		t.Setenv("SMTP_PASS", "fallbackpass")
+		t.Setenv("ORBIT_SMTP_FROM", "")
+		t.Setenv("SMTP_FROM", "Fallback <fallback@manova.space>")
+
+		cfg := resolveSMTPConfig(&serverOptions{})
+		if cfg.Host != "fallback.relay.org" {
+			t.Errorf("expected 'fallback.relay.org', got %q", cfg.Host)
+		}
+		if cfg.Port != "8587" {
+			t.Errorf("expected '8587', got %q", cfg.Port)
+		}
+		if cfg.User != "fallbackuser" {
+			t.Errorf("expected 'fallbackuser', got %q", cfg.User)
+		}
+		if cfg.Pass != "fallbackpass" {
+			t.Errorf("expected 'fallbackpass', got %q", cfg.Pass)
+		}
+		if cfg.From != "Fallback <fallback@manova.space>" {
+			t.Errorf("expected 'Fallback <fallback@manova.space>', got %q", cfg.From)
+		}
+	})
+}
+
+

@@ -12,6 +12,12 @@ Executes Docker Compose and orchestration scripts located in orbit/orbit-infra t
   -h, --help   help for dev
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator

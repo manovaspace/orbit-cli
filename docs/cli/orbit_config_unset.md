@@ -1,19 +1,19 @@
-## orbit config set
+## orbit config unset
 
-Set a configuration key-value pair
+Unset a configuration key
 
 ### Synopsis
 
-Update a specific configuration setting by key and persist it using comment-preserving AST yaml.
+Remove a custom key or reset a core domain property to default in the configuration file.
 
 ```
-orbit config set <key> <value> [flags]
+orbit config unset <key> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for set
+  -h, --help   help for unset
 ```
 
 ### Options inherited from parent commands

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -26,6 +27,15 @@ func getConfigPath(cmd *cobra.Command) string {
 	return config.DefaultConfigPath()
 }
 
+func isSecretKey(key string) bool {
+	k := strings.ToLower(key)
+	return strings.Contains(k, "pass") ||
+		strings.Contains(k, "secret") ||
+		strings.Contains(k, "key") ||
+		strings.Contains(k, "token") ||
+		strings.Contains(k, "auth")
+}
+
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -39,6 +49,8 @@ Supports hierarchical resolution with environment variables and command-line fla
 	cmd.AddCommand(newConfigShowCmd())
 	cmd.AddCommand(newConfigGetCmd())
 	cmd.AddCommand(newConfigSetCmd())
+	cmd.AddCommand(newConfigUnsetCmd())
+	cmd.AddCommand(newConfigListCmd())
 	cmd.AddCommand(newConfigInitCmd())
 	cmd.AddCommand(newConfigPathCmd())
 
@@ -56,16 +68,12 @@ func newConfigShowCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			cfg, err := config.Load(cfgPath)
+			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					cfg = config.DefaultConfig()
-				} else {
-					return fmt.Errorf("failed to load configuration: %w", err)
-				}
+				return fmt.Errorf("failed to resolve configuration: %w", err)
 			}
 
-			masked := cfg.Masked()
+			masked := res.Config.Masked()
 
 			if strings.ToLower(formatFlag) == "json" {
 				data, err := json.MarshalIndent(masked, "", "  ")
@@ -90,34 +98,37 @@ func newConfigShowCmd() *cobra.Command {
 }
 
 func newConfigGetCmd() *cobra.Command {
+	var rawFlag bool
+
 	cmd := &cobra.Command{
 		Use:   "get <key>",
 		Short: "Get configuration value for a key",
-		Long:  "Retrieve a specific configuration setting by key (e.g. 'server.url', 'admin.email', 'smtp.host', 'smtp.port').",
+		Long:  "Retrieve a specific configuration setting by key (e.g. 'server.url', 'defaults.scope').",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			cfg, err := config.Load(cfgPath)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					cfg = config.DefaultConfig()
-				} else {
-					return fmt.Errorf("failed to load configuration: %w", err)
-				}
-			}
-
-			val, err := cfg.Get(args[0])
+			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
 			if err != nil {
 				return err
 			}
 
-			fmt.Fprintln(out, val)
+			val, err := res.Config.Get(args[0])
+			if err != nil {
+				return err
+			}
+
+			if rawFlag {
+				fmt.Fprint(out, val.Value)
+			} else {
+				fmt.Fprintln(out, val.Value)
+			}
 			return nil
 		},
 	}
 
+	cmd.Flags().BoolVar(&rawFlag, "raw", false, "Print raw value without trailing newline or formatting")
 	return cmd
 }
 
@@ -125,16 +136,16 @@ func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration key-value pair",
-		Long:  "Update a specific configuration setting by key and persist it to the configuration file.",
+		Long:  "Update a specific configuration setting by key and persist it using comment-preserving AST yaml.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			cfg, err := config.Load(cfgPath)
+			testCfg, err := config.Load(cfgPath)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					cfg = config.DefaultConfig()
+					testCfg = config.DefaultConfig()
 				} else {
 					return fmt.Errorf("failed to load configuration: %w", err)
 				}
@@ -143,24 +154,158 @@ func newConfigSetCmd() *cobra.Command {
 			key := args[0]
 			val := args[1]
 
-			if err := cfg.Set(key, val); err != nil {
+			if err := testCfg.Set(key, val); err != nil {
 				return err
 			}
 
-			if err := cfg.Save(cfgPath); err != nil {
-				return fmt.Errorf("failed to save configuration file %q: %w", cfgPath, err)
+			if isSecretKey(key) {
+				fmt.Fprintf(out, "%s Warning: '%s' resembles a secret. Storing secrets in config.yaml is discouraged.\n", iconWarn, key)
 			}
 
-			displayVal := val
-			if strings.ToLower(strings.TrimSpace(key)) == "smtp.pass" && val != "" {
-				displayVal = "********"
+			if err := config.SetInFile(cfgPath, key, val); err != nil {
+				return fmt.Errorf("failed to persist configuration: %w", err)
 			}
 
-			fmt.Fprintf(out, "%s Set %s = %s (%s)\n", iconOK, boldStyle.Render(key), codeStyle.Render(displayVal), subtleStyle.Render(cfgPath))
+			fmt.Fprintf(out, "%s Set %s = %s (%s)\n", iconOK, boldStyle.Render(key), codeStyle.Render(val), subtleStyle.Render(cfgPath))
 			return nil
 		},
 	}
 
+	return cmd
+}
+
+func newConfigUnsetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unset <key>",
+		Short: "Unset a configuration key",
+		Long:  "Remove a custom key or reset a core domain property to default in the configuration file.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			cfgPath := getConfigPath(cmd)
+
+			key := strings.TrimSpace(args[0])
+			if key == "" {
+				return errors.New("key cannot be empty")
+			}
+
+			if err := config.UnsetInFile(cfgPath, key); err != nil {
+				return fmt.Errorf("failed to unset %s in %q: %w", key, cfgPath, err)
+			}
+
+			fmt.Fprintf(out, "%s Unset %s (%s)\n", iconOK, boldStyle.Render(key), subtleStyle.Render(cfgPath))
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func formatSource(e config.ConfigEntry) string {
+	switch e.Source {
+	case config.SourceDefault:
+		return subtleStyle.Render("default")
+	case config.SourceUserFile:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("user-config (%s)", subtleStyle.Render(e.SourceRef))
+		}
+		return "user-config"
+	case config.SourceWorkFile:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("workspace-config (%s)", subtleStyle.Render(e.SourceRef))
+		}
+		return "workspace-config"
+	case config.SourceEnv:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("env (%s)", codeStyle.Render(e.SourceRef))
+		}
+		return "env"
+	case config.SourceFlag:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("flag (%s)", boldStyle.Render(e.SourceRef))
+		}
+		return "flag"
+	default:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("%s (%s)", string(e.Source), e.SourceRef)
+		}
+		return string(e.Source)
+	}
+}
+
+func newConfigListCmd() *cobra.Command {
+	var formatFlag string
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all resolved configuration entries and their sources",
+		Long:  "Displays all active configuration parameters across defaults, configuration file, environment variables, and flags.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			cfgPath := getConfigPath(cmd)
+
+			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
+			if err != nil {
+				return fmt.Errorf("failed to resolve configuration: %w", err)
+			}
+
+			entries := res.ListEntries()
+
+			if strings.ToLower(formatFlag) == "json" {
+				data, err := json.MarshalIndent(entries, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to encode entries JSON: %w", err)
+				}
+				fmt.Fprintln(out, string(data))
+				return nil
+			}
+
+			if strings.ToLower(formatFlag) == "yaml" {
+				data, err := yaml.Marshal(entries)
+				if err != nil {
+					return fmt.Errorf("failed to encode entries YAML: %w", err)
+				}
+				fmt.Fprint(out, string(data))
+				return nil
+			}
+
+			// Table format
+			keyWidth := 20
+			valWidth := 24
+			typeWidth := 8
+
+			for _, e := range entries {
+				if w := lipgloss.Width(e.Key); w > keyWidth {
+					keyWidth = w
+				}
+				if w := lipgloss.Width(e.Value); w > valWidth {
+					valWidth = w
+				}
+				if w := lipgloss.Width(e.Type); w > typeWidth {
+					typeWidth = w
+				}
+			}
+
+			headerKey := headerStyle.Render(padRight("KEY", keyWidth))
+			headerVal := headerStyle.Render(padRight("VALUE", valWidth))
+			headerType := headerStyle.Render(padRight("TYPE", typeWidth))
+			headerSrc := headerStyle.Render("SOURCE")
+			fmt.Fprintf(out, "%s  %s  %s  %s\n", headerKey, headerVal, headerType, headerSrc)
+
+			for _, e := range entries {
+				kStr := padRight(e.Key, keyWidth)
+				vStr := padRight(e.Value, valWidth)
+				tStr := subtleStyle.Render(padRight(e.Type, typeWidth))
+				sStr := formatSource(e)
+
+				fmt.Fprintf(out, "%s  %s  %s  %s\n", kStr, vStr, tStr, sStr)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, or yaml")
 	return cmd
 }
 

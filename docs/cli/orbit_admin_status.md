@@ -13,10 +13,15 @@ orbit admin status [flags]
 ### Options
 
 ```
-      --config string   Custom path to configuration file
   -f, --format string   Output format: table or json (default "table")
   -h, --help            help for status
       --store string    Custom path to owner storage vault file
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
 ```
 
 ### SEE ALSO

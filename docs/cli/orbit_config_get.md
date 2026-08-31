@@ -4,7 +4,7 @@ Get configuration value for a key
 
 ### Synopsis
 
-Retrieve a specific configuration setting by key (e.g. 'server.url', 'admin.email', 'smtp.host', 'smtp.port').
+Retrieve a specific configuration setting by key (e.g. 'server.url', 'defaults.scope').
 
 ```
 orbit config get <key> [flags]
@@ -14,6 +14,7 @@ orbit config get <key> [flags]
 
 ```
   -h, --help   help for get
+      --raw    Print raw value without trailing newline or formatting
 ```
 
 ### Options inherited from parent commands

@@ -46,6 +46,12 @@ orbit onboard [flags]
   -y, --yes                              Skip interactive confirmation prompts and automatically proceed
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator

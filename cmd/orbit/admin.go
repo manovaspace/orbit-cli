@@ -42,7 +42,6 @@ func newAdminInitCmd() *cobra.Command {
 		noSendFlag bool
 		codeFlag   string
 		forceFlag  bool
-		configFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -58,10 +57,8 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 			in := cmd.InOrStdin()
 
 			cfg, err := config.Resolve(config.ResolveOptions{
-				ConfigPath: configFlag,
+				ConfigPath: getConfigPath(cmd),
 				ServerFlag: serverFlag,
-				OwnerFlag:  ownerFlag,
-				NameFlag:   nameFlag,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to resolve configuration: %w", err)
@@ -73,7 +70,7 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 			}
 
 			if email == "" {
-				email = promptString(in, out, "Enter platform owner email address", cfg.Admin.Email)
+				email = promptString(in, out, "Enter platform owner email address", "")
 				email = strings.TrimSpace(email)
 			}
 
@@ -119,7 +116,7 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 					return fmt.Errorf("failed to create challenge: %w", err)
 				}
 			} else {
-				serverURL := strings.TrimSpace(cfg.Server.URL)
+				serverURL := strings.TrimSpace(cfg.Config.Server.URL)
 				if serverURL == "" {
 					serverURL = config.DefaultServerURL
 				}
@@ -173,9 +170,6 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 			}
 
 			displayName := strings.TrimSpace(nameFlag)
-			if displayName == "" {
-				displayName = cfg.Admin.Name
-			}
 			rec := &owner.OwnerRecord{
 				Email:             email,
 				DisplayName:       displayName,
@@ -216,7 +210,6 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "Suppress dispatching challenge email")
 	cmd.Flags().StringVarP(&codeFlag, "code", "c", "", "6-digit verification code (for non-interactive execution)")
 	cmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force re-initialization even if already verified")
-	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
@@ -237,7 +230,6 @@ func newAdminStatusCmd() *cobra.Command {
 	var (
 		storeFlag  string
 		formatFlag string
-		configFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -252,12 +244,18 @@ func newAdminStatusCmd() *cobra.Command {
 			permErr := store.CheckPermissions()
 
 			cfg, _ := config.Resolve(config.ResolveOptions{
-				ConfigPath: configFlag,
+				ConfigPath: getConfigPath(cmd),
 			})
+			_ = cfg
 
-			mailHost := cfg.SMTP.Host
-			if cfg.SMTP.Port > 0 && !strings.Contains(mailHost, ":") {
-				mailHost = fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
+			mailHost := os.Getenv("ORBIT_SMTP_HOST")
+			if mailHost == "" {
+				mailHost = os.Getenv("SMTP_HOST")
+			}
+			if mailPort := os.Getenv("ORBIT_SMTP_PORT"); mailPort != "" && !strings.Contains(mailHost, ":") {
+				mailHost = fmt.Sprintf("%s:%s", mailHost, mailPort)
+			} else if mailPort := os.Getenv("SMTP_PORT"); mailPort != "" && !strings.Contains(mailHost, ":") {
+				mailHost = fmt.Sprintf("%s:%s", mailHost, mailPort)
 			}
 			if mailHost == "" {
 				mailHost = "mail.manova.space:587"
@@ -330,19 +328,17 @@ func newAdminStatusCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table or json")
-	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
 
 func newAdminVerifyCmd() *cobra.Command {
 	var (
-		ownerFlag  string
-		codeFlag   string
-		nameFlag   string
-		storeFlag  string
-		forceFlag  bool
-		configFlag string
+		ownerFlag string
+		codeFlag  string
+		nameFlag  string
+		storeFlag string
+		forceFlag bool
 	)
 
 	cmd := &cobra.Command{
@@ -355,17 +351,16 @@ func newAdminVerifyCmd() *cobra.Command {
 			in := cmd.InOrStdin()
 
 			cfg, _ := config.Resolve(config.ResolveOptions{
-				ConfigPath: configFlag,
-				OwnerFlag:  ownerFlag,
-				NameFlag:   nameFlag,
+				ConfigPath: getConfigPath(cmd),
 			})
+			_ = cfg
 
 			email := strings.TrimSpace(ownerFlag)
 			if len(args) > 0 && email == "" {
 				email = strings.TrimSpace(args[0])
 			}
 			if email == "" {
-				email = promptString(in, out, "Enter owner email address", cfg.Admin.Email)
+				email = promptString(in, out, "Enter owner email address", "")
 				email = strings.TrimSpace(email)
 			}
 			if email == "" {
@@ -415,9 +410,6 @@ func newAdminVerifyCmd() *cobra.Command {
 			}
 
 			displayName := strings.TrimSpace(nameFlag)
-			if displayName == "" {
-				displayName = cfg.Admin.Name
-			}
 			rec := &owner.OwnerRecord{
 				Email:             email,
 				DisplayName:       displayName,
@@ -444,7 +436,6 @@ func newAdminVerifyCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "Owner display name")
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force re-verification even if already verified")
-	cmd.Flags().StringVar(&configFlag, "config", "", "Custom path to configuration file")
 
 	return cmd
 }
@@ -522,7 +513,6 @@ func newAdminGrantCmd() *cobra.Command {
 		codeFlag     string
 		storeFlag    string
 		serverFlag   string
-		configFlag   string
 		sendFlag     bool
 		telegramFlag bool
 		jsonFlag     bool
@@ -543,7 +533,7 @@ to initialize their workstation without sending or receiving public challenge em
 			}
 
 			cfg, err := config.Resolve(config.ResolveOptions{
-				ConfigPath: configFlag,
+				ConfigPath: getConfigPath(cmd),
 				ServerFlag: serverFlag,
 			})
 			if err != nil {
@@ -578,7 +568,7 @@ to initialize their workstation without sending or receiving public challenge em
 			}
 
 			// Register on server if server is configured
-			serverURL := strings.TrimSpace(cfg.Server.URL)
+			serverURL := strings.TrimSpace(cfg.Config.Server.URL)
 			if serverURL == "" {
 				serverURL = config.DefaultServerURL
 			}
@@ -613,18 +603,48 @@ to initialize their workstation without sending or receiving public challenge em
 			// SMTP dispatch if requested
 			var emailSent bool
 			if sendFlag {
+				smtpHost := os.Getenv("ORBIT_SMTP_HOST")
+				if smtpHost == "" {
+					smtpHost = os.Getenv("SMTP_HOST")
+				}
+				if smtpHost == "" {
+					smtpHost = "mail.manova.space"
+				}
+				smtpPort := os.Getenv("ORBIT_SMTP_PORT")
+				if smtpPort == "" {
+					smtpPort = os.Getenv("SMTP_PORT")
+				}
+				if smtpPort == "" {
+					smtpPort = "587"
+				}
+				smtpUser := os.Getenv("ORBIT_SMTP_USER")
+				if smtpUser == "" {
+					smtpUser = os.Getenv("SMTP_USER")
+				}
+				smtpPass := os.Getenv("ORBIT_SMTP_PASS")
+				if smtpPass == "" {
+					smtpPass = os.Getenv("SMTP_PASS")
+				}
+				smtpFrom := os.Getenv("ORBIT_SMTP_FROM")
+				if smtpFrom == "" {
+					smtpFrom = os.Getenv("SMTP_FROM")
+				}
+				if smtpFrom == "" {
+					smtpFrom = "Orbit Platform <noreply@manova.space>"
+				}
+
 				mailer := invite.NewSMTPMailer(invite.MailerConfig{
-					Host: cfg.SMTP.Host,
-					Port: fmt.Sprintf("%d", cfg.SMTP.Port),
-					User: cfg.SMTP.User,
-					Pass: cfg.SMTP.Pass,
-					From: cfg.SMTP.From,
+					Host: smtpHost,
+					Port: smtpPort,
+					User: smtpUser,
+					Pass: smtpPass,
+					From: smtpFrom,
 				})
 				emailData := invite.OwnerChallengeEmailData{
 					OwnerEmail:  email,
 					OTPCode:     codeFormatted,
 					ExpiresIn:   fmt.Sprintf("%d minutes", int(ttlFlag.Minutes())),
-					ServerHost:  cfg.Server.URL,
+					ServerHost:  serverURL,
 					GeneratedAt: time.Now().UTC(),
 				}
 				if err := mailer.SendOwnerChallenge(cmd.Context(), email, emailData); err != nil {
@@ -676,7 +696,6 @@ to initialize their workstation without sending or receiving public challenge em
 	cmd.Flags().StringVar(&codeFlag, "code", "", "Explicit 8-digit code (auto-generated if omitted)")
 	cmd.Flags().StringVar(&storeFlag, "store", "", "Custom path to owner storage vault file")
 	cmd.Flags().StringVarP(&serverFlag, "server", "s", "", "Orbit server URL")
-	cmd.Flags().StringVar(&configFlag, "config", "", "Custom configuration file path")
 	cmd.Flags().BoolVar(&sendFlag, "send", false, "Dispatch grant code directly to recipient via SMTP")
 	cmd.Flags().BoolVar(&telegramFlag, "telegram", false, "Dispatch grant code to Telegram Secrets topic")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Output grant details as JSON")

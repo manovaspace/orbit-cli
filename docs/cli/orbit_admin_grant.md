@@ -16,7 +16,6 @@ orbit admin grant <email> [flags]
 
 ```
       --code string     Explicit 8-digit code (auto-generated if omitted)
-      --config string   Custom configuration file path
   -h, --help            help for grant
       --json            Output grant details as JSON
       --role string     Role to grant (admin, maintainer, superadmin) (default "admin")
@@ -25,6 +24,12 @@ orbit admin grant <email> [flags]
       --store string    Custom path to owner storage vault file
       --telegram        Dispatch grant code to Telegram Secrets topic
       --ttl duration    Grant validity duration (e.g. 15m, 1h) (default 15m0s)
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
 ```
 
 ### SEE ALSO

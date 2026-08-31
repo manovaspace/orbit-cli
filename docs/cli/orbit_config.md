@@ -19,7 +19,9 @@ Supports hierarchical resolution with environment variables and command-line fla
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
 * [orbit config get](orbit_config_get.md)	 - Get configuration value for a key
 * [orbit config init](orbit_config_init.md)	 - Initialize default configuration file
+* [orbit config list](orbit_config_list.md)	 - List all resolved configuration entries and their sources
 * [orbit config path](orbit_config_path.md)	 - Print path to the configuration file
 * [orbit config set](orbit_config_set.md)	 - Set a configuration key-value pair
 * [orbit config show](orbit_config_show.md)	 - Display current configuration with secrets masked
+* [orbit config unset](orbit_config_unset.md)	 - Unset a configuration key
 

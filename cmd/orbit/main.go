@@ -80,6 +80,8 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 
+	cmd.PersistentFlags().StringVar(&configFlag, "config", "", "Custom path to Orbit CLI configuration file")
+
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the CLI version and build metadata",

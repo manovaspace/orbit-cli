@@ -12,6 +12,12 @@ Pull, push, add, and status for files listed in orbit-assets.yaml. Git stores th
   -h, --help   help for assets
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator

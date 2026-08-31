@@ -17,6 +17,12 @@ orbit env setup [path] [flags]
   -h, --help    help for setup
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit env](orbit_env.md)	 - Manage and validate workspace environment variables and .env files

@@ -312,7 +312,7 @@ Validates the provided 6-digit OTP code against the active challenge for the ema
 
 ## 4. Configuration Management (`orbit config`)
 
-Orbit manages client-side settings in `~/.config/orbit/config.yaml` with strict `0600` permissions.
+Orbit manages client-side settings in `~/.config/orbit/config.yaml` with strict `0600` permissions (Version 2 schema with zero plaintext secrets on disk).
 
 ### Initializing Configuration
 
@@ -326,7 +326,7 @@ orbit config init --force
 
 ### Inspecting Active Configuration
 
-View all configuration settings (sensitive fields like `smtp.pass` are automatically masked):
+View all configuration settings with masked values:
 
 ```bash
 orbit config show
@@ -334,20 +334,23 @@ orbit config show
 
 Output (YAML):
 ```yaml
+version: 2
 server:
   url: https://orbit.manova.space
-admin:
-  email: admin@manova.space
-  name: Alireza
-smtp:
-  host: mail.manova.space
-  port: 587
-  user: noreply@manova.space
-  pass: '********'
-  from: Orbit Platform <noreply@manova.space>
+  timeout: 30s
+staff:
+  url: https://staff.dev.manova.space
+assets:
+  bucket: manova-assets
+  endpoint: https://assets.manova.space
+  auto_pull: true
 defaults:
   scope: core
   expiry_days: 7
+ui:
+  color: true
+  output: text
+custom: {}
 ```
 
 To output in JSON format:
@@ -360,34 +363,42 @@ orbit config show --format json
 ```bash
 # Read values
 orbit config get server.url
-orbit config get admin.email
+orbit config get defaults.scope
 
-# Update server endpoint
+# Read raw value for scripting
+orbit config get server.url --raw
+
+# Update server endpoint and defaults
 orbit config set server.url https://orbit.manova.space
-
-# Update administrator identity
-orbit config set admin.email admin@manova.space
-orbit config set admin.name "Alireza"
+orbit config set defaults.scope core
+orbit config set custom.team.lead "Alireza"
 
 # Inspect active file path
 orbit config path
 # Output: /home/opmc/.config/orbit/config.yaml
+
+# List all resolved configurations with provenance sources
+orbit config list
 ```
 
 ### Configuration Keys Reference
 
-| Key | Scope | Description | Default |
+| Key | Type | Description | Default |
 |---|---|---|---|
-| `server.url` | Client | Orbit API server endpoint | `https://orbit.manova.space` |
-| `admin.email` | Client | Platform administrator email | `admin@manova.space` |
-| `admin.name` | Client | Platform administrator display name | `Alireza` |
-| `smtp.host` | Daemon | Stalwart SMTP hostname | `mail.manova.space` |
-| `smtp.port` | Daemon | SMTP port (`587` STARTTLS, `465` SMTPS) | `587` |
-| `smtp.user` | Daemon | SMTP authentication user | `""` |
-| `smtp.pass` | Daemon | SMTP authentication password (masked) | `""` |
-| `smtp.from` | Daemon | Outgoing email sender header | `Orbit Platform <noreply@manova.space>` |
-| `defaults.scope` | Client | Default scope for invitation tokens | `core` |
-| `defaults.expiry_days` | Client | Default invite TTL in days | `7` |
+| `server.url` | string | Orbit API server endpoint URL | `https://orbit.manova.space` |
+| `server.timeout` | duration | API client request timeout | `30s` |
+| `staff.url` | string | Staff control plane API URL | `https://staff.dev.manova.space` |
+| `assets.bucket` | string | Cloudflare R2 bucket for private assets | `manova-assets` |
+| `assets.endpoint` | string | R2 asset CDN endpoint URL | `https://assets.manova.space` |
+| `assets.auto_pull` | bool | Automatically pull missing assets on dev startup | `true` |
+| `defaults.scope` | string | Default scope for invitation tokens | `core` |
+| `defaults.expiry_days` | int | Default invite TTL in days | `7` |
+| `ui.color` | bool | Enable ANSI colored CLI output | `true` |
+| `ui.output` | string | Default output format (`text`, `json`, `yaml`) | `text` |
+| `custom.*` | dynamic | Arbitrary user-defined key-value configuration tree | `{}` |
+
+> [!NOTE]
+> Workstation secrets (e.g. root master signing key) are sealed exclusively in `~/.config/orbit/owner.json` via `orbit admin init`. Server daemon SMTP credentials (`$ORBIT_SMTP_*` / `$SMTP_*` / `--smtp-*`) are managed exclusively on the server host and never stored in workstation `config.yaml`.
 
 ---
 

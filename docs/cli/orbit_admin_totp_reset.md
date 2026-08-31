@@ -15,6 +15,12 @@ orbit admin totp reset <email> [flags]
       --store string    Custom path to owner storage vault file
 ```
 
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
 ### SEE ALSO
 
 * [orbit admin totp](orbit_admin_totp.md)	 - Manage two-factor authentication and user TOTP recovery
