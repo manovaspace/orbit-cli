@@ -195,3 +195,195 @@ func TestStaffResetPasswordTOTP(t *testing.T) {
 		t.Fatalf("output = %q", buf.String())
 	}
 }
+
+func TestStaffDelete_MissingReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && r.URL.Path == "/api/v1/staff/clitest" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "delete", "clitest",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error deleting missing staff member, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("expected 'not found' in error, got: %v", err)
+	}
+	if strings.Contains(buf.String(), "deleted clitest") {
+		t.Fatalf("must not print 'deleted clitest' on failure: %s", buf.String())
+	}
+}
+
+func TestStaffDelete_Success(t *testing.T) {
+	deleted := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && r.URL.Path == "/api/v1/staff/clitest0830" {
+			deleted = true
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "delete", "clitest0830",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if !deleted {
+		t.Fatal("expected delete handler called")
+	}
+	if !strings.Contains(buf.String(), "deleted clitest0830") {
+		t.Fatalf("expected 'deleted clitest0830', got: %s", buf.String())
+	}
+}
+
+func TestStaffDisable_MissingReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/staff/missing/disable" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "disable", "missing",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error disabling missing staff member, got nil")
+	}
+	if strings.Contains(buf.String(), "disabled missing") {
+		t.Fatalf("must not print 'disabled missing' on failure: %s", buf.String())
+	}
+}
+
+func TestStaffEnable_MissingReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/staff/missing/enable" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "enable", "missing",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error enabling missing staff member, got nil")
+	}
+	if strings.Contains(buf.String(), "enabled missing") {
+		t.Fatalf("must not print 'enabled missing' on failure: %s", buf.String())
+	}
+}
+
+func TestStaffGet_MissingReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/staff/missing" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "get", "missing",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error getting missing staff member, got nil")
+	}
+}
+
+func TestStaffUpdate_MissingReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch && r.URL.Path == "/api/v1/staff/missing" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "update", "missing",
+		"--name", "Missing User",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error updating missing staff member, got nil")
+	}
+	if strings.Contains(buf.String(), "updated missing") {
+		t.Fatalf("must not print 'updated missing' on failure: %s", buf.String())
+	}
+}

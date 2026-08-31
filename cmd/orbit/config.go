@@ -184,9 +184,22 @@ func newConfigUnsetCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
+			testCfg, err := config.Load(cfgPath)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					testCfg = config.DefaultConfig()
+				} else {
+					return fmt.Errorf("failed to load configuration: %w", err)
+				}
+			}
+
 			key := strings.TrimSpace(args[0])
 			if key == "" {
 				return errors.New("key cannot be empty")
+			}
+
+			if err := testCfg.Unset(key); err != nil {
+				return err
 			}
 
 			if err := config.UnsetInFile(cfgPath, key); err != nil {

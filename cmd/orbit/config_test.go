@@ -248,6 +248,15 @@ func TestConfigUnsetCommand(t *testing.T) {
 	if !strings.Contains(buf.String(), "Unset server.url") {
 		t.Errorf("expected unset confirmation for server.url, got: %s", buf.String())
 	}
+
+	// 4. Unset an unknown/invalid key must return error
+	_, err = execConfig("unset", "invalid_key", "--config", cfgPath)
+	if err == nil {
+		t.Fatal("expected error unsetting unknown key 'invalid_key', got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown configuration key") {
+		t.Errorf("expected 'unknown configuration key' error, got: %v", err)
+	}
 }
 
 func TestConfigListCommand(t *testing.T) {
