@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 )
 
@@ -74,30 +75,34 @@ func newMigrateStatusCmd() *cobra.Command {
 
 			allMigrations := migrate.GetBuiltinMigrations()
 
-			fmt.Fprintf(out, "  %-32s %-40s %s\n",
-				headerStyle.Render("MIGRATION ID"),
-				headerStyle.Render("DESCRIPTION"),
-				headerStyle.Render("STATUS"),
+			tbl := table.New(
+				table.Column{Title: "MIGRATION ID", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 24},
+				table.Column{Title: "DESCRIPTION", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 30, Flexible: true},
+				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 16},
 			)
-			fmt.Fprintln(out, subtleStyle.Render("  ─────────────────────────────────────────────────────────────────────────────────────────────"))
 
 			pendingCount := 0
 			appliedCount := 0
 
 			for _, m := range allMigrations {
-				idCol := boldStyle.Render(padRight(m.ID, 32))
-				descCol := subtleStyle.Render(padRight(m.Description, 40))
+				idCell := table.PlainCell(m.ID)
+				descCell := table.PlainCell(m.Description)
 
+				var statusCell table.Cell
 				if appliedAt, ok := appliedMap[m.ID]; ok {
 					appliedCount++
-					statusCol := successStyle.Render(fmt.Sprintf("✔ Applied (%s)", appliedAt.Format("2006-01-02 15:04")))
-					fmt.Fprintf(out, "  %-32s %-40s %s\n", idCol, descCol, statusCol)
+					statusStr := fmt.Sprintf("✔ Applied (%s)", appliedAt.Format("2006-01-02 15:04"))
+					statusCell = table.StyledCell(statusStr, successStyle.Render(statusStr))
 				} else {
 					pendingCount++
-					statusCol := warningStyle.Render("⚠ Pending")
-					fmt.Fprintf(out, "  %-32s %-40s %s\n", idCol, descCol, statusCol)
+					statusCell = table.StyledCell("⚠ Pending", warningStyle.Render("⚠ Pending"))
 				}
+
+				tbl.AddStyledRow(idCell, descCell, statusCell)
 			}
+
+			fmt.Fprintln(out)
+			_ = tbl.Render(out)
 
 			fmt.Fprintf(out, "\n%s  %s\n",
 				successStyle.Render(fmt.Sprintf("✔ %d applied", appliedCount)),
