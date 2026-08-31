@@ -880,3 +880,89 @@ func TestInviteTokenMetadata_CreateAlias(t *testing.T) {
 		t.Errorf("expected stored CreatedBy 'owner@manova.space', got: %s", saved.CreatedBy)
 	}
 }
+
+func TestInviteListTableOutputStructure(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "invites.json")
+	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
+
+	// Create 3 invites: one active, one revoked, one expired
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"invite", "create", "active@example.com", "--name", "Active User", "--scope", "core", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("failed to create active invite: %v", err)
+	}
+
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"invite", "create", "revoked@example.com", "--name", "Revoked User", "--scope", "client", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("failed to create revoked invite: %v", err)
+	}
+
+	store, err := invite.NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	records, err := store.ListInvites()
+	if err != nil {
+		t.Fatalf("ListInvites failed: %v", err)
+	}
+	for _, r := range records {
+		if r.Email == "revoked@example.com" {
+			_, _ = store.RevokeInvite(r.ID)
+		}
+	}
+
+	// Add an expired invite directly
+	expiredRec := &invite.InviteRecord{
+		ID:          "expired-invite-id-12345678",
+		Email:       "expired@example.com",
+		DisplayName: "Expired User",
+		Scope:       "guest",
+		Token:       "orbit-inv.expiredtoken",
+		Revoked:     false,
+		IssuedAt:    time.Now().UTC().Add(-48 * time.Hour),
+		ExpiresAt:   time.Now().UTC().Add(-24 * time.Hour),
+		CreatedBy:   "admin@example.com",
+	}
+	if err := store.SaveInvite(expiredRec); err != nil {
+		t.Fatalf("SaveInvite expired failed: %v", err)
+	}
+
+	// Test list with --all to see table layout with all statuses
+	buf := new(bytes.Buffer)
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--all", "--store-file", storePath})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite list --all failed: %v", err)
+	}
+
+	out := buf.String()
+	headers := []string{"INVITE ID", "EMAIL", "NAME", "SCOPE", "STATUS", "EXPIRES", "CREATED"}
+	for _, h := range headers {
+		if !strings.Contains(out, h) {
+			t.Errorf("expected header %q in table output:\n%s", h, out)
+		}
+	}
+
+	if !strings.Contains(out, "─") {
+		t.Errorf("expected table divider line in output:\n%s", out)
+	}
+
+	if !strings.Contains(out, "✔ active") {
+		t.Errorf("expected '✔ active' status cell in output:\n%s", out)
+	}
+	if !strings.Contains(out, "✖ revoked") {
+		t.Errorf("expected '✖ revoked' status cell in output:\n%s", out)
+	}
+	if !strings.Contains(out, "⚠ expired") {
+		t.Errorf("expected '⚠ expired' status cell in output:\n%s", out)
+	}
+
+	if !strings.Contains(out, "Total: 3") || !strings.Contains(out, "1 active") || !strings.Contains(out, "1 revoked") || !strings.Contains(out, "1 expired") {
+		t.Errorf("expected footer summary 'Total: 3  ✔ 1 active  ✖ 1 revoked  ⚠ 1 expired' in output:\n%s", out)
+	}
+}

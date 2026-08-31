@@ -12,6 +12,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/manovaspace/orbit-cli/pkg/tui/forms"
 	"github.com/spf13/cobra"
 )
@@ -382,52 +383,53 @@ func newInviteListCmd() *cobra.Command {
 
 			fmt.Fprintln(out, titleStyle.Render("Orbit Developer Invitations"))
 
-			// Table header
-			fmt.Fprintf(out, "\n  %-18s %-26s %-16s %-10s %-14s %-22s %s\n",
-				headerStyle.Render("INVITE ID"),
-				headerStyle.Render("EMAIL"),
-				headerStyle.Render("NAME"),
-				headerStyle.Render("SCOPE"),
-				headerStyle.Render("STATUS"),
-				headerStyle.Render("EXPIRES"),
-				headerStyle.Render("CREATED"),
+			tbl := table.New(
+				table.Column{Title: "INVITE ID", HeaderStyle: headerStyle, CellStyle: codeStyle, MinWidth: 12},
+				table.Column{Title: "EMAIL", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 18, Flexible: true},
+				table.Column{Title: "NAME", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 10, Flexible: true},
+				table.Column{Title: "SCOPE", HeaderStyle: headerStyle, CellStyle: infoStyle, MinWidth: 8},
+				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 10},
+				table.Column{Title: "EXPIRES", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 18},
+				table.Column{Title: "CREATED", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 18},
 			)
-			fmt.Fprintln(out, subtleStyle.Render("  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"))
 
 			for _, r := range displayRecords {
 				status := r.Status()
-				var statusBadge string
+				var statusCell table.Cell
 				switch status {
 				case "active":
-					statusBadge = successStyle.Render("✔ active")
+					statusCell = table.StyledCell("✔ active", successStyle.Render("✔ active"))
 				case "revoked":
-					statusBadge = errorStyle.Render("✖ revoked")
+					statusCell = table.StyledCell("✖ revoked", errorStyle.Render("✖ revoked"))
 				case "expired":
-					statusBadge = warningStyle.Render("⚠ expired")
+					statusCell = table.StyledCell("⚠ expired", warningStyle.Render("⚠ expired"))
 				default:
-					statusBadge = subtleStyle.Render(status)
+					statusCell = table.StyledCell(status, subtleStyle.Render(status))
 				}
 
-				nameCol := r.DisplayName
-				if nameCol == "" {
-					nameCol = "-"
+				nameVal := r.DisplayName
+				if nameVal == "" {
+					nameVal = "-"
 				}
 
-				idCol := r.ID
-				if len(idCol) > 16 {
-					idCol = idCol[:16] + "…"
+				idVal := r.ID
+				if len(idVal) > 16 {
+					idVal = idVal[:16] + "…"
 				}
 
-				fmt.Fprintf(out, "  %-18s %-26s %-16s %-10s %-14s %-22s %s\n",
-					codeStyle.Render(padRight(idCol, 18)),
-					boldStyle.Render(padRight(r.Email, 26)),
-					subtleStyle.Render(padRight(nameCol, 16)),
-					infoStyle.Render(padRight(r.Scope, 10)),
-					padRight(statusBadge, 14),
-					subtleStyle.Render(padRight(r.ExpiresAt.Format("2006-01-02 15:04 UTC"), 22)),
-					subtleStyle.Render(r.IssuedAt.Format("2006-01-02 15:04 UTC")),
+				tbl.AddStyledRow(
+					table.PlainCell(idVal),
+					table.PlainCell(r.Email),
+					table.PlainCell(nameVal),
+					table.PlainCell(r.Scope),
+					statusCell,
+					table.PlainCell(r.ExpiresAt.Format("2006-01-02 15:04 UTC")),
+					table.PlainCell(r.IssuedAt.Format("2006-01-02 15:04 UTC")),
 				)
 			}
+
+			fmt.Fprintln(out)
+			_ = tbl.Render(out)
 
 			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
 				infoStyle.Render(fmt.Sprintf("Total: %d", len(allRecords))),
