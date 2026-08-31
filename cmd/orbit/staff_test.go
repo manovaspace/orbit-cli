@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/manovaspace/orbit-cli/pkg/invite"
 )
 
 func TestStaffOwnerGuard_Unverified(t *testing.T) {
@@ -387,3 +389,74 @@ func TestStaffUpdate_MissingReturnsError(t *testing.T) {
 		t.Fatalf("must not print 'updated missing' on failure: %s", buf.String())
 	}
 }
+
+func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
+	const expectedOTPAuth = "otpauth://totp/Orbit:newuser?secret=JBSWY3DPEHPK3PXP&issuer=Orbit"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/staff" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"uid":              "newuser",
+			"display_name":     "New User",
+			"personal_forward": "newuser@example.com",
+			"ldap_password":    "sso-password",
+			"mail_password":    "mail-password",
+			"otpauth":          expectedOTPAuth,
+		})
+	}))
+	defer srv.Close()
+
+	tempDir := t.TempDir()
+	storePath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "create",
+		"--uid", "newuser",
+		"--name", "New User",
+		"--forward", "newuser@example.com",
+		"--totp",
+		"--invite",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("staff create --invite --totp failed: %v\n%s", err, buf.String())
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "web setup https://orbit.manova.space/setup?token=orbit-inv.") {
+		t.Fatalf("expected web setup URL in output, got:\n%s", out)
+	}
+
+	var tokenStr string
+	prefix := "web setup https://orbit.manova.space/setup?token="
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			tokenStr = strings.TrimSpace(strings.TrimPrefix(line, prefix))
+			break
+		}
+	}
+	if tokenStr == "" {
+		t.Fatalf("failed to extract token from output:\n%s", out)
+	}
+
+	claims, err := invite.ValidateToken(tokenStr, []byte(ownerRec.RootSigningSecret))
+	if err != nil {
+		t.Fatalf("ValidateToken failed: %v", err)
+	}
+	if claims.Metadata == nil {
+		t.Fatal("expected claims.Metadata to be non-nil")
+	}
+	if claims.Metadata["otpauth"] != expectedOTPAuth {
+		t.Fatalf("expected metadata['otpauth'] = %q, got %q", expectedOTPAuth, claims.Metadata["otpauth"])
+	}
+}
+

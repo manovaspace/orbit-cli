@@ -184,6 +184,9 @@ func TestInviteCreateCmd(t *testing.T) {
 	if !strings.Contains(out, "Created By:") || !strings.Contains(out, ownerRec.Email) {
 		t.Errorf("output missing Created By field: %s", out)
 	}
+	if !strings.Contains(out, "Web Setup:") || !strings.Contains(out, "https://orbit.manova.space/setup?token=orbit-inv.") {
+		t.Errorf("output missing Web Setup line: %s", out)
+	}
 	if !strings.Contains(out, "orbit onboard --token") {
 		t.Errorf("output missing onboarding instructions: %s", out)
 	}

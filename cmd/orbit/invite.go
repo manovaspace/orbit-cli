@@ -196,6 +196,7 @@ func newInviteCreateCmd() *cobra.Command {
 				iconOK,
 				boldStyle.Render(email),
 			)
+			fmt.Fprintf(out, "  %s  Web Setup: %s\n", iconOK, infoStyle.Render(fmt.Sprintf("https://orbit.manova.space/setup?token=%s", tokenStr)))
 
 			// Dispatch email by default unless suppressed
 			if sendFlag && !noSendFlag {

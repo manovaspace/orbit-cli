@@ -98,12 +98,13 @@ func newStaffCreateCmd() *cobra.Command {
 				if inviteEmail == "" {
 					inviteEmail = forward // default to the forward address
 				}
-				tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag)
+				tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag, res.OTPAuth)
 				if err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "warn   invite generation failed: %v\n", err)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "invite %s\n", invID)
-					fmt.Fprintf(cmd.OutOrStdout(), "token  %s\n", tokenStr)
+					fmt.Fprintf(cmd.OutOrStdout(), "invite    %s\n", invID)
+					fmt.Fprintf(cmd.OutOrStdout(), "token     %s\n", tokenStr)
+					fmt.Fprintf(cmd.OutOrStdout(), "web setup https://orbit.manova.space/setup?token=%s\n", tokenStr)
 				}
 			}
 
@@ -442,7 +443,7 @@ func newIdempotencyKey() (string, error) {
 // createStaffInvite generates a signed onboarding invite token for a newly created staff member.
 // It resolves the signing secret from the owner store or environment, generates the token,
 // saves it to the invite store, and returns the token string and invite ID.
-func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr string) (tokenStr, inviteID string, err error) {
+func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr, otpauth string) (tokenStr, inviteID string, err error) {
 	ownerStoreFlag := staffPersistentString(cmd, "owner-store")
 	ownerStore := owner.NewStore(ownerStoreFlag)
 	ownerRecord, _ := ownerStore.LoadOwner()
@@ -468,12 +469,20 @@ func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr string) (t
 		createdBy = ownerRecord.Email
 	}
 
+	var metadata map[string]string
+	if strings.TrimSpace(otpauth) != "" {
+		metadata = map[string]string{
+			"otpauth": strings.TrimSpace(otpauth),
+		}
+	}
+
 	req := invite.InviteRequest{
 		Email:       email,
 		DisplayName: displayName,
 		Scope:       "core",
 		TTL:         ttl,
 		CreatedBy:   createdBy,
+		Metadata:    metadata,
 	}
 
 	tokenStr, claims, err := invite.GenerateToken(req, secret)
@@ -496,6 +505,7 @@ func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr string) (t
 		IssuedAt:    claims.IssuedAt,
 		ExpiresAt:   claims.ExpiresAt,
 		CreatedBy:   claims.CreatedBy,
+		Metadata:    claims.Metadata,
 	}
 	if err := store.SaveInvite(rec); err != nil {
 		return "", "", fmt.Errorf("failed to save invite: %w", err)
