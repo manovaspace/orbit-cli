@@ -23,6 +23,7 @@ type InviteStore interface {
 	GetInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error)
 	ListInvites(ctx context.Context) ([]*invite.InviteRecord, error)
 	RevokeInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error)
+	RevokeAll(ctx context.Context) ([]*invite.InviteRecord, error)
 }
 
 // ChallengeStore defines persistence operations for out-of-band OTP verification challenges.

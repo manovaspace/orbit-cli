@@ -25,5 +25,5 @@ and claims for automated developer onboarding.
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
 * [orbit invite create](orbit_invite_create.md)	 - Generate a cryptographically signed onboarding invitation token
 * [orbit invite list](orbit_invite_list.md)	 - List active and stored developer onboarding invitations
-* [orbit invite revoke](orbit_invite_revoke.md)	 - Revoke an active developer onboarding invitation
+* [orbit invite revoke](orbit_invite_revoke.md)	 - Revoke active developer onboarding invitations
 

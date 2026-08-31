@@ -146,3 +146,82 @@ func TestInviteRecordStatus(t *testing.T) {
 		t.Errorf("expected revoked, got %s", revokedRec.Status())
 	}
 }
+
+func TestInviteStoreRevokeAll(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "invites.json")
+
+	store, err := NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// RevokeAll on empty store returns empty slice and no error
+	revoked, err := store.RevokeAllInvites()
+	if err != nil {
+		t.Fatalf("RevokeAllInvites on empty store failed: %v", err)
+	}
+	if len(revoked) != 0 {
+		t.Fatalf("expected 0 revoked on empty store, got %d", len(revoked))
+	}
+
+	// Add 3 invites: 2 active, 1 already revoked
+	now := time.Now().UTC()
+	_ = store.SaveInvite(&InviteRecord{
+		ID:        "inv_1",
+		Email:     "user1@example.com",
+		Scope:     "core",
+		Token:     "orbit-inv.tok1.sig1",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(24 * time.Hour),
+		Revoked:   false,
+	})
+	_ = store.SaveInvite(&InviteRecord{
+		ID:        "inv_2",
+		Email:     "user2@example.com",
+		Scope:     "client",
+		Token:     "orbit-inv.tok2.sig2",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(48 * time.Hour),
+		Revoked:   false,
+	})
+	_ = store.SaveInvite(&InviteRecord{
+		ID:        "inv_3",
+		Email:     "user3@example.com",
+		Scope:     "guest",
+		Token:     "orbit-inv.tok3.sig3",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(72 * time.Hour),
+		Revoked:   true,
+		RevokedAt: &now,
+	})
+
+	revoked, err = store.RevokeAllInvites()
+	if err != nil {
+		t.Fatalf("RevokeAllInvites failed: %v", err)
+	}
+	if len(revoked) != 2 {
+		t.Fatalf("expected 2 newly revoked invites, got %d", len(revoked))
+	}
+
+	// Verify all records in store are now revoked
+	all, err := store.ListInvites()
+	if err != nil {
+		t.Fatalf("ListInvites failed: %v", err)
+	}
+	for _, r := range all {
+		if !r.Revoked || r.Status() != "revoked" {
+			t.Errorf("expected invite %s to be revoked, got %s (revoked=%v)", r.ID, r.Status(), r.Revoked)
+		}
+	}
+
+	// Calling RevokeAll again returns 0 items
+	revokedSecond, err := store.RevokeAllInvites()
+	if err != nil {
+		t.Fatalf("second RevokeAllInvites failed: %v", err)
+	}
+	if len(revokedSecond) != 0 {
+		t.Fatalf("expected 0 newly revoked on second call, got %d", len(revokedSecond))
+	}
+}
+

@@ -1,18 +1,19 @@
 ## orbit invite revoke
 
-Revoke an active developer onboarding invitation
+Revoke active developer onboarding invitations
 
 ### Synopsis
 
-Marks an invitation token as revoked by its token string or invite ID, preventing further claim attempts.
+Marks an invitation token or all active invitations as revoked, preventing further claim attempts.
 
 ```
-orbit invite revoke <token_or_id> [flags]
+orbit invite revoke [token_or_id] [flags]
 ```
 
 ### Options
 
 ```
+  -a, --all                 Revoke all active developer onboarding invitations
   -h, --help                help for revoke
       --store-file string   Custom path to invites storage file
 ```

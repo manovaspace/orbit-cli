@@ -303,3 +303,67 @@ func TestInvites_NilRecord(t *testing.T) {
 		t.Fatal("expected error when saving nil invite record, got nil")
 	}
 }
+
+func TestInvites_RevokeAll(t *testing.T) {
+	db := sqlite.NewTestDB(t)
+	store := db.Invites()
+	ctx := context.Background()
+
+	// Empty store returns 0
+	revoked, err := store.RevokeAll(ctx)
+	if err != nil {
+		t.Fatalf("RevokeAll on empty store failed: %v", err)
+	}
+	if len(revoked) != 0 {
+		t.Fatalf("expected 0 revoked, got %d", len(revoked))
+	}
+
+	now := time.Now().UTC()
+	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+		ID:        "inv_bulk_1",
+		Token:     "tok_bulk_1",
+		Email:     "dev1@example.com",
+		Scope:     "core",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(24 * time.Hour),
+		Revoked:   false,
+	})
+	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+		ID:        "inv_bulk_2",
+		Token:     "tok_bulk_2",
+		Email:     "dev2@example.com",
+		Scope:     "core",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(48 * time.Hour),
+		Revoked:   false,
+	})
+	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+		ID:        "inv_bulk_3",
+		Token:     "tok_bulk_3",
+		Email:     "dev3@example.com",
+		Scope:     "core",
+		IssuedAt:  now,
+		ExpiresAt: now.Add(72 * time.Hour),
+		Revoked:   true,
+		RevokedAt: &now,
+	})
+
+	revoked, err = store.RevokeAll(ctx)
+	if err != nil {
+		t.Fatalf("RevokeAll failed: %v", err)
+	}
+	if len(revoked) != 2 {
+		t.Fatalf("expected 2 newly revoked invites, got %d", len(revoked))
+	}
+
+	all, err := store.ListInvites(ctx)
+	if err != nil {
+		t.Fatalf("ListInvites failed: %v", err)
+	}
+	for _, r := range all {
+		if !r.Revoked {
+			t.Errorf("expected invite %s to be revoked", r.ID)
+		}
+	}
+}
+

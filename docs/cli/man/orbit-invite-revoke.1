@@ -3,20 +3,24 @@
 
 .SH NAME
 .PP
-orbit-invite-revoke - Revoke an active developer onboarding invitation
+orbit-invite-revoke - Revoke active developer onboarding invitations
 
 
 .SH SYNOPSIS
 .PP
-\fBorbit invite revoke  [flags]\fP
+\fBorbit invite revoke [token_or_id] [flags]\fP
 
 
 .SH DESCRIPTION
 .PP
-Marks an invitation token as revoked by its token string or invite ID, preventing further claim attempts.
+Marks an invitation token or all active invitations as revoked, preventing further claim attempts.
 
 
 .SH OPTIONS
+.PP
+\fB-a\fP, \fB--all\fP[=false]
+	Revoke all active developer onboarding invitations
+
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for revoke

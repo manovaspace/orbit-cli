@@ -4,7 +4,7 @@ List active and stored developer onboarding invitations
 
 ### Synopsis
 
-Displays a table or JSON array of all stored invitations with their status, scope, and expiration.
+Displays a table or JSON array of stored invitations with their status, scope, and expiration. By default, only active invitations are shown; use --all to include revoked and expired.
 
 ```
 orbit invite list [flags]
@@ -13,7 +13,7 @@ orbit invite list [flags]
 ### Options
 
 ```
-  -a, --all                 Include revoked and expired invitations (default true)
+  -a, --all                 Include revoked and expired invitations
   -f, --format string       Output format (table or json) (default "table")
   -h, --help                help for list
       --store-file string   Custom path to invites storage file

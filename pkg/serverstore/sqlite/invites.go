@@ -207,6 +207,46 @@ func (s *InviteStore) RevokeInvite(ctx context.Context, tokenOrID string) (*invi
 	return rec, nil
 }
 
+// RevokeAll marks all unrevoked invitations as revoked and returns them.
+func (s *InviteStore) RevokeAll(ctx context.Context) ([]*invite.InviteRecord, error) {
+	now := time.Now().UTC()
+	querySelect := `
+SELECT id, token, email, display_name, scope, created_by, revoked, revoked_at, created_at, expires_at, metadata_json
+FROM invites
+WHERE revoked = 0;`
+
+	rows, err := s.db.QueryContext(ctx, querySelect)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query unrevoked invites: %w", err)
+	}
+	defer rows.Close()
+
+	var records []*invite.InviteRecord
+	for rows.Next() {
+		rec, err := scanInviteRows(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan unrevoked invite: %w", err)
+		}
+		rec.Revoked = true
+		rec.RevokedAt = &now
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating unrevoked invites: %w", err)
+	}
+
+	if len(records) == 0 {
+		return []*invite.InviteRecord{}, nil
+	}
+
+	updateQuery := `UPDATE invites SET revoked = 1, revoked_at = ? WHERE revoked = 0;`
+	if _, err := s.db.ExecContext(ctx, updateQuery, now); err != nil {
+		return nil, fmt.Errorf("failed to bulk revoke invites: %w", err)
+	}
+
+	return records, nil
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }

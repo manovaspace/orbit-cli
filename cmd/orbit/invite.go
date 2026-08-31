@@ -318,7 +318,7 @@ func newInviteListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List active and stored developer onboarding invitations",
-		Long:  "Displays a table or JSON array of all stored invitations with their status, scope, and expiration.",
+		Long:  "Displays a table or JSON array of stored invitations with their status, scope, and expiration. By default, only active invitations are shown; use --all to include revoked and expired.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
@@ -328,16 +328,46 @@ func newInviteListCmd() *cobra.Command {
 				return fmt.Errorf("failed to initialize invite store: %w", err)
 			}
 
-			records, err := store.ListInvites()
+			allRecords, err := store.ListInvites()
 			if err != nil {
 				return fmt.Errorf("failed to list invitations: %w", err)
 			}
 
-			if strings.ToLower(formatFlag) == "json" {
-				if records == nil {
-					records = []*invite.InviteRecord{}
+			if len(allRecords) == 0 {
+				if strings.ToLower(formatFlag) == "json" {
+					fmt.Fprintln(out, "[]")
+					return nil
 				}
-				data, err := json.MarshalIndent(records, "", "  ")
+				fmt.Fprintln(out, infoStyle.Render("No invitations found. Run 'orbit invite create <email>' to generate one."))
+				return nil
+			}
+
+			var displayRecords []*invite.InviteRecord
+			activeCount := 0
+			revokedCount := 0
+			expiredCount := 0
+
+			for _, r := range allRecords {
+				status := r.Status()
+				switch status {
+				case "active":
+					activeCount++
+				case "revoked":
+					revokedCount++
+				case "expired":
+					expiredCount++
+				}
+
+				if allFlag || status == "active" {
+					displayRecords = append(displayRecords, r)
+				}
+			}
+
+			if strings.ToLower(formatFlag) == "json" {
+				if displayRecords == nil {
+					displayRecords = []*invite.InviteRecord{}
+				}
+				data, err := json.MarshalIndent(displayRecords, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON output: %w", err)
 				}
@@ -345,8 +375,8 @@ func newInviteListCmd() *cobra.Command {
 				return nil
 			}
 
-			if len(records) == 0 {
-				fmt.Fprintln(out, infoStyle.Render("No invitations found. Run 'orbit invite create <email>' to generate one."))
+			if len(displayRecords) == 0 {
+				fmt.Fprintln(out, infoStyle.Render("No active invitations found. Use --all (-a) to view expired or revoked invitations, or 'orbit invite create <email>' to generate one."))
 				return nil
 			}
 
@@ -364,22 +394,15 @@ func newInviteListCmd() *cobra.Command {
 			)
 			fmt.Fprintln(out, subtleStyle.Render("  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────"))
 
-			activeCount := 0
-			revokedCount := 0
-			expiredCount := 0
-
-			for _, r := range records {
+			for _, r := range displayRecords {
 				status := r.Status()
 				var statusBadge string
 				switch status {
 				case "active":
-					activeCount++
 					statusBadge = successStyle.Render("✔ active")
 				case "revoked":
-					revokedCount++
 					statusBadge = errorStyle.Render("✖ revoked")
 				case "expired":
-					expiredCount++
 					statusBadge = warningStyle.Render("⚠ expired")
 				default:
 					statusBadge = subtleStyle.Render(status)
@@ -407,7 +430,7 @@ func newInviteListCmd() *cobra.Command {
 			}
 
 			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
-				infoStyle.Render(fmt.Sprintf("Total: %d", len(records))),
+				infoStyle.Render(fmt.Sprintf("Total: %d", len(allRecords))),
 				successStyle.Render(fmt.Sprintf("✔ %d active", activeCount)),
 				errorStyle.Render(fmt.Sprintf("✖ %d revoked", revokedCount)),
 				warningStyle.Render(fmt.Sprintf("⚠ %d expired", expiredCount)),
@@ -419,28 +442,74 @@ func newInviteListCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format (table or json)")
 	cmd.Flags().StringVar(&storeFileFlag, "store-file", "", "Custom path to invites storage file")
-	cmd.Flags().BoolVarP(&allFlag, "all", "a", true, "Include revoked and expired invitations")
+	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Include revoked and expired invitations")
 
 	return cmd
 }
 
 func newInviteRevokeCmd() *cobra.Command {
-	var storeFileFlag string
+	var (
+		storeFileFlag string
+		allFlag       bool
+	)
 
 	cmd := &cobra.Command{
-		Use:   "revoke <token_or_id>",
-		Short: "Revoke an active developer onboarding invitation",
-		Long:  "Marks an invitation token as revoked by its token string or invite ID, preventing further claim attempts.",
-		Args:  cobra.ExactArgs(1),
+		Use:   "revoke [token_or_id]",
+		Short: "Revoke active developer onboarding invitations",
+		Long:  "Marks an invitation token or all active invitations as revoked, preventing further claim attempts.",
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			tokenOrID := strings.TrimSpace(args[0])
-			if tokenOrID == "" {
-				return errors.New("invite token or ID required")
-			}
+			out := cmd.OutOrStdout()
 
 			store, err := invite.NewStore(storeFileFlag)
 			if err != nil {
 				return fmt.Errorf("failed to initialize invite store: %w", err)
+			}
+
+			if allFlag {
+				if len(args) > 0 {
+					return errors.New("cannot specify positional invite token/ID when --all is used")
+				}
+
+				revoked, err := store.RevokeAllInvites()
+				if err != nil {
+					return fmt.Errorf("failed to revoke all invitations: %w", err)
+				}
+
+				if len(revoked) == 0 {
+					fmt.Fprintln(out, infoStyle.Render("No active invitations to revoke."))
+					return nil
+				}
+
+				fmt.Fprintln(out, titleStyle.Render("Invitations Revoked"))
+				fmt.Fprintf(out, "  %s  Revoked %d active invitation(s):\n",
+					iconOK,
+					len(revoked),
+				)
+				for _, r := range revoked {
+					idCol := r.ID
+					if len(idCol) > 16 {
+						idCol = idCol[:16] + "…"
+					}
+					fmt.Fprintf(out, "    • %s  %-26s (scope: %s)\n",
+						codeStyle.Render(padRight(idCol, 18)),
+						boldStyle.Render(r.Email),
+						infoStyle.Render(r.Scope),
+					)
+				}
+				return nil
+			}
+
+			if len(args) == 0 {
+				return errors.New("invite token or ID required (or use --all to revoke all active invitations)")
+			}
+			if len(args) > 1 {
+				return errors.New("accepts at most 1 arg(s), received multiple")
+			}
+
+			tokenOrID := strings.TrimSpace(args[0])
+			if tokenOrID == "" {
+				return errors.New("invite token or ID required (or use --all to revoke all active invitations)")
 			}
 
 			rec, err := store.RevokeInvite(tokenOrID)
@@ -451,7 +520,6 @@ func newInviteRevokeCmd() *cobra.Command {
 				return fmt.Errorf("failed to revoke invitation: %w", err)
 			}
 
-			out := cmd.OutOrStdout()
 			fmt.Fprintln(out, titleStyle.Render("Invitation Revoked"))
 			fmt.Fprintf(out, "  %s  Revoked invitation %s for %s (scope: %s)\n",
 				iconOK,
@@ -465,6 +533,7 @@ func newInviteRevokeCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&storeFileFlag, "store-file", "", "Custom path to invites storage file")
+	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Revoke all active developer onboarding invitations")
 
 	return cmd
 }

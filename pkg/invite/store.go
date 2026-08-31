@@ -161,6 +161,38 @@ func (s *Store) RevokeInvite(tokenOrID string) (*InviteRecord, error) {
 	return target, nil
 }
 
+// RevokeAllInvites marks all non-revoked invitations in the store as revoked.
+func (s *Store) RevokeAllInvites() ([]*InviteRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	records, err := s.loadRecordsLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	var revoked []*InviteRecord
+	now := time.Now().UTC()
+	for _, r := range records {
+		if !r.Revoked {
+			r.Revoked = true
+			r.RevokedAt = &now
+			revoked = append(revoked, r)
+		}
+	}
+
+	if len(revoked) == 0 {
+		return []*InviteRecord{}, nil
+	}
+
+	if err := s.saveRecordsLocked(records); err != nil {
+		return nil, err
+	}
+
+	return revoked, nil
+}
+
+
 func (s *Store) loadRecordsLocked() ([]*InviteRecord, error) {
 	if _, err := os.Stat(s.filePath); os.IsNotExist(err) {
 		return []*InviteRecord{}, nil

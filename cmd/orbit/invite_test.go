@@ -327,7 +327,7 @@ func TestInviteListCmd(t *testing.T) {
 	cmd.SetArgs([]string{"invite", "create", "bob@example.com", "--name", "Bob", "--scope", "client", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
 
-	// 3. Table format list
+	// 3. Table format list (both active)
 	buf.Reset()
 	cmd = newRootCmd()
 	cmd.SetOut(buf)
@@ -366,6 +366,97 @@ func TestInviteListCmd(t *testing.T) {
 	}
 	if len(jsonRecords) != 2 {
 		t.Fatalf("expected 2 JSON records, got %d", len(jsonRecords))
+	}
+
+	// 5. Revoke one invite (Alex)
+	store, _ := invite.NewStore(storePath)
+	records, _ := store.ListInvites()
+	var alexID string
+	for _, r := range records {
+		if r.Email == "alex@example.com" {
+			alexID = r.ID
+		}
+	}
+	_, _ = store.RevokeInvite(alexID)
+
+	// Default list should now only show 1 active invite (Bob), but summary shows total 2, 1 active, 1 revoked
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite list with 1 active failed: %v", err)
+	}
+	out = buf.String()
+	if strings.Contains(out, "alex@example.com") {
+		t.Errorf("expected alex (revoked) to be hidden from default list view: %s", out)
+	}
+	if !strings.Contains(out, "bob@example.com") {
+		t.Errorf("expected bob (active) to be shown: %s", out)
+	}
+	if !strings.Contains(out, "Total: 2") || !strings.Contains(out, "1 active") || !strings.Contains(out, "1 revoked") {
+		t.Errorf("expected summary stats to show 2 total, 1 active, 1 revoked: %s", out)
+	}
+
+	// List with --all should show both Alex (revoked) and Bob (active)
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--all", "--store-file", storePath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite list --all failed: %v", err)
+	}
+	out = buf.String()
+	if !strings.Contains(out, "alex@example.com") || !strings.Contains(out, "bob@example.com") {
+		t.Errorf("expected both alex and bob in --all view: %s", out)
+	}
+	if !strings.Contains(out, "revoked") || !strings.Contains(out, "active") {
+		t.Errorf("expected both active and revoked statuses in --all view: %s", out)
+	}
+
+	// JSON format with --all should return 2 records, without --all returns 1 record
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--store-file", storePath})
+	_ = cmd.Execute()
+	var jsonActiveOnly []invite.InviteRecord
+	_ = json.Unmarshal(buf.Bytes(), &jsonActiveOnly)
+	if len(jsonActiveOnly) != 1 {
+		t.Fatalf("expected 1 active JSON record, got %d", len(jsonActiveOnly))
+	}
+
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--all", "--store-file", storePath})
+	_ = cmd.Execute()
+	var jsonAll []invite.InviteRecord
+	_ = json.Unmarshal(buf.Bytes(), &jsonAll)
+	if len(jsonAll) != 2 {
+		t.Fatalf("expected 2 JSON records with --all, got %d", len(jsonAll))
+	}
+
+	// When all invites are revoked, default list shows friendly message
+	var bobID string
+	for _, r := range records {
+		if r.Email == "bob@example.com" {
+			bobID = r.ID
+		}
+	}
+	_, _ = store.RevokeInvite(bobID)
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
+	_ = cmd.Execute()
+	if !strings.Contains(buf.String(), "No active invitations found") {
+		t.Errorf("expected 'No active invitations found' message, got: %s", buf.String())
 	}
 }
 
@@ -443,6 +534,64 @@ func TestInviteRevokeCmd(t *testing.T) {
 	cmd.SetArgs([]string{"invite", "revoke", "nonexistent-id-12345", "--store-file", storePath})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error revoking nonexistent invite, got nil")
+	}
+
+	// 5. Revoking without args and without --all returns error
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "revoke", "--store-file", storePath})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error revoking without args or --all, got nil")
+	}
+
+	// 6. Revoking with positional arg AND --all returns error
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "revoke", "some-token", "--all", "--store-file", storePath})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error when combining positional arg with --all, got nil")
+	}
+
+	// 7. Test bulk revoke --all
+	// Create two new active invites
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"invite", "create", "dev1@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
+	_ = cmd.Execute()
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"invite", "create", "dev2@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
+	_ = cmd.Execute()
+
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "revoke", "--all", "--store-file", storePath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite revoke --all failed: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "Invitations Revoked") || !strings.Contains(out, "Revoked 2 active invitation(s)") {
+		t.Errorf("expected 2 active invitations revoked in output: %s", out)
+	}
+	if !strings.Contains(out, "dev1@example.com") || !strings.Contains(out, "dev2@example.com") {
+		t.Errorf("expected dev1 and dev2 listed in bulk revoke output: %s", out)
+	}
+
+	// 8. Bulk revoke when none are active
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"invite", "revoke", "--all", "--store-file", storePath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite revoke --all with 0 active failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "No active invitations to revoke") {
+		t.Errorf("expected 'No active invitations to revoke' message, got: %s", buf.String())
 	}
 }
 

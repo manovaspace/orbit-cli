@@ -64,9 +64,20 @@ log_step "Revoking invitation by ID (${invite_id})..."
 revoke_out=$(run_orbit invite revoke "${invite_id}")
 assert_contains "${revoke_out}" "Invitation Revoked" "Revoke confirmation output"
 
-log_step "Verifying revoked status in invite list..."
-revoked_list=$(run_orbit invite list --format json)
-assert_json_field "${revoked_list}" ".[0].revoked" "true" "JSON revoked field updated to true"
+log_step "Verifying revoked item is hidden by default in invite list..."
+default_list=$(run_orbit invite list --format json)
+assert_json_field "${default_list}" "length" "0" "Default invite list hides revoked invitations"
+
+log_step "Verifying revoked status with --all in invite list..."
+revoked_list=$(run_orbit invite list --all --format json)
+assert_json_field "${revoked_list}" ".[0].revoked" "true" "JSON revoked field updated to true with --all"
+
+log_step "Testing bulk revoke on new invites..."
+run_orbit invite create bulk1@example.com --scope "core" --no-send >/dev/null
+run_orbit invite create bulk2@example.com --scope "core" --no-send >/dev/null
+bulk_revoke_out=$(run_orbit invite revoke --all)
+assert_contains "${bulk_revoke_out}" "Invitations Revoked" "Bulk revoke confirmation output"
+assert_contains "${bulk_revoke_out}" "Revoked 2 active invitation(s)" "Bulk revoke count correct"
 
 cleanup_test_sandbox
 scenario_end
