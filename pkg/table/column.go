@@ -29,7 +29,7 @@ type Cell struct {
 type Row []Cell
 
 func PlainCell(text string) Cell {
-	return Cell{Text: text, Styled: text}
+	return Cell{Text: text}
 }
 
 func StyledCell(plainText string, styledText string) Cell {

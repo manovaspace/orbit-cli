@@ -6,6 +6,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 )
 
@@ -46,15 +47,13 @@ func newStatusCmd() *cobra.Command {
 
 			statuses := orchestrator.GetWorkspaceStatus(workspaceRoot, targets)
 
-			// Render Table Header
-			fmt.Fprintf(out, "\n  %-22s %-28s %-16s %-16s %s\n",
-				headerStyle.Render("REPOSITORY"),
-				headerStyle.Render("PATH"),
-				headerStyle.Render("BRANCH"),
-				headerStyle.Render("SYNC"),
-				headerStyle.Render("WORKING TREE"),
+			tbl := table.New(
+				table.Column{Title: "REPOSITORY", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 16},
+				table.Column{Title: "PATH", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 20, Flexible: true},
+				table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 8},
+				table.Column{Title: "SYNC", HeaderStyle: headerStyle, MinWidth: 12},
+				table.Column{Title: "WORKING TREE", HeaderStyle: headerStyle, MinWidth: 14},
 			)
-			fmt.Fprintln(out, subtleStyle.Render("  ─────────────────────────────────────────────────────────────────────────────────────────────"))
 
 			cleanCount := 0
 			dirtyCount := 0
@@ -63,78 +62,48 @@ func newStatusCmd() *cobra.Command {
 			otherErrCount := 0
 
 			for _, s := range statuses {
-				repoCol := boldStyle.Render(padRight(s.Name, 22))
-				pathCol := subtleStyle.Render(padRight(s.Path, 28))
+				repoCell := table.PlainCell(s.Name)
+				pathCell := table.PlainCell(s.Path)
 
 				switch s.Error {
 				case "":
-					// ok
+					branchCell := table.PlainCell(s.CurrentBranch)
+					var syncCell table.Cell
+					switch {
+					case s.AheadCount > 0 && s.BehindCount > 0:
+						syncCell = table.StyledCell(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount), warningStyle.Render(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount)))
+					case s.AheadCount > 0:
+						syncCell = table.StyledCell(fmt.Sprintf("↑%d ahead", s.AheadCount), subtleStyle.Render(fmt.Sprintf("↑%d ahead", s.AheadCount)))
+					case s.BehindCount > 0:
+						syncCell = table.StyledCell(fmt.Sprintf("↓%d behind", s.BehindCount), subtleStyle.Render(fmt.Sprintf("↓%d behind", s.BehindCount)))
+					default:
+						syncCell = table.StyledCell("up to date", subtleStyle.Render("up to date"))
+					}
+
+					var treeCell table.Cell
+					if s.IsClean {
+						cleanCount++
+						treeCell = table.StyledCell("✔ clean", successStyle.Render("✔ clean"))
+					} else {
+						dirtyCount++
+						treeCell = table.StyledCell(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount), errorStyle.Render(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount)))
+					}
+
+					tbl.AddStyledRow(repoCell, pathCell, branchCell, syncCell, treeCell)
 				case orchestrator.ErrMissing:
 					missingCount++
-					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
-						repoCol,
-						pathCol,
-						subtleStyle.Render("-"),
-						subtleStyle.Render("-"),
-						subtleStyle.Render("not cloned"),
-					)
-					continue
+					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("not cloned", subtleStyle.Render("not cloned")))
 				case orchestrator.ErrGitless:
 					gitlessCount++
-					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
-						repoCol,
-						pathCol,
-						subtleStyle.Render("-"),
-						subtleStyle.Render("-"),
-						warningStyle.Render("gitless — run orbit repair"),
-					)
-					continue
+					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("gitless — run orbit repair", warningStyle.Render("gitless — run orbit repair")))
 				default:
 					otherErrCount++
-					fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
-						repoCol,
-						pathCol,
-						subtleStyle.Render("-"),
-						subtleStyle.Render("-"),
-						errorStyle.Render(s.Error),
-					)
-					continue
+					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell(s.Error, errorStyle.Render(s.Error)))
 				}
-
-				// Branch
-				branchCol := infoStyle.Render(padRight(s.CurrentBranch, 16))
-
-				// Sync state (Ahead/Behind)
-				var syncStr string
-				if s.AheadCount > 0 && s.BehindCount > 0 {
-					syncStr = warningStyle.Render(fmt.Sprintf("↑%d ↓%d", s.AheadCount, s.BehindCount))
-				} else if s.AheadCount > 0 {
-					syncStr = infoStyle.Render(fmt.Sprintf("↑%d ahead", s.AheadCount))
-				} else if s.BehindCount > 0 {
-					syncStr = warningStyle.Render(fmt.Sprintf("↓%d behind", s.BehindCount))
-				} else {
-					syncStr = subtleStyle.Render("up to date")
-				}
-				syncCol := padRight(syncStr, 16)
-
-				// Working Tree state
-				var treeStr string
-				if s.IsClean {
-					cleanCount++
-					treeStr = successStyle.Render("✔ clean")
-				} else {
-					dirtyCount++
-					treeStr = warningStyle.Render(fmt.Sprintf("⚠ %d modified", s.ModifiedCount))
-				}
-
-				fmt.Fprintf(out, "  %-22s %-28s %-16s %-16s %s\n",
-					repoCol,
-					pathCol,
-					branchCol,
-					syncCol,
-					treeStr,
-				)
 			}
+
+			fmt.Fprintln(out)
+			_ = tbl.Render(out)
 
 			// Summary footer
 			fmt.Fprintf(out, "\n%s  %s  %s  %s  %s\n",
