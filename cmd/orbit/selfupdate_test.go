@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -58,13 +61,23 @@ func TestSubcommandRegistration(t *testing.T) {
 }
 
 func TestSelfUpdateCheckUpToDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tag_name": version,
+			"body":     "Orbit release notes",
+		})
+	}))
+	defer srv.Close()
+
+	t.Setenv("ORBIT_RELEASE_API_URL", srv.URL)
+
 	buf := new(bytes.Buffer)
 	rootCmd := newRootCmd()
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 	rootCmd.SetArgs([]string{"self-update", "--check"})
 
-	// When current version is v0.2.1 and latest is v0.2.1, it should report up to date cleanly
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("self-update --check failed: %v", err)
 	}

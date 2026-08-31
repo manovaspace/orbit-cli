@@ -26,7 +26,8 @@ func newSelfUpdateCmd() *cobra.Command {
 			curVer := "v" + strings.TrimPrefix(version, "v")
 			fmt.Fprintln(out, titleStyle.Render("Orbit CLI Self-Update"))
 
-			res, err := updater.CheckUpdate(version, "", "")
+			apiURL := os.Getenv("ORBIT_RELEASE_API_URL")
+			res, err := updater.CheckUpdate(version, apiURL, "")
 			if err != nil {
 				return fmt.Errorf("failed to check for updates: %w", err)
 			}

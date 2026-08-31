@@ -180,6 +180,8 @@ func (s *MockServer) EdgeHandler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /v1/onboard/health", s.handleHealth)
 	mux.HandleFunc("GET /", s.handleRoot)
+	mux.HandleFunc("GET /setup", s.handleRoot)
+	mux.HandleFunc("GET /onboard", s.handleRoot)
 
 	// Owner challenge & verify endpoints
 	mux.HandleFunc("POST /v1/owner/challenge", s.handleOwnerChallenge)
@@ -214,7 +216,8 @@ func (s *MockServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *MockServer) handleRoot(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	path := r.URL.Path
+	if path != "/" && path != "/setup" && path != "/onboard" {
 		http.NotFound(w, r)
 		return
 	}
