@@ -9,8 +9,11 @@ import (
 	"net"
 	"net/smtp"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Mailer defines the interface for delivering invitation and challenge emails.
@@ -58,7 +61,7 @@ func NewSMTPMailer(cfg MailerConfig) *SMTPMailer {
 	return &SMTPMailer{cfg: cfg}
 }
 
-// NewMailerFromEnv initializes an SMTPMailer from ORBIT_SMTP_* environment variables or server env files.
+// NewMailerFromEnv initializes an SMTPMailer from ORBIT_SMTP_* environment variables or server/user config files.
 func NewMailerFromEnv() *SMTPMailer {
 	cfg := MailerConfig{
 		Host: envOrDefault("ORBIT_SMTP_HOST", ""),
@@ -68,18 +71,27 @@ func NewMailerFromEnv() *SMTPMailer {
 		From: envOrDefault("ORBIT_SMTP_FROM", ""),
 	}
 
-	// If SMTP credentials not in process env, check standard server env files
+	// If SMTP credentials not in process env, check standard user and server config files
 	if cfg.User == "" || cfg.Pass == "" {
+		home, _ := os.UserHomeDir()
 		envFiles := []string{
+			filepath.Join(home, ".config", "orbit", "config.yaml"),
+			filepath.Join(home, ".config", "orbit", "orbit-server.env"),
+			filepath.Join(home, ".config", "orbit", "smtp.env"),
 			"/etc/orbit/orbit-server.env",
-			os.ExpandEnv("$HOME/.config/orbit/orbit-server.env"),
 			"/var/lib/orbit/orbit-server.env",
 		}
 		for _, f := range envFiles {
 			if f == "" {
 				continue
 			}
-			if kvs := parseEnvFile(f); len(kvs) > 0 {
+			var kvs map[string]string
+			if strings.HasSuffix(f, ".yaml") || strings.HasSuffix(f, ".yml") {
+				kvs = parseConfigYAML(f)
+			} else {
+				kvs = parseEnvFile(f)
+			}
+			if len(kvs) > 0 {
 				if cfg.Host == "" {
 					if v, ok := kvs["ORBIT_SMTP_HOST"]; ok && v != "" {
 						cfg.Host = v
@@ -231,6 +243,8 @@ func (m *SMTPMailer) sendMultipartEmail(ctx context.Context, to, subject, textBo
 		if err := client.Auth(auth); err != nil {
 			return fmt.Errorf("SMTP authentication failed: %w", err)
 		}
+	} else if (m.cfg.Port == "587" || m.cfg.Port == "465") && m.cfg.Host != "localhost" && m.cfg.Host != "127.0.0.1" {
+		return fmt.Errorf("SMTP credentials not configured (missing username/password for %s:%s). Please set ORBIT_SMTP_USER and ORBIT_SMTP_PASS or configure ~/.config/orbit/config.yaml", m.cfg.Host, m.cfg.Port)
 	}
 
 	fromAddr := extractEmailAddress(m.cfg.From)
@@ -302,5 +316,42 @@ func parseEnvFile(path string) map[string]string {
 	}
 	return res
 }
+
+func parseConfigYAML(path string) map[string]string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var data struct {
+		SMTP struct {
+			Host string      `yaml:"host"`
+			Port interface{} `yaml:"port"`
+			User string      `yaml:"user"`
+			Pass string      `yaml:"pass"`
+			From string      `yaml:"from"`
+		} `yaml:"smtp"`
+	}
+	if err := yaml.Unmarshal(content, &data); err != nil {
+		return nil
+	}
+	res := make(map[string]string)
+	if data.SMTP.Host != "" {
+		res["ORBIT_SMTP_HOST"] = data.SMTP.Host
+	}
+	if data.SMTP.Port != nil {
+		res["ORBIT_SMTP_PORT"] = fmt.Sprintf("%v", data.SMTP.Port)
+	}
+	if data.SMTP.User != "" {
+		res["ORBIT_SMTP_USER"] = data.SMTP.User
+	}
+	if data.SMTP.Pass != "" {
+		res["ORBIT_SMTP_PASS"] = data.SMTP.Pass
+	}
+	if data.SMTP.From != "" {
+		res["ORBIT_SMTP_FROM"] = data.SMTP.From
+	}
+	return res
+}
+
 
 

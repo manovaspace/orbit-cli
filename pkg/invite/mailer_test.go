@@ -361,6 +361,9 @@ func TestNewMailerFromEnv(t *testing.T) {
 }
 
 func TestNewMailerFromEnv_Defaults(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 	t.Setenv("ORBIT_SMTP_HOST", "")
 	t.Setenv("ORBIT_SMTP_PORT", "")
 	t.Setenv("ORBIT_SMTP_USER", "")

@@ -453,7 +453,9 @@ func printStaffCreate(cmd *cobra.Command, res *client.StaffCreateResult) {
 	if res.MailPassword != "" {
 		fmt.Fprintf(out, "mail   %s\n", res.MailPassword)
 	}
-	fmt.Fprintf(out, "fwd    %s\n", res.PersonalForward)
+	if res.PersonalForward != "" {
+		fmt.Fprintf(out, "fwd    %s\n", res.PersonalForward)
+	}
 	if res.OTPAuth != "" {
 		fmt.Fprintf(out, "otpauth %s\n", res.OTPAuth)
 	}
