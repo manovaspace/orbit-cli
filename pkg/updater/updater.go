@@ -349,10 +349,12 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 	}
 
 	// Explicitly configure filters so that regardless of whether the executable
-	// was invoked via symlink "o" or "orbit", it matches release assets.
+	// was invoked via symlink "o" or "orbit", it matches release assets for the current OS and arch,
+	// while ignoring server binaries (orbit-server-*).
+	assetFilter := fmt.Sprintf(`^orbit[-_]%s[-_]%s(\.exe)?(\.zip|\.tar\.gz|\.tgz|\.gzip|\.gz|\.tar\.xz|\.xz|\.bz2)?$`, runtime.GOOS, runtime.GOARCH)
 	cfg := selfupdate.Config{
 		Source:  source,
-		Filters: []string{"^orbit[-_]"},
+		Filters: []string{assetFilter},
 	}
 
 	// Configure SHA-256 checksums.txt validator
@@ -375,7 +377,7 @@ func SelfUpdate(currentVersion, repoSlug string, customSource selfupdate.Source)
 		if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "checksum") {
 			fallbackUpdater, fErr := selfupdate.NewUpdater(selfupdate.Config{
 				Source:  source,
-				Filters: []string{"^orbit[-_]"},
+				Filters: []string{assetFilter},
 			})
 			if fErr == nil {
 				release, err = fallbackUpdater.UpdateSelf(context.Background(), verToCompare, repo)
