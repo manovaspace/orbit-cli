@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/config"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -246,6 +246,38 @@ func formatSource(e config.ConfigEntry) string {
 	}
 }
 
+func formatSourcePlainText(e config.ConfigEntry) string {
+	switch e.Source {
+	case config.SourceDefault:
+		return "default"
+	case config.SourceUserFile:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("user-config (%s)", e.SourceRef)
+		}
+		return "user-config"
+	case config.SourceWorkFile:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("workspace-config (%s)", e.SourceRef)
+		}
+		return "workspace-config"
+	case config.SourceEnv:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("env (%s)", e.SourceRef)
+		}
+		return "env"
+	case config.SourceFlag:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("flag (%s)", e.SourceRef)
+		}
+		return "flag"
+	default:
+		if e.SourceRef != "" {
+			return fmt.Sprintf("%s (%s)", string(e.Source), e.SourceRef)
+		}
+		return string(e.Source)
+	}
+}
+
 func newConfigListCmd() *cobra.Command {
 	var formatFlag string
 
@@ -283,36 +315,24 @@ func newConfigListCmd() *cobra.Command {
 			}
 
 			// Table format
-			keyWidth := 20
-			valWidth := 24
-			typeWidth := 8
+			tbl := table.New(
+				table.Column{Title: "KEY", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 18},
+				table.Column{Title: "VALUE", HeaderStyle: headerStyle, CellStyle: codeStyle, MinWidth: 20, Flexible: true},
+				table.Column{Title: "TYPE", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 8},
+				table.Column{Title: "SOURCE", HeaderStyle: headerStyle, MinWidth: 14, Flexible: true},
+			)
 
 			for _, e := range entries {
-				if w := lipgloss.Width(e.Key); w > keyWidth {
-					keyWidth = w
-				}
-				if w := lipgloss.Width(e.Value); w > valWidth {
-					valWidth = w
-				}
-				if w := lipgloss.Width(e.Type); w > typeWidth {
-					typeWidth = w
-				}
+				kCell := table.PlainCell(e.Key)
+				vCell := table.PlainCell(e.Value)
+				tCell := table.PlainCell(e.Type)
+				sCell := table.StyledCell(formatSourcePlainText(e), formatSource(e))
+
+				tbl.AddStyledRow(kCell, vCell, tCell, sCell)
 			}
 
-			headerKey := headerStyle.Render(padRight("KEY", keyWidth))
-			headerVal := headerStyle.Render(padRight("VALUE", valWidth))
-			headerType := headerStyle.Render(padRight("TYPE", typeWidth))
-			headerSrc := headerStyle.Render("SOURCE")
-			fmt.Fprintf(out, "%s  %s  %s  %s\n", headerKey, headerVal, headerType, headerSrc)
-
-			for _, e := range entries {
-				kStr := padRight(e.Key, keyWidth)
-				vStr := padRight(e.Value, valWidth)
-				tStr := subtleStyle.Render(padRight(e.Type, typeWidth))
-				sStr := formatSource(e)
-
-				fmt.Fprintf(out, "%s  %s  %s  %s\n", kStr, vStr, tStr, sStr)
-			}
+			fmt.Fprintln(out)
+			_ = tbl.Render(out)
 
 			return nil
 		},

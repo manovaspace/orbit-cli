@@ -272,8 +272,11 @@ func TestConfigListCommand(t *testing.T) {
 		t.Fatalf("config list failed: %v", err)
 	}
 	tableOut := buf.String()
-	if !strings.Contains(tableOut, "KEY") || !strings.Contains(tableOut, "VALUE") || !strings.Contains(tableOut, "SOURCE") {
-		t.Errorf("expected table header columns in list output, got:\n%s", tableOut)
+	if !strings.Contains(tableOut, "KEY") || !strings.Contains(tableOut, "VALUE") || !strings.Contains(tableOut, "TYPE") || !strings.Contains(tableOut, "SOURCE") {
+		t.Errorf("expected table header columns (KEY, VALUE, TYPE, SOURCE) in list output, got:\n%s", tableOut)
+	}
+	if !strings.Contains(tableOut, "─") {
+		t.Errorf("expected table divider in list output, got:\n%s", tableOut)
 	}
 	if !strings.Contains(tableOut, "server.url") {
 		t.Errorf("expected server.url in table output, got:\n%s", tableOut)
@@ -283,6 +286,19 @@ func TestConfigListCommand(t *testing.T) {
 	}
 	if !strings.Contains(tableOut, "env ($ORBIT_DEFAULTS_SCOPE)") && !strings.Contains(tableOut, "env") {
 		t.Errorf("expected env source indicator in table output, got:\n%s", tableOut)
+	}
+
+	// Test user-config source rendering in table
+	if _, err := execConfig("set", "defaults.expiry_days", "14", "--config", cfgPath); err != nil {
+		t.Fatalf("config set failed: %v", err)
+	}
+	buf, err = execConfig("list", "--config", cfgPath)
+	if err != nil {
+		t.Fatalf("config list after set failed: %v", err)
+	}
+	tableOut = buf.String()
+	if !strings.Contains(tableOut, "user-config") {
+		t.Errorf("expected user-config source in table output, got:\n%s", tableOut)
 	}
 
 	// 2. JSON format
