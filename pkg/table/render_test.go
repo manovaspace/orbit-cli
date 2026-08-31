@@ -213,3 +213,48 @@ func TestTableStyleCellPreservationOnTruncation(t *testing.T) {
 		t.Errorf("expected output to contain styled truncated text %q, got %q", expectedTruncated, out)
 	}
 }
+
+func TestTablePagination(t *testing.T) {
+	col := Column{Title: "ITEM"}
+	tbl := New(col).WithTerminalWidth(80).WithDivider(false)
+	for i := 1; i <= 5; i++ {
+		tbl.AddRow(strings.Repeat("item-", 1) + string(rune('0'+i)))
+	}
+
+	// Page 1, limit 2
+	tbl.WithPagination(1, 2)
+	out1 := tbl.String()
+	if !strings.Contains(out1, "item-1") || !strings.Contains(out1, "item-2") {
+		t.Errorf("expected page 1 to have item-1 and item-2, got:\n%s", out1)
+	}
+	if strings.Contains(out1, "item-3") {
+		t.Errorf("page 1 should not have item-3")
+	}
+	if !strings.Contains(out1, "Showing 1-2 of 5 rows (Page 1/3)") {
+		t.Errorf("expected pagination footer, got:\n%s", out1)
+	}
+
+	// Page 3, limit 2 (last page with 1 item)
+	tbl.WithPagination(3, 2)
+	out3 := tbl.String()
+	if !strings.Contains(out3, "item-5") {
+		t.Errorf("expected page 3 to have item-5, got:\n%s", out3)
+	}
+	if strings.Contains(out3, "item-4") {
+		t.Errorf("page 3 should not have item-4")
+	}
+	if !strings.Contains(out3, "Showing 5-5 of 5 rows (Page 3/3)") {
+		t.Errorf("expected pagination footer for page 3, got:\n%s", out3)
+	}
+
+	// Out of bounds page 4, limit 2
+	tbl.WithPagination(4, 2)
+	out4 := tbl.String()
+	if strings.Contains(out4, "item-") {
+		t.Errorf("out of bounds page should have no items, got:\n%s", out4)
+	}
+	if !strings.Contains(out4, "Page 4 of 3") {
+		t.Errorf("expected out of bounds footer, got:\n%s", out4)
+	}
+}
+

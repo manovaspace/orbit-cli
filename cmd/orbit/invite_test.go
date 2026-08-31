@@ -266,6 +266,58 @@ func TestInviteCreateWithStorePath(t *testing.T) {
 	}
 }
 
+func TestInviteCreateCmd_WithTOTP(t *testing.T) {
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "invites.json")
+	ownerPath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
+
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"invite", "create", "totp-user@example.com",
+		"--name", "TOTP User",
+		"--totp",
+		"--store-file", storePath,
+		"--owner-store", ownerPath,
+		"--no-send",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("invite create --totp failed: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "TOTP Secret:") {
+		t.Errorf("output missing TOTP Secret label:\n%s", out)
+	}
+	if !strings.Contains(out, "TOTP URI:") {
+		t.Errorf("output missing TOTP URI label:\n%s", out)
+	}
+
+	store, err := invite.NewStore(storePath)
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+	records, err := store.ListInvites()
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected 1 record, got %v (err: %v)", len(records), err)
+	}
+
+	claims, err := invite.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
+	if err != nil {
+		t.Fatalf("ValidateToken failed: %v", err)
+	}
+	if claims.Metadata == nil || claims.Metadata["otpauth"] == "" {
+		t.Fatal("expected claims.Metadata['otpauth'] to be set")
+	}
+	if !strings.HasPrefix(claims.Metadata["otpauth"], "otpauth://totp/Orbit:totp-user@example.com?") {
+		t.Errorf("unexpected otpauth prefix: %q", claims.Metadata["otpauth"])
+	}
+}
+
+
 func TestInviteCreateInvalidArgs(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "invites.json")

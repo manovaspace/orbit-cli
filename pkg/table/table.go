@@ -12,6 +12,8 @@ type Table struct {
 	indent       string
 	dividerStyle lipgloss.Style
 	showDivider  bool
+	page         int
+	limit        int
 }
 
 func New(columns ...Column) *Table {
@@ -65,3 +67,13 @@ func (t *Table) WithDividerStyle(s lipgloss.Style) *Table {
 	t.dividerStyle = s
 	return t
 }
+
+func (t *Table) WithPagination(page, limit int) *Table {
+	if page < 1 {
+		page = 1
+	}
+	t.page = page
+	t.limit = limit
+	return t
+}
+

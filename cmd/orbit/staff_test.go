@@ -460,6 +460,49 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 	}
 }
 
+func TestStaffCreate_InviteWithNoSend(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"uid":              "nosenduser",
+			"display_name":     "No Send User",
+			"mail":             "nosenduser@manova.space",
+			"personal_forward": "nosenduser@example.com",
+			"status":           "active",
+		})
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "create",
+		"--uid", "nosenduser",
+		"--name", "No Send User",
+		"--forward", "nosenduser@example.com",
+		"--invite",
+		"--no-send",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("staff create --invite --no-send failed: %v\n%s", err, buf.String())
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "web setup https://orbit.manova.space/setup?token=orbit-inv.") {
+		t.Fatalf("expected web setup URL in output, got:\n%s", out)
+	}
+	if strings.Contains(out, "mail      dispatched to") {
+		t.Errorf("expected no email dispatch with --no-send, got:\n%s", out)
+	}
+}
+
+
 func TestStaffList_TableRendering(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/staff" {
@@ -583,4 +626,45 @@ func TestStaffList_Empty(t *testing.T) {
 		t.Errorf("expected headers in empty list output, got:\n%s", out)
 	}
 }
+
+func TestStaffList_Pagination(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"uid": "user1", "display_name": "User One", "mail": "user1@manova.space", "personal_forward": "u1@gmail.com", "status": "active"},
+			{"uid": "user2", "display_name": "User Two", "mail": "user2@manova.space", "personal_forward": "u2@gmail.com", "status": "active"},
+			{"uid": "user3", "display_name": "User Three", "mail": "user3@manova.space", "personal_forward": "u3@gmail.com", "status": "active"},
+		})
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "list",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+		"--page", "1",
+		"--limit", "2",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("staff list pagination failed: %v\n%s", err, buf.String())
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "user1") || !strings.Contains(out, "user2") {
+		t.Errorf("expected user1 and user2 on page 1, got:\n%s", out)
+	}
+	if strings.Contains(out, "user3") {
+		t.Errorf("expected user3 NOT to be on page 1, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Showing 1-2 of 3 rows (Page 1/2)") {
+		t.Errorf("expected pagination footer, got:\n%s", out)
+	}
+}
+
 

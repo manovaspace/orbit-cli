@@ -147,8 +147,39 @@ func (t *Table) Render(w io.Writer) error {
 		fmt.Fprintf(w, "%s%s\n", t.indent, divider)
 	}
 
+	// Calculate row slicing for pagination
+	rowsToRender := t.rows
+	totalRows := len(t.rows)
+	isPaginated := t.limit > 0
+
+	var startIdx, endIdx, totalPages int
+	if isPaginated {
+		page := t.page
+		if page < 1 {
+			page = 1
+		}
+		if totalRows > 0 {
+			totalPages = (totalRows + t.limit - 1) / t.limit
+		} else {
+			totalPages = 1
+		}
+
+		startIdx = (page - 1) * t.limit
+		if startIdx < totalRows {
+			endIdx = startIdx + t.limit
+			if endIdx > totalRows {
+				endIdx = totalRows
+			}
+			rowsToRender = t.rows[startIdx:endIdx]
+		} else {
+			rowsToRender = nil
+			startIdx = totalRows
+			endIdx = totalRows
+		}
+	}
+
 	// Render Rows
-	for _, row := range t.rows {
+	for _, row := range rowsToRender {
 		var rowParts []string
 		for i, col := range t.columns {
 			cellText := ""
@@ -183,6 +214,20 @@ func (t *Table) Render(w io.Writer) error {
 			rowParts = append(rowParts, padded)
 		}
 		fmt.Fprintf(w, "%s%s\n", t.indent, strings.Join(rowParts, padStr))
+	}
+
+	// Render Pagination Footer
+	if isPaginated {
+		var paginationInfo string
+		if totalRows == 0 {
+			paginationInfo = "Showing 0 of 0 rows"
+		} else if len(rowsToRender) == 0 {
+			paginationInfo = fmt.Sprintf("Page %d of %d (no rows on this page, total: %d)", t.page, totalPages, totalRows)
+		} else {
+			paginationInfo = fmt.Sprintf("Showing %d-%d of %d rows (Page %d/%d)", startIdx+1, endIdx, totalRows, t.page, totalPages)
+		}
+		footerText := t.dividerStyle.Render(paginationInfo)
+		fmt.Fprintf(w, "\n%s%s\n", t.indent, footerText)
 	}
 
 	return nil

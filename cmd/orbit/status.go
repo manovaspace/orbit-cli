@@ -11,7 +11,11 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	var manifestFlag string
+	var (
+		manifestFlag string
+		pageFlag     int
+		limitFlag    int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "status [scope]",
@@ -54,6 +58,9 @@ func newStatusCmd() *cobra.Command {
 				table.Column{Title: "SYNC", HeaderStyle: headerStyle, MinWidth: 12},
 				table.Column{Title: "WORKING TREE", HeaderStyle: headerStyle, MinWidth: 14},
 			)
+			if limitFlag > 0 {
+				tbl.WithPagination(pageFlag, limitFlag)
+			}
 
 			cleanCount := 0
 			dirtyCount := 0
@@ -125,6 +132,8 @@ func newStatusCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)")
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
 
 	return cmd
 }

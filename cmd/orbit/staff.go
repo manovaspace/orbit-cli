@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
@@ -54,6 +55,7 @@ func newStaffCreateCmd() *cobra.Command {
 		inviteFlag      bool
 		inviteEmailFlag string
 		inviteTTLFlag   string
+		noSendFlag      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -93,20 +95,9 @@ func newStaffCreateCmd() *cobra.Command {
 			}
 			printStaffCreate(cmd, res)
 
-			// --invite: generate a signed onboarding invite token and print it
+			// --invite: generate a signed onboarding invite token and dispatch
 			if inviteFlag {
-				inviteEmail := strings.TrimSpace(inviteEmailFlag)
-				if inviteEmail == "" {
-					inviteEmail = forward // default to the forward address
-				}
-				tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag, res.OTPAuth)
-				if err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "warn   invite generation failed: %v\n", err)
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "invite    %s\n", invID)
-					fmt.Fprintf(cmd.OutOrStdout(), "token     %s\n", tokenStr)
-					fmt.Fprintf(cmd.OutOrStdout(), "web setup https://orbit.manova.space/setup?token=%s\n", tokenStr)
-				}
+				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, res.OTPAuth, noSendFlag)
 			}
 
 			return nil
@@ -121,13 +112,18 @@ func newStaffCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account creation")
 	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
 	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "invite token TTL (e.g. 7d, 24h, 168h)")
+	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "suppress dispatching onboarding invitation email")
 	_ = cmd.MarkFlagRequired("uid")
 	_ = cmd.MarkFlagRequired("forward")
 	return cmd
 }
 
 func newStaffListCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		pageFlag  int
+		limitFlag int
+	)
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List staff members",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -146,6 +142,9 @@ func newStaffListCmd() *cobra.Command {
 				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 10},
 				table.Column{Title: "FORWARD EMAIL", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 20, Flexible: true},
 			)
+			if limitFlag > 0 {
+				tbl.WithPagination(pageFlag, limitFlag)
+			}
 
 			for _, s := range list {
 				var statusCell table.Cell
@@ -175,6 +174,9 @@ func newStaffListCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
+	return cmd
 }
 
 func newStaffGetCmd() *cobra.Command {
@@ -332,12 +334,16 @@ func newStaffResetPasswordCmd() *cobra.Command {
 
 func newStaffRecreateCmd() *cobra.Command {
 	var (
-		uidFlag     string
-		nameFlag    string
-		forwardFlag string
-		groupsFlag  string
-		totpFlag    bool
-		idemFlag    string
+		uidFlag         string
+		nameFlag        string
+		forwardFlag     string
+		groupsFlag      string
+		totpFlag        bool
+		idemFlag        string
+		inviteFlag      bool
+		inviteEmailFlag string
+		inviteTTLFlag   string
+		noSendFlag      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "recreate",
@@ -378,6 +384,12 @@ func newStaffRecreateCmd() *cobra.Command {
 				return err
 			}
 			printStaffCreate(cmd, res)
+
+			// --invite: generate a signed onboarding invite token and dispatch
+			if inviteFlag {
+				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, res.OTPAuth, noSendFlag)
+			}
+
 			return nil
 		},
 	}
@@ -387,6 +399,10 @@ func newStaffRecreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
 	cmd.Flags().BoolVar(&totpFlag, "totp", false, "enroll Authelia TOTP after recreate")
 	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key for create (generated if empty)")
+	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account recreation")
+	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
+	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "invite token TTL (e.g. 7d, 24h, 168h)")
+	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "suppress dispatching onboarding invitation email")
 	_ = cmd.MarkFlagRequired("uid")
 	_ = cmd.MarkFlagRequired("forward")
 	return cmd
@@ -543,3 +559,43 @@ func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr, otpauth s
 
 	return tokenStr, claims.ID, nil
 }
+
+func dispatchStaffInvite(cmd *cobra.Command, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth string, noSend bool) {
+	inviteEmail := strings.TrimSpace(inviteEmailFlag)
+	if inviteEmail == "" {
+		inviteEmail = forward
+	}
+	tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag, otpauth)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "warn   invite generation failed: %v\n", err)
+		return
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "invite    %s\n", invID)
+	fmt.Fprintf(cmd.OutOrStdout(), "token     %s\n", tokenStr)
+	fmt.Fprintf(cmd.OutOrStdout(), "web setup https://orbit.manova.space/setup?token=%s\n", tokenStr)
+
+	if !noSend {
+		mailer := invite.NewMailerFromEnv()
+		ttl, _ := parseDuration(inviteTTLFlag)
+		if ttl == 0 {
+			ttl = 7 * 24 * time.Hour
+		}
+		emailData := invite.EmailData{
+			RecipientName:  strings.TrimSpace(nameFlag),
+			RecipientEmail: inviteEmail,
+			Token:          tokenStr,
+			ShortCode:      tokenStr,
+			Scope:          "core",
+			ExpiresAt:      time.Now().UTC().Add(ttl),
+			ExpiresInHuman: invite.FormatRemaining(ttl),
+			CLICommand:     fmt.Sprintf("orbit onboard --token %s", tokenStr),
+			CurlCommand:    fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", tokenStr),
+		}
+		if sendErr := mailer.SendInvite(cmd.Context(), inviteEmail, emailData); sendErr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warn   failed to dispatch invitation email to %s: %v\n", inviteEmail, sendErr)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "mail      dispatched to %s\n", inviteEmail)
+		}
+	}
+}
+

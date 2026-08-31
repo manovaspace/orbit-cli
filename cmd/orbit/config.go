@@ -279,7 +279,11 @@ func formatSourcePlainText(e config.ConfigEntry) string {
 }
 
 func newConfigListCmd() *cobra.Command {
-	var formatFlag string
+	var (
+		formatFlag string
+		pageFlag   int
+		limitFlag  int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -331,6 +335,10 @@ func newConfigListCmd() *cobra.Command {
 				tbl.AddStyledRow(kCell, vCell, tCell, sCell)
 			}
 
+			if limitFlag > 0 {
+				tbl.WithPagination(pageFlag, limitFlag)
+			}
+
 			fmt.Fprintln(out)
 			_ = tbl.Render(out)
 
@@ -339,6 +347,8 @@ func newConfigListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, or yaml")
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
 	return cmd
 }
 

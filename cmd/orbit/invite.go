@@ -52,6 +52,7 @@ func newInviteCreateCmd() *cobra.Command {
 		insecureFlag    bool
 		sendFlag        bool
 		noSendFlag      bool
+		totpFlag        bool
 		smtpHostFlag    string
 		smtpPortFlag    string
 		smtpFromFlag    string
@@ -129,9 +130,23 @@ func newInviteCreateCmd() *cobra.Command {
 
 			var metadata map[string]string
 			if createAlias {
-				metadata = map[string]string{
-					"create_alias": "true",
+				if metadata == nil {
+					metadata = make(map[string]string)
 				}
+				metadata["create_alias"] = "true"
+			}
+
+			var totpSecret string
+			if totpFlag {
+				secretVal, uriVal, err := invite.GenerateTOTP("Orbit", email)
+				if err != nil {
+					return fmt.Errorf("failed to generate TOTP secret: %w", err)
+				}
+				totpSecret = secretVal
+				if metadata == nil {
+					metadata = make(map[string]string)
+				}
+				metadata["otpauth"] = uriVal
 			}
 
 			createdBy := ""
@@ -270,6 +285,10 @@ func newInviteCreateCmd() *cobra.Command {
 				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Created By:"), boldStyle.Render(claims.CreatedBy))
 			}
 			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Scope:"), infoStyle.Render(claims.Scope))
+			if totpSecret != "" {
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP Secret:"), codeStyle.Render(totpSecret))
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP URI:"), subtleStyle.Render(claims.Metadata["otpauth"]))
+			}
 			fmt.Fprintf(out, "  %-14s %s (%s)\n\n",
 				headerStyle.Render("Expires:"),
 				claims.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
@@ -302,6 +321,7 @@ func newInviteCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&insecureFlag, "insecure", false, "Bypass owner verification check (development only)")
 	cmd.Flags().BoolVarP(&sendFlag, "send", "m", true, "Dispatch onboarding invitation email via SMTP (default: true)")
 	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "Suppress dispatching onboarding invitation email")
+	cmd.Flags().BoolVar(&totpFlag, "totp", false, "Generate Authelia-compatible 2FA TOTP secret and embed QR code in setup link")
 	cmd.Flags().StringVar(&smtpHostFlag, "smtp-host", "", "SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)")
 	cmd.Flags().StringVar(&smtpPortFlag, "smtp-port", "", "SMTP server port (default: $ORBIT_SMTP_PORT or 587)")
 	cmd.Flags().StringVar(&smtpFromFlag, "smtp-from", "", "Sender email address (default: $ORBIT_SMTP_FROM)")
@@ -314,6 +334,8 @@ func newInviteListCmd() *cobra.Command {
 		formatFlag    string
 		storeFileFlag string
 		allFlag       bool
+		pageFlag      int
+		limitFlag     int
 	)
 
 	cmd := &cobra.Command{
@@ -428,6 +450,10 @@ func newInviteListCmd() *cobra.Command {
 				)
 			}
 
+			if limitFlag > 0 {
+				tbl.WithPagination(pageFlag, limitFlag)
+			}
+
 			fmt.Fprintln(out)
 			_ = tbl.Render(out)
 
@@ -445,6 +471,8 @@ func newInviteListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format (table or json)")
 	cmd.Flags().StringVar(&storeFileFlag, "store-file", "", "Custom path to invites storage file")
 	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Include revoked and expired invitations")
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
 
 	return cmd
 }

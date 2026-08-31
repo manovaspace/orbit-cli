@@ -58,15 +58,81 @@ func NewSMTPMailer(cfg MailerConfig) *SMTPMailer {
 	return &SMTPMailer{cfg: cfg}
 }
 
-// NewMailerFromEnv initializes an SMTPMailer from ORBIT_SMTP_* environment variables.
+// NewMailerFromEnv initializes an SMTPMailer from ORBIT_SMTP_* environment variables or server env files.
 func NewMailerFromEnv() *SMTPMailer {
-	return NewSMTPMailer(MailerConfig{
-		Host: envOrDefault("ORBIT_SMTP_HOST", "mail.manova.space"),
-		Port: envOrDefault("ORBIT_SMTP_PORT", "587"),
+	cfg := MailerConfig{
+		Host: envOrDefault("ORBIT_SMTP_HOST", ""),
+		Port: envOrDefault("ORBIT_SMTP_PORT", ""),
 		User: envOrDefault("ORBIT_SMTP_USER", ""),
 		Pass: envOrDefault("ORBIT_SMTP_PASS", ""),
-		From: envOrDefault("ORBIT_SMTP_FROM", "Orbit Platform <noreply@manova.space>"),
-	})
+		From: envOrDefault("ORBIT_SMTP_FROM", ""),
+	}
+
+	// If SMTP credentials not in process env, check standard server env files
+	if cfg.User == "" || cfg.Pass == "" {
+		envFiles := []string{
+			"/etc/orbit/orbit-server.env",
+			os.ExpandEnv("$HOME/.config/orbit/orbit-server.env"),
+			"/var/lib/orbit/orbit-server.env",
+		}
+		for _, f := range envFiles {
+			if f == "" {
+				continue
+			}
+			if kvs := parseEnvFile(f); len(kvs) > 0 {
+				if cfg.Host == "" {
+					if v, ok := kvs["ORBIT_SMTP_HOST"]; ok && v != "" {
+						cfg.Host = v
+					} else if v, ok := kvs["SMTP_HOST"]; ok && v != "" {
+						cfg.Host = v
+					}
+				}
+				if cfg.Port == "" {
+					if v, ok := kvs["ORBIT_SMTP_PORT"]; ok && v != "" {
+						cfg.Port = v
+					} else if v, ok := kvs["SMTP_PORT"]; ok && v != "" {
+						cfg.Port = v
+					}
+				}
+				if cfg.User == "" {
+					if v, ok := kvs["ORBIT_SMTP_USER"]; ok && v != "" {
+						cfg.User = v
+					} else if v, ok := kvs["SMTP_USER"]; ok && v != "" {
+						cfg.User = v
+					}
+				}
+				if cfg.Pass == "" {
+					if v, ok := kvs["ORBIT_SMTP_PASS"]; ok && v != "" {
+						cfg.Pass = v
+					} else if v, ok := kvs["SMTP_PASS"]; ok && v != "" {
+						cfg.Pass = v
+					}
+				}
+				if cfg.From == "" {
+					if v, ok := kvs["ORBIT_SMTP_FROM"]; ok && v != "" {
+						cfg.From = v
+					} else if v, ok := kvs["SMTP_FROM"]; ok && v != "" {
+						cfg.From = v
+					}
+				}
+				if cfg.User != "" && cfg.Pass != "" {
+					break
+				}
+			}
+		}
+	}
+
+	if cfg.Host == "" {
+		cfg.Host = "mail.manova.space"
+	}
+	if cfg.Port == "" {
+		cfg.Port = "587"
+	}
+	if cfg.From == "" {
+		cfg.From = "Orbit Platform <noreply@manova.space>"
+	}
+
+	return NewSMTPMailer(cfg)
 }
 
 // SendInvite renders the invitation email and dispatches it as a multipart/alternative MIME message.
@@ -214,4 +280,27 @@ func envOrDefault(key, def string) string {
 	}
 	return def
 }
+
+func parseEnvFile(path string) map[string]string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	res := make(map[string]string)
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			k := strings.TrimSpace(parts[0])
+			v := strings.TrimSpace(parts[1])
+			v = strings.Trim(v, `"'`)
+			res[k] = v
+		}
+	}
+	return res
+}
+
 

@@ -52,6 +52,11 @@ func newMigrateCmd() *cobra.Command {
 }
 
 func newMigrateStatusCmd() *cobra.Command {
+	var (
+		pageFlag  int
+		limitFlag int
+	)
+
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show status of all registered workspace migrations",
@@ -80,6 +85,9 @@ func newMigrateStatusCmd() *cobra.Command {
 				table.Column{Title: "DESCRIPTION", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 30, Flexible: true},
 				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 16},
 			)
+			if limitFlag > 0 {
+				tbl.WithPagination(pageFlag, limitFlag)
+			}
 
 			pendingCount := 0
 			appliedCount := 0
@@ -95,7 +103,8 @@ func newMigrateStatusCmd() *cobra.Command {
 					statusCell = table.StyleCell(statusStr, successStyle)
 				} else {
 					pendingCount++
-					statusCell = table.StyleCell("⚠ Pending", warningStyle)
+					statusStr := "⚠ Pending"
+					statusCell = table.StyleCell(statusStr, warningStyle)
 				}
 
 				tbl.AddStyledRow(idCell, descCell, statusCell)
@@ -113,5 +122,7 @@ func newMigrateStatusCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
 	return cmd
 }

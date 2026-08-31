@@ -37,7 +37,11 @@ func newPortCmd() *cobra.Command {
 }
 
 func newPortListCmd() *cobra.Command {
-	var scanNetwork bool
+	var (
+		scanNetwork bool
+		pageFlag    int
+		limitFlag   int
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -59,7 +63,31 @@ func newPortListCmd() *cobra.Command {
 				return entries[i].id < entries[j].id
 			})
 
-			for _, p := range entries {
+			totalProjects := len(entries)
+			displayEntries := entries
+			var startIdx, endIdx, totalPages int
+
+			if limitFlag > 0 {
+				page := pageFlag
+				if page < 1 {
+					page = 1
+				}
+				totalPages = (totalProjects + limitFlag - 1) / limitFlag
+				startIdx = (page - 1) * limitFlag
+				if startIdx < totalProjects {
+					endIdx = startIdx + limitFlag
+					if endIdx > totalProjects {
+						endIdx = totalProjects
+					}
+					displayEntries = entries[startIdx:endIdx]
+				} else {
+					displayEntries = nil
+					startIdx = totalProjects
+					endIdx = totalProjects
+				}
+			}
+
+			for _, p := range displayEntries {
 				base := ports.BasePort(p.id)
 				start, end := ports.GetProjectRange(p.id)
 
@@ -119,12 +147,26 @@ func newPortListCmd() *cobra.Command {
 				)
 			}
 
+			if limitFlag > 0 {
+				var info string
+				if totalProjects == 0 {
+					info = "Showing 0 of 0 projects"
+				} else if len(displayEntries) == 0 {
+					info = fmt.Sprintf("Page %d of %d (no projects on this page, total: %d)", pageFlag, totalPages, totalProjects)
+				} else {
+					info = fmt.Sprintf("Showing %d-%d of %d projects (Page %d/%d)", startIdx+1, endIdx, totalProjects, pageFlag, totalPages)
+				}
+				fmt.Fprintf(out, "\n  %s\n", subtleStyle.Render(info))
+			}
+
 			fmt.Fprintln(out)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&scanNetwork, "scan", true, "Scan active network sockets on loopback")
+	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum projects per page (0 = all)")
 	return cmd
 }
 
