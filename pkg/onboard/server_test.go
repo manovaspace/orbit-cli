@@ -1292,3 +1292,74 @@ func TestHandleInstallScript_SetupAndOnboardRoutes(t *testing.T) {
 	}
 }
 
+func TestLandingHTML_DynamicOnboardingAndTOTPFeatures(t *testing.T) {
+	srv, _ := setupTestServer(t, nil, nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	for _, route := range []string{"/", "/setup", "/onboard"} {
+		t.Run("InspectHTML_"+route, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+route, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Accept", "text/html")
+			req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", route, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: expected status 200, got %d", route, resp.StatusCode)
+			}
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+			html := string(bodyBytes)
+
+			// 1. Verify zero external scripts or CDNs
+			if strings.Contains(html, "<script src=") || strings.Contains(html, "<script type=\"text/javascript\" src=") {
+				t.Errorf("GET %s: landing HTML must not contain external scripts", route)
+			}
+
+			// 2. Verify dynamic DOM placeholders and hooks
+			requiredHooks := []string{
+				`id="status-badge"`,
+				`id="hero-title"`,
+				`id="hero-lede"`,
+				`id="totp-section"`,
+				`id="totp-qr-container"`,
+				`id="totp-secret-val"`,
+				`id="copy-secret-btn"`,
+				`id="cmd-text"`,
+				`id="install-copy-btn"`,
+				`id="alt-cmd-box"`,
+				`id="alt-cmd-text"`,
+				`id="alt-copy-btn"`,
+			}
+
+			for _, hook := range requiredHooks {
+				if !strings.Contains(html, hook) {
+					t.Errorf("GET %s: landing HTML missing required element hook %q", route, hook)
+				}
+			}
+
+			// 3. Verify embedded pure-JS QR code generator
+			if !strings.Contains(html, "renderQRCodeSVG") {
+				t.Errorf("GET %s: landing HTML missing renderQRCodeSVG JS function", route)
+			}
+
+			// 4. Verify base command
+			if !strings.Contains(html, "curl -fsSL orbit.manova.space | bash") {
+				t.Errorf("GET %s: landing HTML missing fallback base install command", route)
+			}
+		})
+	}
+}
+
+

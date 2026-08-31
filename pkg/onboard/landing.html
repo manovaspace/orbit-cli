@@ -18,6 +18,8 @@
       --paper: #e8eef4;
       --quiet: #8b9bb0;
       --ok: #7eb8a8;
+      --warn: #e09f3e;
+      --err: #f26d6d;
       --prompt: #6a7a90;
       --space-1: 8px;
       --space-2: 16px;
@@ -120,6 +122,31 @@
       padding: var(--space-5) 0 var(--space-3);
     }
 
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: var(--space-2);
+      background: rgba(126, 184, 168, 0.12);
+      color: var(--ok);
+      border: 1px solid rgba(126, 184, 168, 0.35);
+    }
+
+    .status-badge.is-expired {
+      background: rgba(242, 109, 109, 0.12);
+      color: var(--err);
+      border-color: rgba(242, 109, 109, 0.35);
+    }
+
+    .status-badge svg {
+      flex-shrink: 0;
+    }
+
     .hero h1 {
       font-size: clamp(2rem, 5vw, 2.75rem);
       font-weight: 700;
@@ -133,6 +160,174 @@
       color: var(--quiet);
       font-size: 1.0625rem;
       line-height: 1.55;
+    }
+
+    .lede strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    /* 2FA TOTP Card */
+    .totp-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--space-3);
+      margin-bottom: var(--space-4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .totp-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--signal), var(--ok));
+    }
+
+    .totp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      margin-bottom: 6px;
+    }
+
+    .totp-icon-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .totp-icon {
+      color: var(--signal);
+      flex-shrink: 0;
+    }
+
+    .totp-card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--paper);
+    }
+
+    .totp-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ok);
+      background: rgba(126, 184, 168, 0.12);
+      border: 1px solid rgba(126, 184, 168, 0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .totp-desc {
+      font-size: 13px;
+      color: var(--quiet);
+      margin-bottom: var(--space-3);
+      line-height: 1.45;
+    }
+
+    .totp-body {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .qr-container {
+      background: #ffffff;
+      padding: 8px;
+      border-radius: 8px;
+      width: 154px;
+      height: 154px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+
+    .qr-container svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .totp-details {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .totp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .totp-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--quiet);
+    }
+
+    .secret-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--void);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px 6px 12px;
+      overflow: hidden;
+    }
+
+    .secret-text {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--signal);
+      letter-spacing: 0.06em;
+      user-select: all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .totp-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--quiet);
+    }
+
+    .meta-item {
+      display: flex;
+      gap: 6px;
+    }
+
+    .meta-label {
+      color: var(--prompt);
+    }
+
+    .meta-val {
+      color: var(--paper);
+      font-family: var(--font-mono);
+      word-break: break-all;
     }
 
     .install { margin-bottom: var(--space-5); }
@@ -187,6 +382,13 @@
       border-color: var(--ok);
     }
 
+    .copy-btn-sm {
+      min-height: 28px;
+      padding: 4px 10px;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
     .term-body {
       display: flex;
       align-items: baseline;
@@ -211,11 +413,47 @@
     }
     .cmd-kw { color: var(--signal); }
     .cmd-pipe { color: var(--quiet); }
+    .cmd-val { color: var(--ok); word-break: break-all; }
 
     .hint {
       margin-top: 10px;
       font-size: 13px;
       color: var(--quiet);
+    }
+
+    .alt-cmd-box {
+      margin-top: var(--space-2);
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      font-size: 13px;
+      color: var(--quiet);
+    }
+
+    .alt-cmd-box-content {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .alt-cmd-box span {
+      flex-shrink: 0;
+    }
+
+    .alt-cmd-box code {
+      font-family: var(--font-mono);
+      color: var(--paper);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .live {
@@ -321,6 +559,19 @@
       }
     }
 
+    @media (max-width: 520px) {
+      .totp-body {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .qr-container {
+        margin: 0 auto;
+      }
+      .totp-details {
+        width: 100%;
+      }
+    }
+
     @media (max-width: 479px) {
       .caps { grid-template-columns: 1fr; gap: var(--space-3); }
       .cmd-text { white-space: normal; }
@@ -328,6 +579,14 @@
       .next-row {
         grid-template-columns: 1fr;
         gap: 4px;
+      }
+      .alt-cmd-box {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .alt-cmd-box-content {
+        flex-direction: column;
+        gap: 2px;
       }
     }
 
@@ -357,22 +616,67 @@
 
     <main>
       <section class="hero">
-        <h1>Install Orbit</h1>
-        <p class="lede">Workstation CLI for onboarding, multi-repo sync, and the local dev stack. One binary, then a prompt before anything writes PATH.</p>
+        <div id="status-badge" class="status-badge" style="display: none;" role="status"></div>
+        <h1 id="hero-title">Install Orbit</h1>
+        <p class="lede" id="hero-lede">Workstation CLI for onboarding, multi-repo sync, and the local dev stack. One binary, then a prompt before anything writes PATH.</p>
+      </section>
+
+      <!-- Conditional 2FA / TOTP Section -->
+      <section class="totp-card" id="totp-section" style="display: none;" aria-labelledby="totp-heading">
+        <div class="totp-header">
+          <div class="totp-icon-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="totp-icon" aria-hidden="true">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <h2 id="totp-heading">Two-Factor Authentication (2FA)</h2>
+          </div>
+          <span class="totp-badge">Single Sign-On</span>
+        </div>
+        <p class="totp-desc">Scan with 1Password, Google Authenticator, or your authenticator app for Single Sign-On 2FA.</p>
+        <div class="totp-body">
+          <div class="qr-container" id="totp-qr-container" aria-label="2FA QR Code"></div>
+          <div class="totp-details">
+            <div class="totp-field">
+              <span class="totp-label">Manual Entry Secret</span>
+              <div class="secret-box">
+                <code id="totp-secret-val" class="secret-text">--------</code>
+                <button type="button" class="copy-btn copy-btn-sm" id="copy-secret-btn" data-copy="" aria-label="Copy 2FA Secret Key">Copy Secret</button>
+              </div>
+            </div>
+            <div class="totp-meta" id="totp-meta">
+              <div class="meta-item" id="totp-account-item" style="display: none;">
+                <span class="meta-label">Account:</span>
+                <span class="meta-val" id="totp-account-val"></span>
+              </div>
+              <div class="meta-item" id="totp-issuer-item" style="display: none;">
+                <span class="meta-label">Issuer:</span>
+                <span class="meta-val" id="totp-issuer-val"></span>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="install" aria-labelledby="install-label">
         <div class="term">
           <div class="term-bar">
             <span class="term-title" id="install-label">Paste in a terminal</span>
-            <button type="button" class="copy-btn" data-copy="curl -fsSL orbit.manova.space | bash" aria-label="Copy install command">Copy</button>
+            <button type="button" class="copy-btn" id="install-copy-btn" data-copy="curl -fsSL orbit.manova.space | bash" aria-label="Copy install command">Copy</button>
           </div>
           <div class="term-body">
             <span class="prompt" aria-hidden="true">$</span>
-            <code class="cmd-text"><span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span></code>
+            <code class="cmd-text" id="cmd-text"><span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span></code>
           </div>
         </div>
-        <p class="hint">Confirms before writing PATH.</p>
+        <p class="hint" id="install-hint">Confirms before writing PATH.</p>
+        <div class="alt-cmd-box" id="alt-cmd-box" style="display: none;">
+          <div class="alt-cmd-box-content">
+            <span>Already have Orbit installed? Run</span>
+            <code id="alt-cmd-text">orbit onboard --token ...</code>
+          </div>
+          <button type="button" class="copy-btn copy-btn-sm" id="alt-copy-btn" data-copy="" aria-label="Copy orbit onboard command">Copy</button>
+        </div>
         <p class="live" id="copy-status" aria-live="polite"></p>
       </section>
 
@@ -418,8 +722,542 @@
   </div>
 
   <script>
-    const INSTALL_CMD = "curl -fsSL orbit.manova.space | bash";
+    // Pure JavaScript, zero-dependency, self-contained QR Code Generator
+    (function(global) {
+      const EXP_TABLE = new Uint8Array(512);
+      const LOG_TABLE = new Uint8Array(256);
+      for (let i = 0, x = 1; i < 255; i++) {
+        EXP_TABLE[i] = x;
+        EXP_TABLE[i + 255] = x;
+        LOG_TABLE[x] = i;
+        x = (x << 1) ^ (x >= 128 ? 0x11D : 0);
+      }
+
+      function gfMul(x, y) {
+        if (x === 0 || y === 0) return 0;
+        return EXP_TABLE[LOG_TABLE[x] + LOG_TABLE[y]];
+      }
+
+      function rsGeneratorPoly(ecLength) {
+        let poly = [1];
+        for (let i = 0; i < ecLength; i++) {
+          const next = [1, EXP_TABLE[i]];
+          const res = new Array(poly.length + next.length - 1).fill(0);
+          for (let j = 0; j < poly.length; j++) {
+            for (let k = 0; k < next.length; k++) {
+              res[j + k] ^= gfMul(poly[j], next[k]);
+            }
+          }
+          poly = res;
+        }
+        return poly;
+      }
+
+      function rsComputeRemainder(data, ecLength) {
+        const gen = rsGeneratorPoly(ecLength);
+        const result = new Array(ecLength).fill(0);
+        for (let i = 0; i < data.length; i++) {
+          const factor = data[i] ^ result[0];
+          result.shift();
+          result.push(0);
+          for (let j = 0; j < ecLength; j++) {
+            result[j] ^= gfMul(gen[j + 1], factor);
+          }
+        }
+        return result;
+      }
+
+      const ALIGNMENT_POS = [
+        [], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34],
+        [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50], [6, 30, 54],
+        [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70],
+        [6, 26, 50, 74], [6, 30, 54, 78], [6, 30, 56, 82], [6, 30, 58, 86],
+        [6, 34, 62, 90], [6, 28, 50, 72, 94], [6, 26, 50, 74, 98],
+        [6, 30, 54, 78, 102], [6, 28, 54, 80, 106], [6, 32, 58, 84, 110],
+        [6, 30, 58, 86, 114], [6, 34, 62, 90, 118], [6, 26, 50, 74, 98, 122],
+        [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134],
+        [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146],
+        [6, 30, 54, 78, 102, 126, 150], [6, 24, 50, 76, 102, 128, 154],
+        [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162],
+        [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]
+      ];
+
+      // ECC Table for Level M: [ecCodewordsPerBlock, numBlocksG1, dataG1, numBlocksG2, dataG2]
+      const ECC_TABLE_M = [
+        null,
+        [10, 1, 16, 0, 0],   // V1
+        [16, 1, 28, 0, 0],   // V2
+        [26, 1, 44, 0, 0],   // V3
+        [18, 2, 32, 0, 0],   // V4
+        [24, 2, 43, 0, 0],   // V5
+        [16, 4, 27, 0, 0],   // V6
+        [18, 2, 31, 2, 32],  // V7
+        [22, 2, 38, 2, 39],  // V8
+        [22, 3, 36, 2, 37],  // V9
+        [26, 4, 43, 1, 44],  // V10
+        [30, 1, 50, 4, 51],  // V11
+        [22, 6, 36, 2, 37],  // V12
+        [22, 8, 37, 1, 38],  // V13
+        [24, 4, 40, 5, 41],  // V14
+        [24, 5, 41, 5, 42],  // V15
+        [28, 7, 45, 3, 46],  // V16
+        [28, 10, 46, 1, 47], // V17
+        [26, 9, 43, 4, 44],  // V18
+        [26, 3, 44, 11, 45], // V19
+        [26, 3, 41, 13, 42]  // V20
+      ];
+
+      function getFormatBits(level, mask) {
+        const levelBits = (level === 'L') ? 1 : 0;
+        const data = (levelBits << 3) | mask;
+        let d = data << 10;
+        for (let i = 4; i >= 0; i--) {
+          if ((d >>> (i + 10)) & 1) d ^= (0x537 << i);
+        }
+        return ((data << 10) | d) ^ 0x5412;
+      }
+
+      function getVersionBits(v) {
+        if (v < 7) return 0;
+        let d = v << 12;
+        for (let i = 5; i >= 0; i--) {
+          if ((d >>> (i + 12)) & 1) d ^= (0x1F25 << i);
+        }
+        return (v << 12) | d;
+      }
+
+      class BitBuffer {
+        constructor() { this.buffer = []; this.length = 0; }
+        put(num, length) {
+          for (let i = 0; i < length; i++) {
+            this.putBit(((num >>> (length - i - 1)) & 1) === 1);
+          }
+        }
+        putBit(bit) {
+          const bufIndex = Math.floor(this.length / 8);
+          if (this.buffer.length <= bufIndex) this.buffer.push(0);
+          if (bit) this.buffer[bufIndex] |= (0x80 >>> (this.length % 8));
+          this.length++;
+        }
+      }
+
+      function encodeData(text) {
+        const utf8Bytes = new TextEncoder().encode(text);
+        const dataLen = utf8Bytes.length;
+
+        let version = -1;
+        for (let v = 1; v < ECC_TABLE_M.length; v++) {
+          if (!ECC_TABLE_M[v]) continue;
+          const [ecLen, b1, d1, b2, d2] = ECC_TABLE_M[v];
+          const totalDataBytes = b1 * d1 + b2 * d2;
+          const countBits = (v < 10) ? 8 : 16;
+          const requiredBits = 4 + countBits + (dataLen * 8);
+          if (requiredBits <= totalDataBytes * 8) {
+            version = v;
+            break;
+          }
+        }
+
+        if (version === -1) throw new Error("Data too long for QR Code");
+
+        const [ecCodewords, numBlocks1, dataBlock1, numBlocks2, dataBlock2] = ECC_TABLE_M[version];
+        const totalDataCapacity = numBlocks1 * dataBlock1 + numBlocks2 * dataBlock2;
+
+        const bb = new BitBuffer();
+        bb.put(4, 4); // Byte mode
+        bb.put(dataLen, version < 10 ? 8 : 16);
+        for (let i = 0; i < dataLen; i++) bb.put(utf8Bytes[i], 8);
+
+        const capacityBits = totalDataCapacity * 8;
+        const remainingBits = capacityBits - bb.length;
+        if (remainingBits > 0) bb.put(0, Math.min(4, remainingBits));
+        while (bb.length % 8 !== 0) bb.putBit(false);
+
+        const padBytes = [0xEC, 0x11];
+        let padIdx = 0;
+        while (bb.length < capacityBits) {
+          bb.put(padBytes[padIdx % 2], 8);
+          padIdx++;
+        }
+
+        const dataBytes = bb.buffer;
+        const dataBlocks = [];
+        const ecBlocks = [];
+        let offset = 0;
+
+        for (let b = 0; b < numBlocks1; b++) {
+          const blk = dataBytes.slice(offset, offset + dataBlock1);
+          offset += dataBlock1;
+          dataBlocks.push(blk);
+          ecBlocks.push(rsComputeRemainder(blk, ecCodewords));
+        }
+        for (let b = 0; b < numBlocks2; b++) {
+          const blk = dataBytes.slice(offset, offset + dataBlock2);
+          offset += dataBlock2;
+          dataBlocks.push(blk);
+          ecBlocks.push(rsComputeRemainder(blk, ecCodewords));
+        }
+
+        const interleaved = [];
+        const maxDataLen = Math.max(dataBlock1, dataBlock2);
+        for (let i = 0; i < maxDataLen; i++) {
+          for (let b = 0; b < dataBlocks.length; b++) {
+            if (i < dataBlocks[b].length) interleaved.push(dataBlocks[b][i]);
+          }
+        }
+        for (let i = 0; i < ecCodewords; i++) {
+          for (let b = 0; b < ecBlocks.length; b++) {
+            interleaved.push(ecBlocks[b][i]);
+          }
+        }
+
+        return { version, interleaved };
+      }
+
+      function createMatrix(version) {
+        const size = 17 + 4 * version;
+        const matrix = Array.from({ length: size }, () => new Int8Array(size).fill(0));
+        const isFunction = Array.from({ length: size }, () => new Uint8Array(size).fill(0));
+
+        function set(r, c, isDark) {
+          matrix[r][c] = isDark ? 1 : -1;
+          isFunction[r][c] = 1;
+        }
+
+        function placeFinder(row, col) {
+          for (let r = -1; r <= 7; r++) {
+            for (let c = -1; c <= 7; c++) {
+              const qr = row + r;
+              const qc = col + c;
+              if (qr >= 0 && qr < size && qc >= 0 && qc < size) {
+                if (r >= 0 && r <= 6 && c >= 0 && c <= 6) {
+                  const isDark = (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+                  set(qr, qc, isDark);
+                } else {
+                  set(qr, qc, false);
+                }
+              }
+            }
+          }
+        }
+
+        placeFinder(0, 0);
+        placeFinder(0, size - 7);
+        placeFinder(size - 7, 0);
+
+        for (let i = 8; i < size - 8; i++) {
+          if (!isFunction[6][i]) set(6, i, i % 2 === 0);
+          if (!isFunction[i][6]) set(i, 6, i % 2 === 0);
+        }
+
+        const alignCoords = ALIGNMENT_POS[version] || [];
+        for (let i = 0; i < alignCoords.length; i++) {
+          for (let j = 0; j < alignCoords.length; j++) {
+            const ar = alignCoords[i];
+            const ac = alignCoords[j];
+            if (isFunction[ar][ac]) continue;
+            for (let r = -2; r <= 2; r++) {
+              for (let c = -2; c <= 2; c++) {
+                const isDark = (Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0));
+                set(ar + r, ac + c, isDark);
+              }
+            }
+          }
+        }
+
+        set(4 * version + 9, 8, true); // Dark module
+
+        for (let i = 0; i < 9; i++) {
+          if (!isFunction[8][i]) { matrix[8][i] = 0; isFunction[8][i] = 1; }
+          if (!isFunction[i][8]) { matrix[i][8] = 0; isFunction[i][8] = 1; }
+        }
+        for (let i = 0; i < 8; i++) {
+          if (!isFunction[8][size - 1 - i]) { matrix[8][size - 1 - i] = 0; isFunction[8][size - 1 - i] = 1; }
+          if (!isFunction[size - 1 - i][8]) { matrix[size - 1 - i][8] = 0; isFunction[size - 1 - i][8] = 1; }
+        }
+
+        if (version >= 7) {
+          for (let r = 0; r < 6; r++) {
+            for (let c = 0; c < 3; c++) {
+              isFunction[r][size - 11 + c] = 1;
+              isFunction[size - 11 + c][r] = 1;
+            }
+          }
+        }
+
+        return { size, matrix, isFunction };
+      }
+
+      function maskCondition(mask, r, c) {
+        switch (mask) {
+          case 0: return (r + c) % 2 === 0;
+          case 1: return r % 2 === 0;
+          case 2: return c % 3 === 0;
+          case 3: return (r + c) % 3 === 0;
+          case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
+          case 5: return ((r * c) % 2) + ((r * c) % 3) === 0;
+          case 6: return (((r * c) % 2) + ((r * c) % 3)) % 2 === 0;
+          case 7: return (((r + c) % 2) + ((r * c) % 3)) % 2 === 0;
+          default: return false;
+        }
+      }
+
+      function applyData(matrixInfo, interleaved, mask) {
+        const { size, matrix, isFunction } = matrixInfo;
+        const copy = matrix.map(row => new Int8Array(row));
+        let bitIdx = 0;
+        const totalBits = interleaved.length * 8;
+        let dir = -1;
+        let r = size - 1;
+        let c = size - 1;
+
+        while (c > 0) {
+          if (c === 6) c--;
+          for (let step = 0; step < size; step++) {
+            const row = r;
+            for (let colOffset = 0; colOffset < 2; colOffset++) {
+              const col = c - colOffset;
+              if (isFunction[row][col]) continue;
+              let bit = false;
+              if (bitIdx < totalBits) {
+                const byteVal = interleaved[Math.floor(bitIdx / 8)];
+                bit = ((byteVal >>> (7 - (bitIdx % 8))) & 1) === 1;
+                bitIdx++;
+              }
+              const invert = maskCondition(mask, row, col);
+              copy[row][col] = (bit ^ invert) ? 1 : -1;
+            }
+            r += dir;
+          }
+          dir = -dir;
+          r += dir;
+          c -= 2;
+        }
+        return copy;
+      }
+
+      function writeFormatAndVersion(matrix, version, mask) {
+        const size = matrix.length;
+        const formatBits = getFormatBits('M', mask);
+
+        for (let i = 0; i < 6; i++) matrix[8][i] = ((formatBits >>> (14 - i)) & 1) ? 1 : -1;
+        matrix[8][7] = ((formatBits >>> 8) & 1) ? 1 : -1;
+        matrix[8][8] = ((formatBits >>> 7) & 1) ? 1 : -1;
+        matrix[7][8] = ((formatBits >>> 6) & 1) ? 1 : -1;
+        for (let i = 0; i < 6; i++) matrix[5 - i][8] = ((formatBits >>> (5 - i)) & 1) ? 1 : -1;
+
+        for (let i = 0; i < 7; i++) matrix[size - 1 - i][8] = ((formatBits >>> i) & 1) ? 1 : -1;
+        for (let i = 0; i < 8; i++) matrix[8][size - 8 + i] = ((formatBits >>> (7 + i)) & 1) ? 1 : -1;
+
+        if (version >= 7) {
+          const vBits = getVersionBits(version);
+          for (let i = 0; i < 18; i++) {
+            const bit = ((vBits >>> i) & 1) ? 1 : -1;
+            const r = Math.floor(i / 3);
+            const c = i % 3;
+            matrix[size - 11 + c][r] = bit;
+            matrix[r][size - 11 + c] = bit;
+          }
+        }
+      }
+
+      function calculatePenalty(matrix) {
+        const size = matrix.length;
+        let score = 0;
+
+        for (let r = 0; r < size; r++) {
+          let runColor = 0, runLen = 0;
+          for (let c = 0; c < size; c++) {
+            const val = matrix[r][c] === 1 ? 1 : 0;
+            if (val === runColor) {
+              runLen++;
+              if (runLen === 5) score += 3;
+              else if (runLen > 5) score += 1;
+            } else { runColor = val; runLen = 1; }
+          }
+        }
+        for (let c = 0; c < size; c++) {
+          let runColor = 0, runLen = 0;
+          for (let r = 0; r < size; r++) {
+            const val = matrix[r][c] === 1 ? 1 : 0;
+            if (val === runColor) {
+              runLen++;
+              if (runLen === 5) score += 3;
+              else if (runLen > 5) score += 1;
+            } else { runColor = val; runLen = 1; }
+          }
+        }
+        for (let r = 0; r < size - 1; r++) {
+          for (let c = 0; c < size - 1; c++) {
+            const val = matrix[r][c];
+            if (val === matrix[r+1][c] && val === matrix[r][c+1] && val === matrix[r+1][c+1]) {
+              score += 3;
+            }
+          }
+        }
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size - 10; c++) {
+            if (
+              matrix[r][c] === 1 && matrix[r][c+1] === -1 &&
+              matrix[r][c+2] === 1 && matrix[r][c+3] === 1 && matrix[r][c+4] === 1 &&
+              matrix[r][c+5] === -1 && matrix[r][c+6] === 1 &&
+              (
+                (c >= 4 && matrix[r][c-4] === -1 && matrix[r][c-3] === -1 && matrix[r][c-2] === -1 && matrix[r][c-1] === -1) ||
+                (c + 10 < size && matrix[r][c+7] === -1 && matrix[r][c+8] === -1 && matrix[r][c+9] === -1 && matrix[r][c+10] === -1)
+              )
+            ) { score += 40; }
+          }
+        }
+        let darkCount = 0;
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) if (matrix[r][c] === 1) darkCount++;
+        }
+        const percent = (darkCount * 100) / (size * size);
+        score += Math.floor(Math.abs(percent - 50) / 5) * 10;
+
+        return score;
+      }
+
+      function generateQRCode(text) {
+        const { version, interleaved } = encodeData(text);
+        const matrixInfo = createMatrix(version);
+
+        let bestMatrix = null;
+        let bestScore = Infinity;
+
+        for (let mask = 0; mask < 8; mask++) {
+          const mat = applyData(matrixInfo, interleaved, mask);
+          writeFormatAndVersion(mat, version, mask);
+          const score = calculatePenalty(mat);
+          if (score < bestScore) {
+            bestScore = score;
+            bestMatrix = mat;
+          }
+        }
+        return { version, size: bestMatrix.length, matrix: bestMatrix };
+      }
+
+      function renderQRCodeSVG(text, options = {}) {
+        const qr = generateQRCode(text);
+        const size = qr.size;
+        const margin = options.margin !== undefined ? options.margin : 3;
+        const totalSize = size + margin * 2;
+        const fg = options.fg || '#0e131c';
+        const bg = options.bg || '#ffffff';
+
+        let pathD = '';
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            if (qr.matrix[r][c] === 1) {
+              pathD += `M${c + margin},${r + margin}h1v1h-1z `;
+            }
+          }
+        }
+
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" shape-rendering="crispEdges" width="100%" height="100%" aria-label="TOTP 2FA QR Code">` +
+          `<rect width="${totalSize}" height="${totalSize}" fill="${bg}"/>` +
+          `<path d="${pathD}" fill="${fg}"/>` +
+          `</svg>`;
+      }
+
+      global.renderQRCodeSVG = renderQRCodeSVG;
+    })(typeof window !== 'undefined' ? window : globalThis);
+
+    const DEFAULT_INSTALL_CMD = "curl -fsSL orbit.manova.space | bash";
     const statusEl = document.getElementById("copy-status");
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function decodeTokenPayload(token) {
+      try {
+        const parts = token.trim().split('.');
+        if (parts.length < 2) return null;
+        let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4 !== 0) b64 += '=';
+        const jsonStr = decodeURIComponent(
+          atob(b64)
+            .split('')
+            .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        return JSON.parse(jsonStr);
+      } catch (e) {
+        try {
+          const parts = token.trim().split('.');
+          let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          while (b64.length % 4 !== 0) b64 += '=';
+          return JSON.parse(atob(b64));
+        } catch (err) {
+          return null;
+        }
+      }
+    }
+
+    function parseOTPAuth(uri) {
+      try {
+        const secretMatch = uri.match(/[?&]secret=([^&#]+)/i);
+        const secret = secretMatch ? decodeURIComponent(secretMatch[1]) : "";
+        const issuerMatch = uri.match(/[?&]issuer=([^&#]+)/i);
+        let issuer = issuerMatch ? decodeURIComponent(issuerMatch[1]) : "";
+        let account = "";
+        const pathMatch = uri.match(/otpauth:\/\/[^/]+\/([^?#]+)/i);
+        if (pathMatch) {
+          const label = decodeURIComponent(pathMatch[1]);
+          if (label.includes(":")) {
+            const parts = label.split(":");
+            if (!issuer) issuer = parts[0];
+            account = parts.slice(1).join(":");
+          } else {
+            account = label;
+          }
+        }
+        return { secret, issuer, account };
+      } catch (e) {
+        return { secret: "", issuer: "", account: "" };
+      }
+    }
+
+    function formatExpiry(exp) {
+      if (!exp) return null;
+      let expDate = null;
+      if (typeof exp === 'number') {
+        expDate = new Date(exp > 1e11 ? exp : exp * 1000);
+      } else if (typeof exp === 'string') {
+        const num = Number(exp);
+        if (!isNaN(num)) {
+          expDate = new Date(num > 1e11 ? num : num * 1000);
+        } else {
+          expDate = new Date(exp);
+        }
+      }
+      if (!expDate || isNaN(expDate.getTime())) return null;
+
+      const diffMs = expDate.getTime() - Date.now();
+      if (diffMs <= 0) {
+        return { expired: true, text: "Expired Onboarding Token" };
+      }
+      const days = Math.floor(diffMs / (24 * 3600 * 1000));
+      const hours = Math.floor((diffMs % (24 * 3600 * 1000)) / (3600 * 1000));
+      const mins = Math.max(1, Math.floor((diffMs % (3600 * 1000)) / (60 * 1000)));
+
+      let duration = "";
+      if (days > 1) duration = `${days} days`;
+      else if (days === 1) duration = "1 day";
+      else if (hours > 1) duration = `${hours} hours`;
+      else if (hours === 1) duration = "1 hour";
+      else if (mins > 1) duration = `${mins} minutes`;
+      else duration = "1 minute";
+
+      return { expired: false, text: `Valid Onboarding Token · Expires in ${duration}` };
+    }
 
     const copyText = async (text) => {
       if (navigator.clipboard && window.isSecureContext) {
@@ -438,26 +1276,158 @@
     };
 
     const handleCopy = async (btn) => {
-      const text = btn.getAttribute("data-copy") || INSTALL_CMD;
+      const text = btn.getAttribute("data-copy") || DEFAULT_INSTALL_CMD;
+      const isSecret = btn.id === "copy-secret-btn";
+      const isAlt = btn.id === "alt-copy-btn";
       try {
         await copyText(text);
       } catch {
-        statusEl.textContent = "Copy failed. Select the command and copy it yourself.";
+        if (statusEl) statusEl.textContent = "Copy failed. Select the command and copy it manually.";
         return;
       }
       const orig = btn.textContent;
       btn.textContent = "Copied";
       btn.classList.add("is-copied");
-      statusEl.textContent = "Install command copied.";
+      if (statusEl) {
+        if (isSecret) statusEl.textContent = "2FA secret key copied to clipboard.";
+        else if (isAlt) statusEl.textContent = "CLI onboarding command copied.";
+        else statusEl.textContent = "Onboarding command copied.";
+      }
       window.setTimeout(() => {
         btn.textContent = orig;
         btn.classList.remove("is-copied");
-        statusEl.textContent = "";
+        if (statusEl) statusEl.textContent = "";
       }, 1800);
     };
 
-    document.querySelectorAll(".copy-btn").forEach((btn) => {
-      btn.addEventListener("click", () => { handleCopy(btn); });
+    document.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      let token = params.get("token") || params.get("invite");
+      if (!token && window.location.hash.startsWith("#token=")) {
+        token = window.location.hash.slice(7);
+      }
+
+      if (token) {
+        const payload = decodeTokenPayload(token);
+        const onboardCmd = `curl -fsSL orbit.manova.space | bash -s -- onboard --token ${token}`;
+        const cliShortcutCmd = `orbit onboard --token ${token}`;
+
+        // Terminal box customization
+        const cmdEl = document.getElementById("cmd-text");
+        if (cmdEl) {
+          cmdEl.innerHTML = `<span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span> -s -- onboard --token <span class="cmd-val">${escapeHtml(token)}</span>`;
+        }
+
+        const installBtn = document.getElementById("install-copy-btn");
+        if (installBtn) {
+          installBtn.setAttribute("data-copy", onboardCmd);
+          installBtn.setAttribute("aria-label", "Copy onboarding setup command");
+        }
+
+        const installLabel = document.getElementById("install-label");
+        if (installLabel) {
+          installLabel.textContent = "One-line setup command";
+        }
+
+        const installHint = document.getElementById("install-hint");
+        if (installHint) {
+          installHint.textContent = "Downloads the latest Orbit binary and launches the interactive onboarding wizard.";
+        }
+
+        // Show CLI shortcut box for users who already have Orbit
+        const altBox = document.getElementById("alt-cmd-box");
+        const altText = document.getElementById("alt-cmd-text");
+        const altBtn = document.getElementById("alt-copy-btn");
+        if (altBox && altText && altBtn) {
+          altText.textContent = cliShortcutCmd;
+          altBtn.setAttribute("data-copy", cliShortcutCmd);
+          altBox.style.display = "flex";
+        }
+
+        if (payload) {
+          const name = payload.display_name || payload.name || (payload.email ? payload.email.split('@')[0] : "");
+          const email = payload.email || "";
+
+          // Hero greeting personalization
+          const heroTitle = document.getElementById("hero-title");
+          if (heroTitle) {
+            heroTitle.textContent = name ? `Welcome, ${name}!` : "Welcome to Orbit!";
+          }
+
+          const heroLede = document.getElementById("hero-lede");
+          if (heroLede) {
+            if (email) {
+              heroLede.innerHTML = `Workstation onboarding and environment setup for <strong class="user-email">${escapeHtml(email)}</strong>.`;
+            } else {
+              heroLede.textContent = "Workstation onboarding and environment setup.";
+            }
+          }
+
+          // Expiry status pill
+          const expInfo = formatExpiry(payload.exp);
+          const badgeEl = document.getElementById("status-badge");
+          if (badgeEl && expInfo) {
+            if (expInfo.expired) {
+              badgeEl.className = "status-badge is-expired";
+              badgeEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>${escapeHtml(expInfo.text)}</span>`;
+            } else {
+              badgeEl.className = "status-badge";
+              badgeEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>${escapeHtml(expInfo.text)}</span>`;
+            }
+            badgeEl.style.display = "inline-flex";
+          }
+
+          // 2FA / TOTP Section
+          const otpauth = (payload.metadata && payload.metadata.otpauth) || payload.otpauth || params.get("otpauth");
+          if (otpauth) {
+            const totpSection = document.getElementById("totp-section");
+            const qrContainer = document.getElementById("totp-qr-container");
+            const secretVal = document.getElementById("totp-secret-val");
+            const copySecretBtn = document.getElementById("copy-secret-btn");
+
+            if (totpSection && qrContainer) {
+              try {
+                const svg = global.renderQRCodeSVG(otpauth, { level: 'M', margin: 3, fg: '#0e131c', bg: '#ffffff' });
+                qrContainer.innerHTML = svg;
+
+                const otpDetails = parseOTPAuth(otpauth);
+                if (secretVal && otpDetails.secret) {
+                  secretVal.textContent = otpDetails.secret;
+                }
+                if (copySecretBtn && otpDetails.secret) {
+                  copySecretBtn.setAttribute("data-copy", otpDetails.secret);
+                }
+
+                if (otpDetails.account) {
+                  const accItem = document.getElementById("totp-account-item");
+                  const accVal = document.getElementById("totp-account-val");
+                  if (accItem && accVal) {
+                    accVal.textContent = otpDetails.account;
+                    accItem.style.display = "flex";
+                  }
+                }
+                if (otpDetails.issuer) {
+                  const issItem = document.getElementById("totp-issuer-item");
+                  const issVal = document.getElementById("totp-issuer-val");
+                  if (issItem && issVal) {
+                    issVal.textContent = otpDetails.issuer;
+                    issItem.style.display = "flex";
+                  }
+                }
+
+                totpSection.style.display = "block";
+              } catch (e) {
+                console.error("Failed to render 2FA TOTP QR code:", e);
+              }
+            }
+          }
+        }
+      }
+
+      // Attach copy listeners
+      document.querySelectorAll(".copy-btn").forEach((btn) => {
+        btn.addEventListener("click", () => { handleCopy(btn); });
+      });
     });
   </script>
 </body>
