@@ -13,6 +13,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 )
 
@@ -139,9 +140,38 @@ func newStaffListCmd() *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
+			tbl := table.New(
+				table.Column{Title: "UID", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 12},
+				table.Column{Title: "NAME", HeaderStyle: headerStyle, MinWidth: 16, Flexible: true},
+				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 10},
+				table.Column{Title: "FORWARD EMAIL", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 20, Flexible: true},
+			)
+
 			for _, s := range list {
-				fmt.Fprintf(out, "%s\t%s\t%s\t%s\n", s.UID, s.DisplayName, s.Status, s.PersonalForward)
+				var statusCell table.Cell
+				switch strings.ToLower(s.Status) {
+				case "active", "enabled":
+					statusCell = table.StyledCell("✔ active", successStyle.Render("✔ active"))
+				case "disabled":
+					statusCell = table.StyledCell("✖ disabled", errorStyle.Render("✖ disabled"))
+				default:
+					statusCell = table.PlainCell(s.Status)
+				}
+
+				nameVal := s.DisplayName
+				if nameVal == "" {
+					nameVal = "-"
+				}
+
+				tbl.AddStyledRow(
+					table.PlainCell(s.UID),
+					table.PlainCell(nameVal),
+					statusCell,
+					table.PlainCell(s.PersonalForward),
+				)
 			}
+
+			_ = tbl.Render(out)
 			return nil
 		},
 	}

@@ -460,3 +460,127 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 	}
 }
 
+func TestStaffList_TableRendering(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/staff" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"uid":              "sara",
+				"display_name":     "Sara Connor",
+				"mail":             "sara@manova.space",
+				"personal_forward": "sara@gmail.com",
+				"status":           "active",
+			},
+			{
+				"uid":              "john",
+				"display_name":     "John Doe",
+				"mail":             "john@manova.space",
+				"personal_forward": "john@example.com",
+				"status":           "disabled",
+			},
+			{
+				"uid":              "alex",
+				"display_name":     "",
+				"mail":             "alex@manova.space",
+				"personal_forward": "alex@manova.space",
+				"status":           "enabled",
+			},
+			{
+				"uid":              "custom",
+				"display_name":     "Custom User",
+				"mail":             "custom@manova.space",
+				"personal_forward": "custom@test.com",
+				"status":           "pending",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "list",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("staff list failed: %v\n%s", err, buf.String())
+	}
+
+	out := buf.String()
+
+	// 1. Check no raw tab characters are present
+	if strings.Contains(out, "\t") {
+		t.Errorf("expected aligned table without raw tab characters, got: %q", out)
+	}
+
+	// 2. Check headers
+	for _, header := range []string{"UID", "NAME", "STATUS", "FORWARD EMAIL"} {
+		if !strings.Contains(out, header) {
+			t.Errorf("expected header %q in output, got:\n%s", header, out)
+		}
+	}
+
+	// 3. Check divider line
+	if !strings.Contains(out, "─") {
+		t.Errorf("expected horizontal divider line in table output, got:\n%s", out)
+	}
+
+	// 4. Check data rows and status formatting
+	if !strings.Contains(out, "sara") || !strings.Contains(out, "Sara Connor") || !strings.Contains(out, "✔ active") || !strings.Contains(out, "sara@gmail.com") {
+		t.Errorf("expected sara row with ✔ active, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "john") || !strings.Contains(out, "John Doe") || !strings.Contains(out, "✖ disabled") || !strings.Contains(out, "john@example.com") {
+		t.Errorf("expected john row with ✖ disabled, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "alex") || !strings.Contains(out, "-") || !strings.Contains(out, "alex@manova.space") {
+		t.Errorf("expected alex row with '-' for empty name, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "custom") || !strings.Contains(out, "Custom User") || !strings.Contains(out, "pending") || !strings.Contains(out, "custom@test.com") {
+		t.Errorf("expected custom row with plain status 'pending', got:\n%s", out)
+	}
+}
+
+func TestStaffList_Empty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]map[string]any{})
+	}))
+	defer srv.Close()
+
+	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"staff", "list",
+		"--owner-store", storePath,
+		"--server", srv.URL,
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("staff list empty failed: %v\n%s", err, buf.String())
+	}
+
+	out := buf.String()
+	if strings.Contains(out, "\t") {
+		t.Errorf("unexpected tab in output: %q", out)
+	}
+	if !strings.Contains(out, "UID") || !strings.Contains(out, "NAME") {
+		t.Errorf("expected headers in empty list output, got:\n%s", out)
+	}
+}
+
