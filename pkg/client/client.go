@@ -180,22 +180,10 @@ func (c *Client) InitiateOwnerChallenge(ctx context.Context, email string) (*Cha
 
 	reqBody := ChallengeRequest{Email: normEmail}
 	var respBody ChallengeResponse
-	paths := []string{"/api/v1/system/ownership/challenge", "/api/v1/admin/challenge"}
-
-	var lastErr error
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodPost, p, reqBody, &respBody, nil)
-		if err == nil {
-			return &respBody, nil
-		}
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	if err := c.doRequest(ctx, http.MethodPost, "/api/v1/admin/challenge", reqBody, &respBody, nil); err != nil {
 		return nil, err
 	}
-	return nil, lastErr
+	return &respBody, nil
 }
 
 // VerifyOwnerChallenge verifies an owner OTP challenge code and seals the owner identity.
@@ -215,22 +203,10 @@ func (c *Client) VerifyOwnerChallenge(ctx context.Context, email, code string) (
 		Code:  normCode,
 	}
 	var respBody VerifyResponse
-	paths := []string{"/api/v1/system/ownership/verify", "/api/v1/admin/verify"}
-
-	var lastErr error
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodPost, p, reqBody, &respBody, nil)
-		if err == nil {
-			return &respBody, nil
-		}
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	if err := c.doRequest(ctx, http.MethodPost, "/api/v1/admin/verify", reqBody, &respBody, nil); err != nil {
 		return nil, err
 	}
-	return nil, lastErr
+	return &respBody, nil
 }
 
 // CreateAdminGrant registers an 8-digit admin grant on the server using master secret authentication.
@@ -261,41 +237,19 @@ func (c *Client) CreateAdminGrant(ctx context.Context, email, role, code, master
 // AdminStatus retrieves platform ownership verification status, vault integrity, and mail configuration.
 func (c *Client) AdminStatus(ctx context.Context) (*AdminStatusResponse, error) {
 	var respBody AdminStatusResponse
-	paths := []string{"/api/v1/system/ownership/status", "/api/v1/admin/status"}
-	var lastErr error
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodGet, p, nil, &respBody, nil)
-		if err == nil {
-			return &respBody, nil
-		}
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	if err := c.doRequest(ctx, http.MethodGet, "/api/v1/admin/status", nil, &respBody, nil); err != nil {
 		return nil, err
 	}
-	return nil, lastErr
+	return &respBody, nil
 }
 
 // RotateSecret requests rotation of the platform root master signing secret.
 func (c *Client) RotateSecret(ctx context.Context) (*RotateSecretResponse, error) {
 	var respBody RotateSecretResponse
-	paths := []string{"/api/v1/system/ownership/rotate-secret", "/api/v1/admin/rotate-secret"}
-	var lastErr error
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodPost, p, nil, &respBody, nil)
-		if err == nil {
-			return &respBody, nil
-		}
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	if err := c.doRequest(ctx, http.MethodPost, "/api/v1/admin/rotate-secret", nil, &respBody, nil); err != nil {
 		return nil, err
 	}
-	return nil, lastErr
+	return &respBody, nil
 }
 
 // ClaimToken submits an onboarding claim request to provision credentials and workspaces.
@@ -311,24 +265,10 @@ func (c *Client) ClaimToken(ctx context.Context, req ClaimRequest) (*ClaimRespon
 	}
 
 	var respBody ClaimResponse
-	paths := []string{"/api/v1/dev/onboard/claim", "/api/v1/onboard/claim", "/v1/onboard/claim"}
-
-	var lastErr error
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodPost, p, req, &respBody, headers)
-		if err == nil {
-			return &respBody, nil
-		}
-
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	if err := c.doRequest(ctx, http.MethodPost, "/api/v1/onboard/claim", req, &respBody, headers); err != nil {
 		return nil, err
 	}
-
-	return nil, lastErr
+	return &respBody, nil
 }
 
 // Rollback requests a rollback of provisioned resources for the given UID.
@@ -340,51 +280,19 @@ func (c *Client) Rollback(ctx context.Context, uid string) error {
 
 	reqBody := RollbackRequest{UID: cleanUID}
 	var respBody RollbackResponse
-
-	paths := []string{"/api/v1/dev/onboard/rollback", "/api/v1/onboard/rollback", "/v1/onboard/rollback"}
-	var lastErr error
-
-	for _, p := range paths {
-		err := c.doRequest(ctx, http.MethodPost, p, reqBody, &respBody, nil)
-		if err == nil {
-			return nil
-		}
-
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
-		return err
-	}
-
-	return lastErr
+	return c.doRequest(ctx, http.MethodPost, "/api/v1/onboard/rollback", reqBody, &respBody, nil)
 }
 
 // Health checks the health and readiness of the remote server.
 func (c *Client) Health(ctx context.Context) error {
-	paths := []string{"/healthz", "/health", "/v1/onboard/health", "/api/v1/onboard/health"}
-	var lastErr error
-
-	for _, p := range paths {
-		var respBody HealthResponse
-		err := c.doRequest(ctx, http.MethodGet, p, nil, &respBody, nil)
-		if err == nil {
-			if respBody.Status != "" && respBody.Status != "ok" && respBody.Status != "healthy" {
-				return fmt.Errorf("server reported unhealthy status: %s (error: %s)", respBody.Status, respBody.Error)
-			}
-			return nil
-		}
-
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-			lastErr = err
-			continue
-		}
+	var respBody HealthResponse
+	if err := c.doRequest(ctx, http.MethodGet, "/healthz", nil, &respBody, nil); err != nil {
 		return err
 	}
-
-	return lastErr
+	if respBody.Status != "" && respBody.Status != "ok" && respBody.Status != "healthy" {
+		return fmt.Errorf("server reported unhealthy status: %s (error: %s)", respBody.Status, respBody.Error)
+	}
+	return nil
 }
 
 // doRequest performs an HTTP request with JSON marshaling, retry logic, and error decoding.

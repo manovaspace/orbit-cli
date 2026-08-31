@@ -21,7 +21,6 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/onboard"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
-	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 	"github.com/spf13/cobra"
 )
@@ -275,17 +274,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 		}
 	}()
 
-	// 5. Run auto-migration for legacy JSON invite files
-	if opts.storePath != "" {
-		if _, err := serverstore.MigrateLegacyJSON(cmd.Context(), opts.storePath, db.Invites()); err != nil {
-			slog.Warn("failed to migrate legacy JSON invites from custom path", "path", opts.storePath, "error", err)
-		}
-	}
-	if _, err := serverstore.AutoMigrateLegacyFiles(cmd.Context(), db.Invites()); err != nil {
-		slog.Warn("failed to auto-migrate legacy JSON invites", "error", err)
-	}
-
-	// 6. Initialize persistent challenge and grant managers
+	// 5. Initialize persistent challenge and grant managers
 	challengeMgr := owner.NewPersistentChallengeManager(db.Challenges())
 	grantMgr := owner.NewPersistentGrantManager(db.Grants())
 
@@ -380,14 +369,8 @@ func resolveSigningSecret(flagSecret, ownerStorePath string) (string, string) {
 		return strings.TrimSpace(flagSecret), "provided via CLI flag"
 	}
 
-	for _, envKey := range []string{
-		"ORBIT_SIGNING_SECRET",
-		"ORBIT_INVITE_SECRET",
-		"ORBIT_JWT_SECRET",
-	} {
-		if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
-			return val, fmt.Sprintf("loaded from $%s", envKey)
-		}
+	if val := strings.TrimSpace(os.Getenv("ORBIT_SIGNING_SECRET")); val != "" {
+		return val, "loaded from $ORBIT_SIGNING_SECRET"
 	}
 
 	ownerStore := owner.NewStore(ownerStorePath)
@@ -395,7 +378,7 @@ func resolveSigningSecret(flagSecret, ownerStorePath string) (string, string) {
 		return rec.RootSigningSecret, fmt.Sprintf("sealed owner vault (%s)", rec.Email)
 	}
 
-	return DefaultFallbackSecret, "development fallback secret"
+	return DefaultFallbackSecret, "development fallback secret (INSECURE)"
 }
 
 func main() {

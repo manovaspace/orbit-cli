@@ -58,9 +58,9 @@ func TestHealthEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	// Healthy check
-	resp, err := http.Get(ts.URL + "/v1/onboard/health")
+	resp, err := http.Get(ts.URL + "/healthz")
 	if err != nil {
-		t.Fatalf("GET /v1/onboard/health failed: %v", err)
+		t.Fatalf("GET /healthz failed: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -76,14 +76,14 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Errorf("unexpected body: %+v", body)
 	}
 
-	// Alias check /healthz
-	resp2, err := http.Get(ts.URL + "/healthz")
+	// Alias check /health
+	resp2, err := http.Get(ts.URL + "/health")
 	if err != nil {
-		t.Fatalf("GET /healthz failed: %v", err)
+		t.Fatalf("GET /health failed: %v", err)
 	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200 on /healthz, got %d", resp2.StatusCode)
+		t.Errorf("expected status 200 on /health, got %d", resp2.StatusCode)
 	}
 
 	// Degraded check
@@ -91,9 +91,9 @@ func TestHealthEndpoint(t *testing.T) {
 		return errors.New("lldap unavailable")
 	}
 
-	resp3, err := http.Get(ts.URL + "/v1/onboard/health")
+	resp3, err := http.Get(ts.URL + "/healthz")
 	if err != nil {
-		t.Fatalf("GET /v1/onboard/health failed: %v", err)
+		t.Fatalf("GET /healthz failed: %v", err)
 	}
 	defer resp3.Body.Close()
 
@@ -125,7 +125,7 @@ func TestClaim_Success(t *testing.T) {
 	}
 
 	reqBody, _ := json.Marshal(claimReq)
-	req, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(reqBody))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "idemp-key-111")
 
@@ -192,7 +192,7 @@ func TestClaim_IdempotentReplay(t *testing.T) {
 	reqBody, _ := json.Marshal(claimReq)
 
 	// First attempt
-	req1, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(reqBody))
+	req1, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(reqBody))
 	req1.Header.Set("Content-Type", "application/json")
 	req1.Header.Set("Idempotency-Key", idempotencyKey)
 
@@ -218,7 +218,7 @@ func TestClaim_IdempotentReplay(t *testing.T) {
 	}
 
 	// Second attempt (Replay with same Idempotency-Key)
-	req2, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(reqBody))
+	req2, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(reqBody))
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set("Idempotency-Key", idempotencyKey)
 
@@ -261,7 +261,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 		InviteToken: "not-a-valid-token",
 		DesiredUID:  "bad",
 	})
-	r1, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(badReq))
+	r1, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(badReq))
 	r1.Header.Set("Content-Type", "application/json")
 	resp1, err := client.Do(r1)
 	if err != nil {
@@ -282,7 +282,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 		InviteToken: expiredToken,
 		DesiredUID:  "expired",
 	})
-	r2, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(expReq))
+	r2, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(expReq))
 	r2.Header.Set("Content-Type", "application/json")
 	resp2, err := client.Do(r2)
 	if err != nil {
@@ -304,7 +304,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 		InviteToken: badSigToken,
 		DesiredUID:  "badsig",
 	})
-	r3, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(badSigReq))
+	r3, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(badSigReq))
 	r3.Header.Set("Content-Type", "application/json")
 	resp3, err := client.Do(r3)
 	if err != nil {
@@ -355,7 +355,7 @@ func TestClaim_RevokedToken(t *testing.T) {
 		DesiredUID:  "revokeduser",
 	}
 	reqBody, _ := json.Marshal(claimReq)
-	req, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(reqBody))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -404,7 +404,7 @@ func TestClaim_RateLimiting(t *testing.T) {
 	})
 
 	sendReq := func() int {
-		r, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(claimReq))
+		r, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(claimReq))
 		r.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(r)
 		if err != nil {
@@ -448,7 +448,7 @@ func TestClaim_ProvisionerFailure(t *testing.T) {
 		DesiredUID:  "failtest",
 	})
 
-	req, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewReader(claimReq))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewReader(claimReq))
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -468,7 +468,7 @@ func TestClaim_InvalidJSON(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	req, _ := http.NewRequest("POST", ts.URL+"/v1/onboard/claim", bytes.NewBufferString("{not valid json"))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/onboard/claim", bytes.NewBufferString("{not valid json"))
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -582,42 +582,6 @@ func TestServer_AdminChallengeAndVerify(t *testing.T) {
 	}
 	if verifyResp.KeyFingerprint == "" {
 		t.Errorf("expected non-empty key fingerprint")
-	}
-}
-
-func TestServer_AdminChallengeAndVerify_Aliases(t *testing.T) {
-	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
-	srv, err := NewServer(ServerConfig{
-		Secret:           []byte("test-secret-12345678901234567890"),
-		ChallengeManager: cm,
-		Mailer:           mockMailer,
-		DisableRateLimit: true,
-	})
-	if err != nil {
-		t.Fatalf("failed to create server: %v", err)
-	}
-
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
-
-	// 1. Request challenge via system alias
-	reqBody := `{"email":"admin@manova.space"}`
-	resp, err := http.Post(ts.URL+"/api/v1/system/ownership/challenge", "application/json", strings.NewReader(reqBody))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("system challenge request failed: status %d, err %v", resp.StatusCode, err)
-	}
-
-	if len(mockMailer.sentChallenges) != 1 {
-		t.Fatalf("expected 1 sent challenge email, got %d", len(mockMailer.sentChallenges))
-	}
-	otp := mockMailer.sentChallenges[0].OTPCode
-
-	// 2. Verify via system alias
-	goodVerify := fmt.Sprintf(`{"email":"admin@manova.space","code":"%s","display_name":"Admin"}`, otp)
-	vResp, err := http.Post(ts.URL+"/api/v1/system/ownership/verify", "application/json", strings.NewReader(goodVerify))
-	if err != nil || vResp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 for valid system OTP, got %d", vResp.StatusCode)
 	}
 }
 
@@ -810,24 +774,6 @@ func TestServer_InstallScript(t *testing.T) {
 				t.Errorf("GET %s: expected status 404, got %d", path, resp.StatusCode)
 			}
 		})
-	}
-}
-
-func TestServer_ClaimPathAliases(t *testing.T) {
-	prov := provisioner.NewDevProvisioner()
-	srv, _ := setupTestServer(t, prov, nil)
-	ts := httptest.NewServer(srv.Handler())
-	defer ts.Close()
-
-	for _, path := range []string{"/v1/onboard/claim", "/api/v1/onboard/claim", "/api/v1/dev/onboard/claim"} {
-		resp, err := http.Post(ts.URL+path, "application/json", strings.NewReader(`{}`))
-		if err != nil {
-			t.Fatalf("POST %s: %v", path, err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusNotFound {
-			t.Errorf("POST %s: got 404, alias missing", path)
-		}
 	}
 }
 
@@ -1189,7 +1135,7 @@ func TestServer_Middleware_PanicRecovery(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/v1/onboard/health")
+	resp, err := http.Get(ts.URL + "/healthz")
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}

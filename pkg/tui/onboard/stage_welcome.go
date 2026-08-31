@@ -137,7 +137,6 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.parent.ErrorMsg = ""
 				if m.parent.Session != nil {
 					m.parent.Session.InviteToken = tok
-					m.parent.Session.ClaimToken = tok
 					if m.parent.SessionManager != nil {
 						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
 					}

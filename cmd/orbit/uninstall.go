@@ -73,10 +73,8 @@ func newUninstallCmd() *cobra.Command {
 			candidates := []string{
 				"/usr/local/bin/orbit",
 				"/usr/local/bin/o",
-				"/usr/local/bin/manova",
 				filepath.Join(home, ".local", "bin", "orbit"),
 				filepath.Join(home, ".local", "bin", "o"),
-				filepath.Join(home, ".local", "bin", "manova"),
 			}
 
 			if execPath, err := os.Executable(); err == nil {
@@ -116,9 +114,7 @@ func newUninstallCmd() *cobra.Command {
 			if purgeState {
 				stateDirs := []string{
 					filepath.Join(home, ".orbit"),
-					filepath.Join(home, ".manova"),
 					filepath.Join(home, ".config", "orbit"),
-					filepath.Join(home, ".config", "manova"),
 				}
 				for _, sd := range stateDirs {
 					if _, err := os.Stat(sd); err == nil {
@@ -139,7 +135,7 @@ func newUninstallCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&force, "yes", "y", false, "Uninstall without confirmation prompt")
 	cmd.Flags().BoolVar(&force, "force", false, "Alias for --yes")
-	cmd.Flags().BoolVar(&purgeState, "purge-state", false, "Purge cache, session, and owner vault (~/.orbit, ~/.manova, ~/.config/orbit, ~/.config/manova)")
+	cmd.Flags().BoolVar(&purgeState, "purge-state", false, "Purge cache, session, and owner vault (~/.orbit, ~/.config/orbit)")
 	cmd.Flags().BoolVar(&purgeWorkspace, "purge-workspace", false, "Purge workspace repositories (blocked if uncommitted changes exist)")
 
 	return cmd

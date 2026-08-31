@@ -23,7 +23,7 @@ func TestSessionCheckpointSaveAndRestore(t *testing.T) {
 		CurrentStage: session.StageWorkspace,
 		Email:        "dev@manova.space",
 		DisplayName:  "Test Dev",
-		ClaimToken:   "orb_inv_test_token_123",
+		InviteToken:  "orb_inv_test_token_123",
 		UpdatedAt:    time.Now().UTC(),
 	}
 
@@ -46,8 +46,8 @@ func TestSessionCheckpointSaveAndRestore(t *testing.T) {
 	if loaded.Email != "dev@manova.space" {
 		t.Fatalf("expected email dev@manova.space, got %s", loaded.Email)
 	}
-	if loaded.ClaimToken != "orb_inv_test_token_123" {
-		t.Fatalf("expected claim token orb_inv_test_token_123, got %s", loaded.ClaimToken)
+	if loaded.InviteToken != "orb_inv_test_token_123" {
+		t.Fatalf("expected invite token orb_inv_test_token_123, got %s", loaded.InviteToken)
 	}
 }
 

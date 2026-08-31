@@ -1,0 +1,58 @@
+# Development & Scenario Testbed Container for Orbit CLI
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
+
+ARG GO_VERSION=1.26.0
+
+# Install core development tools, networking utilities, and scenario testing tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    zsh \
+    jq \
+    sudo \
+    build-essential \
+    iproute2 \
+    dnsutils \
+    net-tools \
+    sqlite3 \
+    openssh-client \
+    tree \
+    tzdata \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.26 toolchain matching workspace requirement
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "${ARCH}" in \
+        amd64) GO_ARCH="amd64" ;; \
+        arm64) GO_ARCH="arm64" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
+
+# Configure non-root vscode user (provided by base devcontainer, ensure passwordless sudo)
+RUN id -u vscode &>/dev/null || useradd -m -s /bin/bash -u 1000 vscode && \
+    echo "vscode ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/vscode && \
+    chmod 0440 /etc/sudoers.d/vscode
+
+# Environment settings
+ENV GOPATH="/home/vscode/go"
+ENV PATH="/usr/local/go/bin:/home/vscode/go/bin:/workspace/orbit-cli/bin:${PATH}"
+ENV HOME="/home/vscode"
+ENV SHELL="/bin/zsh"
+
+# Set up workspace directory and default state directories
+RUN mkdir -p /workspace/orbit-cli /workspace/orbit-notifications /home/vscode/go /home/vscode/.orbit /home/vscode/.local/state/orbit && \
+    chown -R vscode:vscode /workspace /home/vscode
+
+# Copy entrypoint initialization script
+COPY test/testbed/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+WORKDIR /workspace/orbit-cli
+USER vscode
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["sleep", "infinity"]

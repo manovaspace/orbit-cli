@@ -442,9 +442,6 @@ func (m *IdentityModel) RunClaim() tea.Cmd {
 	token := ""
 	if m.parent != nil && m.parent.Session != nil {
 		token = m.parent.Session.InviteToken
-		if token == "" {
-			token = m.parent.Session.ClaimToken
-		}
 	}
 	if token == "" && m.parent != nil && m.parent.Options.PreSetToken != "" {
 		token = m.parent.Options.PreSetToken
@@ -610,9 +607,6 @@ func (m *IdentityModel) View() string {
 	tokenVal := ""
 	if m.parent != nil && m.parent.Session != nil {
 		tokenVal = m.parent.Session.InviteToken
-		if tokenVal == "" {
-			tokenVal = m.parent.Session.ClaimToken
-		}
 	}
 	if tokenVal == "" && m.parent != nil && m.parent.Options.PreSetToken != "" {
 		tokenVal = m.parent.Options.PreSetToken

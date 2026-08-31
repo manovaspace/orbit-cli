@@ -92,9 +92,6 @@ func TestWelcomeStageEnterWithValidToken(t *testing.T) {
 	if root.Session.InviteToken != "inv_sec_valid_token_999" {
 		t.Errorf("expected session InviteToken to be 'inv_sec_valid_token_999', got: '%s'", root.Session.InviteToken)
 	}
-	if root.Session.ClaimToken != "inv_sec_valid_token_999" {
-		t.Errorf("expected session ClaimToken to be 'inv_sec_valid_token_999', got: '%s'", root.Session.ClaimToken)
-	}
 }
 
 func TestWelcomeStageResumeAction(t *testing.T) {

@@ -1,0 +1,69 @@
+services:
+  orbit-test-edge:
+    container_name: orbit-test-edge
+    build:
+      context: ../..
+      dockerfile: test/testbed/Dockerfile.edge
+    networks:
+      orbit-test-net:
+        aliases:
+          - orbit-test-edge
+          - orbit.dev.manova.space
+          - staff.dev.manova.space
+          - git.dev.manova.space
+          - assets.dev.manova.space
+    expose:
+      - "8080"
+      - "10800"
+      - "9000"
+      - "3000"
+    environment:
+      - ORBIT_STAFF_HMAC_SECRET=orbit-dev-insecure-staff-hmac-secret-32bytes
+      - ORBIT_SIGNING_SECRET=orbit-dev-insecure-invitation-signing-secret-key-32bytes
+      - ORBIT_VERBOSE=1
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 1s
+    restart: unless-stopped
+
+  orbit-test-client:
+    container_name: orbit-test-client
+    build:
+      context: ../..
+      dockerfile: test/testbed/Dockerfile.testbed
+    networks:
+      orbit-test-net:
+        aliases:
+          - orbit-test-client
+    links:
+      - orbit-test-edge:orbit.dev.manova.space
+      - orbit-test-edge:staff.dev.manova.space
+      - orbit-test-edge:git.dev.manova.space
+      - orbit-test-edge:assets.dev.manova.space
+    depends_on:
+      orbit-test-edge:
+        condition: service_healthy
+    volumes:
+      - ../../:/workspace/orbit-cli
+      - ../../../orbit-notifications:/workspace/orbit-notifications:ro
+    working_dir: /workspace/orbit-cli
+    environment:
+      - ORBIT_EDGE_HOST=orbit-test-edge
+      - ORBIT_API_URL=http://orbit.dev.manova.space:8080
+      - ORBIT_STAFF_URL=http://staff.dev.manova.space:10800
+      - ORBIT_S3_ENDPOINT=http://assets.dev.manova.space:9000
+      - ORBIT_FORGEJO_URL=http://git.dev.manova.space:3000
+      - ORBIT_STAFF_HMAC_SECRET=orbit-dev-insecure-staff-hmac-secret-32bytes
+      - ORBIT_SIGNING_SECRET=orbit-dev-insecure-invitation-signing-secret-key-32bytes
+      - ORBIT_NON_INTERACTIVE=1
+      - ORBIT_TESTBED=1
+      - TERM=xterm-256color
+    command: ["sleep", "infinity"]
+
+networks:
+  orbit-test-net:
+    name: orbit-test-net
+    driver: bridge

@@ -209,8 +209,6 @@ func TestServerCmd_HealthAndGracefulShutdown(t *testing.T) {
 
 	baseURL := fmt.Sprintf("http://%s", addr)
 	healthzURL := baseURL + "/healthz"
-	onboardHealthURL := baseURL + "/v1/onboard/health"
-	healthURL := baseURL + "/health"
 
 	var resp *http.Response
 	var err error
@@ -240,20 +238,6 @@ func TestServerCmd_HealthAndGracefulShutdown(t *testing.T) {
 		t.Errorf("expected status 'ok', got %v", healthData["status"])
 	}
 
-	// Test /v1/onboard/health endpoint
-	resp2, err := client.Get(onboardHealthURL)
-	if err != nil || resp2.StatusCode != http.StatusOK {
-		t.Fatalf("failed to GET %s: %v", onboardHealthURL, err)
-	}
-	_ = resp2.Body.Close()
-
-	// Test /health endpoint
-	resp3, err := client.Get(healthURL)
-	if err != nil || resp3.StatusCode != http.StatusOK {
-		t.Fatalf("failed to GET %s: %v", healthURL, err)
-	}
-	_ = resp3.Body.Close()
-
 	// Trigger graceful shutdown
 	cancel()
 
@@ -282,8 +266,8 @@ func TestResolveSigningSecret(t *testing.T) {
 		t.Errorf("expected flag secret, got %s (%s)", sec, src)
 	}
 
-	// Case 2: Env vars (ORBIT_SIGNING_SECRET, ORBIT_INVITE_SECRET, ORBIT_JWT_SECRET)
-	for _, envKey := range []string{"ORBIT_SIGNING_SECRET", "ORBIT_INVITE_SECRET", "ORBIT_JWT_SECRET"} {
+	// Case 2: Env var (ORBIT_SIGNING_SECRET)
+	for _, envKey := range []string{"ORBIT_SIGNING_SECRET"} {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "env-secret-123456789012345678901234")
 			s, srcInfo := resolveSigningSecret("", "")
@@ -293,8 +277,8 @@ func TestResolveSigningSecret(t *testing.T) {
 		})
 	}
 
-	// Case 3: Legacy MANOVA_* env vars are ignored
-	for _, legacyEnv := range []string{"MANOVA_INVITE_SECRET", "MANOVA_JWT_SECRET"} {
+	// Case 3: Legacy env vars are ignored
+	for _, legacyEnv := range []string{"ORBIT_INVITE_SECRET", "ORBIT_JWT_SECRET", "MANOVA_INVITE_SECRET", "MANOVA_JWT_SECRET"} {
 		t.Run("ignore_"+legacyEnv, func(t *testing.T) {
 			t.Setenv(legacyEnv, "legacy-secret-12345678901234567890")
 			s, srcInfo := resolveSigningSecret("", "")
@@ -332,12 +316,11 @@ func TestResolveSigningSecret(t *testing.T) {
 func TestServer_E2E_FullLifecycle(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "orbit.db")
-	legacyStorePath := filepath.Join(tempDir, "legacy_invites.json")
 
 	secret := "test-secret-key-32bytes-long-12345"
 	secretBytes := []byte(secret)
 
-	// 1. Create a legacy invites JSON file with an invite
+	// 1. Generate an invite token
 	tok1, claims1, err := invite.GenerateToken(invite.InviteRequest{
 		Email:       "alice@manova.space",
 		DisplayName: "Alice",
@@ -346,20 +329,6 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}, secretBytes)
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
-	}
-
-	legacyInvites := []*invite.InviteRecord{
-		{
-			ID:        claims1.ID,
-			Email:     claims1.Email,
-			Token:     tok1,
-			Scope:     claims1.Scope,
-			ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
-		},
-	}
-	legacyData, _ := json.Marshal(legacyInvites)
-	if err := os.WriteFile(legacyStorePath, legacyData, 0600); err != nil {
-		t.Fatalf("failed to write legacy invites: %v", err)
 	}
 
 	addr := getFreeLocalAddr(t)
@@ -374,7 +343,6 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	cmd.SetArgs([]string{
 		"--addr", addr,
 		"--db", dbPath,
-		"--store", legacyStorePath,
 		"--signing-secret", secret,
 		"--trusted-proxies", "127.0.0.1/32,10.0.0.0/8",
 	})
@@ -408,11 +376,6 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 		t.Fatalf("expected SQLite DB file at %s", dbPath)
 	}
 
-	// Verify legacy JSON was migrated and renamed to .bak
-	if _, err := os.Stat(legacyStorePath + ".bak"); os.IsNotExist(err) {
-		t.Errorf("expected legacy store to be renamed to %s.bak", legacyStorePath)
-	}
-
 	// Open DB connection to inspect migrations & schema
 	db, err := sqlite.NewDB(dbPath)
 	if err != nil {
@@ -420,23 +383,35 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Verify migrated invite is queryable in SQLite
-	migratedRec, err := db.Invites().GetInvite(context.Background(), claims1.ID)
-	if err != nil || migratedRec == nil {
-		t.Fatalf("expected migrated invite in DB: %v, rec: %+v", err, migratedRec)
-	}
-	if migratedRec.Email != "alice@manova.space" {
-		t.Errorf("expected migrated email alice@manova.space, got %s", migratedRec.Email)
+	// Save active invite to SQLite
+	err = db.Invites().SaveInvite(context.Background(), &invite.InviteRecord{
+		ID:        claims1.ID,
+		Email:     claims1.Email,
+		Token:     tok1,
+		Scope:     claims1.Scope,
+		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("failed to save invite to SQLite: %v", err)
 	}
 
-	// 4. Test HTTP claim with migrated token
+	// Verify invite is queryable in SQLite
+	savedRec, err := db.Invites().GetInvite(context.Background(), claims1.ID)
+	if err != nil || savedRec == nil {
+		t.Fatalf("expected invite in DB: %v, rec: %+v", err, savedRec)
+	}
+	if savedRec.Email != "alice@manova.space" {
+		t.Errorf("expected email alice@manova.space, got %s", savedRec.Email)
+	}
+
+	// 4. Test HTTP claim with token
 	claimBody, _ := json.Marshal(provisioner.ClaimRequest{
 		InviteToken:        tok1,
 		DesiredUID:         "alice",
 		SSHPublicKey:       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICustomAlicePublicKey alice@device",
 		MachineFingerprint: "alice-machine-1",
 	})
-	req, _ := http.NewRequest("POST", baseURL+"/v1/onboard/claim", bytes.NewReader(claimBody))
+	req, _ := http.NewRequest("POST", baseURL+"/api/v1/onboard/claim", bytes.NewReader(claimBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "idemp-alice-e2e")
 
@@ -454,7 +429,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 
 	// Test claim idempotency replay
-	reqReplay, _ := http.NewRequest("POST", baseURL+"/v1/onboard/claim", bytes.NewReader(claimBody))
+	reqReplay, _ := http.NewRequest("POST", baseURL+"/api/v1/onboard/claim", bytes.NewReader(claimBody))
 	reqReplay.Header.Set("Content-Type", "application/json")
 	reqReplay.Header.Set("Idempotency-Key", "idemp-alice-e2e")
 	respReplay, err := httpClient.Do(reqReplay)
@@ -491,7 +466,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 		InviteToken: revokedToken,
 		DesiredUID:  "revokeduser",
 	})
-	reqRev, _ := http.NewRequest("POST", baseURL+"/v1/onboard/claim", bytes.NewReader(claimRevBody))
+	reqRev, _ := http.NewRequest("POST", baseURL+"/api/v1/onboard/claim", bytes.NewReader(claimRevBody))
 	reqRev.Header.Set("Content-Type", "application/json")
 	respRev, err := httpClient.Do(reqRev)
 	if err != nil {

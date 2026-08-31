@@ -35,7 +35,6 @@ type SessionState struct {
 	UID             string            `json:"uid"`
 	CurrentStage    Stage             `json:"current_stage"`
 	InviteToken     string            `json:"invite_token,omitempty"`
-	ClaimToken      string            `json:"claim_token,omitempty"`
 	SSHPublicKey    string            `json:"ssh_public_key,omitempty"`
 	ForgejoToken    string            `json:"forgejo_token,omitempty"`
 	WireGuardConfig string            `json:"wireguard_config,omitempty"`
@@ -45,6 +44,3 @@ type SessionState struct {
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
-
-// Session is an alias for SessionState for backward compatibility.
-type Session = SessionState

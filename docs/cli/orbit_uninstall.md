@@ -15,7 +15,7 @@ orbit uninstall [flags]
 ```
       --force             Alias for --yes
   -h, --help              help for uninstall
-      --purge-state       Purge cache, session, and owner vault (~/.orbit, ~/.manova, ~/.config/orbit, ~/.config/manova)
+      --purge-state       Purge cache, session, and owner vault (~/.orbit, ~/.config/orbit)
       --purge-workspace   Purge workspace repositories (blocked if uncommitted changes exist)
   -y, --yes               Uninstall without confirmation prompt
 ```

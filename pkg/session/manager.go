@@ -80,13 +80,6 @@ func (sm *SessionManager) LoadSession() (*SessionState, error) {
 		return nil, fmt.Errorf("failed to parse session file: %w", err)
 	}
 
-	// Normalize tokens for compatibility
-	if s.InviteToken == "" && s.ClaimToken != "" {
-		s.InviteToken = s.ClaimToken
-	} else if s.ClaimToken == "" && s.InviteToken != "" {
-		s.ClaimToken = s.InviteToken
-	}
-
 	if s.Metadata == nil {
 		s.Metadata = make(map[string]string)
 	}
@@ -101,12 +94,6 @@ func (sm *SessionManager) LoadSession() (*SessionState, error) {
 func (sm *SessionManager) SaveSession(s *SessionState) error {
 	if s == nil {
 		return errors.New("cannot save nil session")
-	}
-
-	if s.InviteToken == "" && s.ClaimToken != "" {
-		s.InviteToken = s.ClaimToken
-	} else if s.ClaimToken == "" && s.InviteToken != "" {
-		s.ClaimToken = s.InviteToken
 	}
 
 	if s.Metadata == nil {

@@ -1,0 +1,40 @@
+# Multi-stage build for Orbit Mock Edge Server Daemon
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /src
+
+RUN apk add --no-cache git ca-certificates
+
+# Stub orbit-notifications if not present in build context to satisfy go.mod replace directive
+RUN mkdir -p /orbit-notifications && \
+    printf 'module github.com/manovaspace/orbit-notifications\n\ngo 1.26.0\n' > /orbit-notifications/go.mod
+
+# Cache Go modules
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Build standalone mockserver binary
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/orbit-mockserver ./test/testbed/mockserver
+
+# Minimal runtime image
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates tzdata wget curl
+
+WORKDIR /app
+
+COPY --from=builder /bin/orbit-mockserver /usr/local/bin/orbit-mockserver
+
+# Ports exposed inside the isolated Docker network:
+# :8080   - Edge & Onboarding API (orbit.dev.manova.space)
+# :10800  - Staff Control Plane API (staff.dev.manova.space)
+# :9000   - S3 / R2 Mock Storage (assets.dev.manova.space)
+# :3000   - Forgejo Mock API & SSH Key registry (git.dev.manova.space)
+EXPOSE 8080 10800 9000 3000
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=2s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1
+
+ENTRYPOINT ["/usr/local/bin/orbit-mockserver"]
+CMD ["--edge-addr=:8080", "--staff-addr=:10800", "--s3-addr=:9000", "--forgejo-addr=:3000", "--verbose"]

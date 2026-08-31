@@ -78,7 +78,6 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 
 	if opts.PreSetToken != "" {
 		sess.InviteToken = opts.PreSetToken
-		sess.ClaimToken = opts.PreSetToken
 	}
 
 	// Determine starting stage

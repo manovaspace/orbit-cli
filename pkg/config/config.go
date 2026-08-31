@@ -69,66 +69,9 @@ func DefaultConfigPath() string {
 	return filepath.Join(configDir, "orbit", "config.yaml")
 }
 
-func checkAndMigrateLegacy(targetPath string) error {
-	if _, err := os.Stat(targetPath); err == nil {
-		return nil
-	}
-
-	var legacyPath string
-	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
-		p := filepath.Join(xdg, "manova", "config.yaml")
-		if _, err := os.Stat(p); err == nil {
-			legacyPath = p
-		}
-	}
-
-	if legacyPath == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			p := filepath.Join(home, ".config", "manova", "config.yaml")
-			if _, err := os.Stat(p); err == nil {
-				legacyPath = p
-			}
-		}
-	}
-
-	if legacyPath == "" {
-		return nil
-	}
-
-	data, err := os.ReadFile(legacyPath)
-	if err != nil {
-		return fmt.Errorf("failed to read legacy config file %q: %w", legacyPath, err)
-	}
-
-	targetDir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(targetDir, 0700); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", targetDir, err)
-	}
-
-	if err := atomicWriteFile(targetPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write migrated config to %q: %w", targetPath, err)
-	}
-
-	// Migrate invites.json if present
-	legacyInvites := filepath.Join(filepath.Dir(legacyPath), "invites.json")
-	targetInvites := filepath.Join(targetDir, "invites.json")
-	if invitesData, err := os.ReadFile(legacyInvites); err == nil {
-		if _, err := os.Stat(targetInvites); errors.Is(err, os.ErrNotExist) {
-			_ = atomicWriteFile(targetInvites, invitesData, 0600)
-		}
-	}
-
-	return nil
-}
-
 func Load(path string) (*Config, error) {
 	if path == "" {
 		path = DefaultConfigPath()
-	}
-
-	if path == DefaultConfigPath() {
-		_ = checkAndMigrateLegacy(path)
 	}
 
 	info, err := os.Stat(path)
@@ -775,10 +718,6 @@ func Resolve(opts ResolveOptions) (*ResolvedConfig, error) {
 	path := opts.ConfigPath
 	if path == "" {
 		path = DefaultConfigPath()
-	}
-
-	if path == DefaultConfigPath() {
-		_ = checkAndMigrateLegacy(path)
 	}
 
 	if data, err := os.ReadFile(path); err == nil {
