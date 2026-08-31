@@ -398,13 +398,13 @@ func newInviteListCmd() *cobra.Command {
 				var statusCell table.Cell
 				switch status {
 				case "active":
-					statusCell = table.StyledCell("✔ active", successStyle.Render("✔ active"))
+					statusCell = table.StyleCell("✔ active", successStyle)
 				case "revoked":
-					statusCell = table.StyledCell("✖ revoked", errorStyle.Render("✖ revoked"))
+					statusCell = table.StyleCell("✖ revoked", errorStyle)
 				case "expired":
-					statusCell = table.StyledCell("⚠ expired", warningStyle.Render("⚠ expired"))
+					statusCell = table.StyleCell("⚠ expired", warningStyle)
 				default:
-					statusCell = table.StyledCell(status, subtleStyle.Render(status))
+					statusCell = table.StyleCell(status, subtleStyle)
 				}
 
 				nameVal := r.DisplayName

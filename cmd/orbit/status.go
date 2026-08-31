@@ -71,34 +71,34 @@ func newStatusCmd() *cobra.Command {
 					var syncCell table.Cell
 					switch {
 					case s.AheadCount > 0 && s.BehindCount > 0:
-						syncCell = table.StyledCell(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount), warningStyle.Render(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount)))
+						syncCell = table.StyleCell(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount), warningStyle)
 					case s.AheadCount > 0:
-						syncCell = table.StyledCell(fmt.Sprintf("↑%d ahead", s.AheadCount), subtleStyle.Render(fmt.Sprintf("↑%d ahead", s.AheadCount)))
+						syncCell = table.StyleCell(fmt.Sprintf("↑%d ahead", s.AheadCount), subtleStyle)
 					case s.BehindCount > 0:
-						syncCell = table.StyledCell(fmt.Sprintf("↓%d behind", s.BehindCount), subtleStyle.Render(fmt.Sprintf("↓%d behind", s.BehindCount)))
+						syncCell = table.StyleCell(fmt.Sprintf("↓%d behind", s.BehindCount), subtleStyle)
 					default:
-						syncCell = table.StyledCell("up to date", subtleStyle.Render("up to date"))
+						syncCell = table.StyleCell("up to date", subtleStyle)
 					}
 
 					var treeCell table.Cell
 					if s.IsClean {
 						cleanCount++
-						treeCell = table.StyledCell("✔ clean", successStyle.Render("✔ clean"))
+						treeCell = table.StyleCell("✔ clean", successStyle)
 					} else {
 						dirtyCount++
-						treeCell = table.StyledCell(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount), errorStyle.Render(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount)))
+						treeCell = table.StyleCell(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount), errorStyle)
 					}
 
 					tbl.AddStyledRow(repoCell, pathCell, branchCell, syncCell, treeCell)
 				case orchestrator.ErrMissing:
 					missingCount++
-					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("not cloned", subtleStyle.Render("not cloned")))
+					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell("not cloned", subtleStyle))
 				case orchestrator.ErrGitless:
 					gitlessCount++
-					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("gitless — run orbit repair", warningStyle.Render("gitless — run orbit repair")))
+					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell("gitless — run orbit repair", warningStyle))
 				default:
 					otherErrCount++
-					tbl.AddStyledRow(repoCell, pathCell, table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell("-", subtleStyle.Render("-")), table.StyledCell(s.Error, errorStyle.Render(s.Error)))
+					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell(s.Error, errorStyle))
 				}
 			}
 

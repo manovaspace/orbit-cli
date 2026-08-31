@@ -16,7 +16,7 @@ func TruncateString(s string, maxLen int) string {
 	}
 
 	runes := []rune(s)
-	for i := len(runes) - 1; i >= 0; i-- {
+	for i := min(len(runes), maxLen); i >= 0; i-- {
 		candidate := string(runes[:i]) + "…"
 		if StringWidth(candidate) <= maxLen {
 			return candidate

@@ -92,10 +92,10 @@ func newMigrateStatusCmd() *cobra.Command {
 				if appliedAt, ok := appliedMap[m.ID]; ok {
 					appliedCount++
 					statusStr := fmt.Sprintf("✔ Applied (%s)", appliedAt.Format("2006-01-02 15:04"))
-					statusCell = table.StyledCell(statusStr, successStyle.Render(statusStr))
+					statusCell = table.StyleCell(statusStr, successStyle)
 				} else {
 					pendingCount++
-					statusCell = table.StyledCell("⚠ Pending", warningStyle.Render("⚠ Pending"))
+					statusCell = table.StyleCell("⚠ Pending", warningStyle)
 				}
 
 				tbl.AddStyledRow(idCell, descCell, statusCell)

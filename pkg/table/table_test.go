@@ -40,11 +40,15 @@ func TestTableBuilderMethods(t *testing.T) {
 		PlainCell("orbit-infra"),
 		StyledCell("orbit/orbit-infra", lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("orbit/orbit-infra")),
 	)
+	tbl.AddStyledRow(
+		PlainCell("status"),
+		StyleCell("✔ active", lipgloss.NewStyle().Bold(true)),
+	)
 
 	if len(tbl.columns) != 2 {
 		t.Fatalf("expected 2 columns, got %d", len(tbl.columns))
 	}
-	if len(tbl.rows) != 2 {
-		t.Fatalf("expected 2 rows, got %d", len(tbl.rows))
+	if len(tbl.rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(tbl.rows))
 	}
 }

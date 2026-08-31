@@ -319,7 +319,7 @@ func newConfigListCmd() *cobra.Command {
 				table.Column{Title: "KEY", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 18},
 				table.Column{Title: "VALUE", HeaderStyle: headerStyle, CellStyle: codeStyle, MinWidth: 20, Flexible: true},
 				table.Column{Title: "TYPE", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 8},
-				table.Column{Title: "SOURCE", HeaderStyle: headerStyle, MinWidth: 14, Flexible: true},
+				table.Column{Title: "SOURCE", HeaderStyle: headerStyle, MinWidth: 14, Flexible: false},
 			)
 
 			for _, e := range entries {

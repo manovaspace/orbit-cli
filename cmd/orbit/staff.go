@@ -151,9 +151,9 @@ func newStaffListCmd() *cobra.Command {
 				var statusCell table.Cell
 				switch strings.ToLower(s.Status) {
 				case "active", "enabled":
-					statusCell = table.StyledCell("✔ active", successStyle.Render("✔ active"))
+					statusCell = table.StyleCell("✔ active", successStyle)
 				case "disabled":
-					statusCell = table.StyledCell("✖ disabled", errorStyle.Render("✖ disabled"))
+					statusCell = table.StyleCell("✖ disabled", errorStyle)
 				default:
 					statusCell = table.PlainCell(s.Status)
 				}

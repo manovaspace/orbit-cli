@@ -35,3 +35,7 @@ func PlainCell(text string) Cell {
 func StyledCell(plainText string, styledText string) Cell {
 	return Cell{Text: plainText, Styled: styledText}
 }
+
+func StyleCell(text string, style lipgloss.Style) Cell {
+	return Cell{Text: text, Style: &style}
+}

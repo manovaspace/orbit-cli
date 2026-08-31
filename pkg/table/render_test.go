@@ -195,3 +195,21 @@ func TestTableRenderMaxWidth(t *testing.T) {
 		t.Errorf("col width %d > MaxWidth 10", widths[0])
 	}
 }
+
+func TestTableStyleCellPreservationOnTruncation(t *testing.T) {
+	col1 := Column{Title: "STATUS", Flexible: true, MinWidth: 5}
+	customStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+
+	tbl := New(col1).WithTerminalWidth(10).WithIndent("")
+	tbl.AddStyledRow(StyleCell("very-long-status-error-text", customStyle))
+
+	out := tbl.String()
+	if !strings.Contains(out, "…") {
+		t.Errorf("expected truncated text with ellipsis, got %q", out)
+	}
+	widths := tbl.CalculateWidths()
+	expectedTruncated := customStyle.Render(TruncateString("very-long-status-error-text", widths[0]))
+	if !strings.Contains(out, expectedTruncated) {
+		t.Errorf("expected output to contain styled truncated text %q, got %q", expectedTruncated, out)
+	}
+}
