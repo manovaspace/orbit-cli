@@ -247,6 +247,8 @@ func (s *Server) wrapMiddleware() {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /", s.handleInstallScript)
+	s.mux.HandleFunc("GET /setup", s.handleInstallScript)
+	s.mux.HandleFunc("GET /onboard", s.handleInstallScript)
 	s.mux.HandleFunc("GET /v1/onboard/health", s.handleHealth)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
@@ -275,7 +277,8 @@ func (s *Server) Limiter() *ratelimit.Limiter {
 }
 
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	path := r.URL.Path
+	if path != "/" && path != "/setup" && path != "/onboard" {
 		http.NotFound(w, r)
 		return
 	}

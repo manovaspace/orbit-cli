@@ -1216,3 +1216,79 @@ func TestServer_Middleware_PanicRecovery(t *testing.T) {
 	}
 }
 
+func TestHandleInstallScript_SetupAndOnboardRoutes(t *testing.T) {
+	prov := provisioner.NewDevProvisioner()
+	srv, _ := setupTestServer(t, prov, nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	routes := []string{"/", "/setup", "/onboard"}
+
+	for _, route := range routes {
+		t.Run("Browser_"+route, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+route, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Accept", "text/html")
+			req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", route, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: expected status 200, got %d", route, resp.StatusCode)
+			}
+
+			contentType := resp.Header.Get("Content-Type")
+			if !strings.Contains(contentType, "text/html") {
+				t.Errorf("GET %s: expected Content-Type text/html, got %q", route, contentType)
+			}
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+			body := string(bodyBytes)
+			if !strings.Contains(body, "copy-btn") {
+				t.Errorf("GET %s: expected landing HTML body with copy-btn", route)
+			}
+		})
+
+		t.Run("Curl_"+route, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+route, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("User-Agent", "curl/8.5.0")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", route, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: expected status 200, got %d", route, resp.StatusCode)
+			}
+
+			contentType := resp.Header.Get("Content-Type")
+			if !strings.Contains(contentType, "text/x-shellscript") {
+				t.Errorf("GET %s: expected Content-Type text/x-shellscript, got %q", route, contentType)
+			}
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+			body := string(bodyBytes)
+			if !strings.Contains(body, "Do you want to proceed with the installation") {
+				t.Errorf("GET %s: expected shell script content", route)
+			}
+		})
+	}
+}
+
