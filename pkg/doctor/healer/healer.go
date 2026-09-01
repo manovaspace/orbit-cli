@@ -9,14 +9,18 @@ import (
 )
 
 // NewDefaultRegistry creates and populates a Registry with all standard Orbit healers:
-// Go 1.26, Bun, Node.js 24 LTS, Git, and Docker Compose.
+// Go 1.26+, Bun, Node.js 24 LTS, Git, Docker, Docker Compose, Caddy, Typst, and Zsh.
 func NewDefaultRegistry() *Registry {
 	reg := NewRegistry()
+	reg.Register(NewZshHealer())
+	reg.Register(NewGitHealer())
 	reg.Register(NewGoHealer())
 	reg.Register(NewBunHealer())
 	reg.Register(NewNodeHealer())
-	reg.Register(NewGitHealer())
+	reg.Register(NewDockerDaemonHealer())
 	reg.Register(NewDockerComposeHealer())
+	reg.Register(NewCaddyHealer())
+	reg.Register(NewTypstHealer())
 	return reg
 }
 

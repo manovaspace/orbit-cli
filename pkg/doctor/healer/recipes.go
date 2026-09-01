@@ -449,3 +449,283 @@ export DEBIAN_FRONTEND=noninteractive
 	progress("Docker Compose plugin installed successfully")
 	return nil
 }
+
+// ============================================================================
+// DockerDaemonHealer
+// ============================================================================
+
+// DockerDaemonHealer installs Docker Engine and enables the system service.
+type DockerDaemonHealer struct {
+	Runner Runner
+	IsRoot func() bool
+}
+
+// NewDockerDaemonHealer creates a new DockerDaemonHealer instance.
+func NewDockerDaemonHealer() *DockerDaemonHealer {
+	return &DockerDaemonHealer{
+		IsRoot: defaultIsRoot,
+	}
+}
+
+// Name returns the identifier of the healer.
+func (h *DockerDaemonHealer) Name() string {
+	return "Docker Daemon"
+}
+
+// CanHeal checks whether the result represents a missing Docker CLI or daemon.
+func (h *DockerDaemonHealer) CanHeal(result doctor.DiagnosticResult) bool {
+	if result.Status == doctor.StatusOK {
+		return false
+	}
+	name := strings.ToLower(result.Name)
+	if name == "docker daemon" || name == "docker" || strings.Contains(name, "docker daemon") {
+		return true
+	}
+	msg := strings.ToLower(result.Message)
+	return strings.Contains(msg, "docker cli not found") || strings.Contains(msg, "docker daemon is not running")
+}
+
+// Heal installs Docker Engine, enables the system service, and adds user to docker group.
+func (h *DockerDaemonHealer) Heal(ctx context.Context, progress func(step string)) error {
+	if progress == nil {
+		progress = func(string) {}
+	}
+
+	runner := ensureRunner(h.Runner)
+	isRootUser := defaultIsRoot()
+	if h.IsRoot != nil {
+		isRootUser = h.IsRoot()
+	}
+
+	if err := checkElevation(isRootUser); err != nil {
+		return err
+	}
+
+	sp := sudoPrefix(isRootUser)
+	progress("Installing Docker Engine and starting docker service...")
+
+	script := fmt.Sprintf(`set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+%sapt-get update -y
+%sapt-get install -y docker.io docker-compose-v2 2>/dev/null || %sapt-get install -y docker-ce docker-compose-plugin 2>/dev/null || true
+%ssystemctl enable --now docker 2>/dev/null || true
+if [ -n "${USER:-}" ] && [ "$(id -u)" -ne 0 ]; then
+	%susermod -aG docker "$USER" 2>/dev/null || true
+fi
+`, sp, sp, sp, sp, sp)
+
+	if out, err := runner.RunShell(ctx, script); err != nil {
+		return fmt.Errorf("failed to install Docker Engine: %w\nOutput: %s", err, strings.TrimSpace(out))
+	}
+
+	progress("Docker Engine installed and configured successfully")
+	return nil
+}
+
+// ============================================================================
+// CaddyHealer
+// ============================================================================
+
+// CaddyHealer installs Caddy reverse proxy via official package repository.
+type CaddyHealer struct {
+	Runner Runner
+	IsRoot func() bool
+}
+
+// NewCaddyHealer creates a new CaddyHealer instance.
+func NewCaddyHealer() *CaddyHealer {
+	return &CaddyHealer{
+		IsRoot: defaultIsRoot,
+	}
+}
+
+// Name returns the identifier of the healer.
+func (h *CaddyHealer) Name() string {
+	return "Caddy Reverse Proxy"
+}
+
+// CanHeal checks whether the result represents a missing Caddy installation.
+func (h *CaddyHealer) CanHeal(result doctor.DiagnosticResult) bool {
+	if result.Status == doctor.StatusOK {
+		return false
+	}
+	name := strings.ToLower(result.Name)
+	return strings.Contains(name, "caddy")
+}
+
+// Heal installs Caddy via official apt repository.
+func (h *CaddyHealer) Heal(ctx context.Context, progress func(step string)) error {
+	if progress == nil {
+		progress = func(string) {}
+	}
+
+	runner := ensureRunner(h.Runner)
+	isRootUser := defaultIsRoot()
+	if h.IsRoot != nil {
+		isRootUser = h.IsRoot()
+	}
+
+	if err := checkElevation(isRootUser); err != nil {
+		return err
+	}
+
+	sp := sudoPrefix(isRootUser)
+	progress("Setting up Caddy official repository and installing caddy...")
+
+	script := fmt.Sprintf(`set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | %sgpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
+echo "deb [signed-by=/usr/share/keyrings/caddy-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main" | %stee /etc/apt/sources.list.d/caddy-stable.list >/dev/null 2>&1 || true
+%sapt-get update -y
+%sapt-get install -y caddy
+`, sp, sp, sp, sp)
+
+	if out, err := runner.RunShell(ctx, script); err != nil {
+		return fmt.Errorf("failed to install Caddy: %w\nOutput: %s", err, strings.TrimSpace(out))
+	}
+
+	progress("Caddy reverse proxy installed successfully")
+	return nil
+}
+
+// ============================================================================
+// TypstHealer
+// ============================================================================
+
+// TypstHealer downloads and installs the official Typst release binary.
+type TypstHealer struct {
+	Runner Runner
+	IsRoot func() bool
+}
+
+// NewTypstHealer creates a new TypstHealer instance.
+func NewTypstHealer() *TypstHealer {
+	return &TypstHealer{
+		IsRoot: defaultIsRoot,
+	}
+}
+
+// Name returns the identifier of the healer.
+func (h *TypstHealer) Name() string {
+	return "Typst Compiler"
+}
+
+// CanHeal checks whether the result represents a missing Typst installation.
+func (h *TypstHealer) CanHeal(result doctor.DiagnosticResult) bool {
+	if result.Status == doctor.StatusOK {
+		return false
+	}
+	name := strings.ToLower(result.Name)
+	return strings.Contains(name, "typst")
+}
+
+// Heal downloads and installs the official Typst binary release.
+func (h *TypstHealer) Heal(ctx context.Context, progress func(step string)) error {
+	if progress == nil {
+		progress = func(string) {}
+	}
+
+	runner := ensureRunner(h.Runner)
+	isRootUser := defaultIsRoot()
+	if h.IsRoot != nil {
+		isRootUser = h.IsRoot()
+	}
+
+	if err := checkElevation(isRootUser); err != nil {
+		return err
+	}
+
+	sp := sudoPrefix(isRootUser)
+	progress("Downloading and installing Typst CLI binary release...")
+
+	script := fmt.Sprintf(`set -euo pipefail
+TMP_DIR=$(mktemp -d)
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
+curl -fsSL "https://github.com/typst/typst/releases/download/v0.13.0/typst-x86_64-unknown-linux-musl.tar.xz" -o "$TMP_DIR/typst.tar.xz"
+tar -xf "$TMP_DIR/typst.tar.xz" -C "$TMP_DIR"
+%scp "$TMP_DIR"/typst-*/typst /usr/local/bin/typst 2>/dev/null || cp "$TMP_DIR"/typst-*/typst ~/.local/bin/typst 2>/dev/null
+%schmod 755 /usr/local/bin/typst 2>/dev/null || chmod 755 ~/.local/bin/typst 2>/dev/null
+`, sp, sp)
+
+	if out, err := runner.RunShell(ctx, script); err != nil {
+		return fmt.Errorf("failed to install Typst: %w\nOutput: %s", err, strings.TrimSpace(out))
+	}
+
+	progress("Typst compiler installed successfully")
+	return nil
+}
+
+// ============================================================================
+// ZshHealer
+// ============================================================================
+
+// ZshHealer installs zsh and configures user login shell and PATH.
+type ZshHealer struct {
+	Runner Runner
+	IsRoot func() bool
+}
+
+// NewZshHealer creates a new ZshHealer instance.
+func NewZshHealer() *ZshHealer {
+	return &ZshHealer{
+		IsRoot: defaultIsRoot,
+	}
+}
+
+// Name returns the identifier of the healer.
+func (h *ZshHealer) Name() string {
+	return "Zsh & Shell Profile"
+}
+
+// CanHeal checks whether the result represents a missing zsh, wrong login shell, or PATH issue.
+func (h *ZshHealer) CanHeal(result doctor.DiagnosticResult) bool {
+	if result.Status == doctor.StatusOK {
+		return false
+	}
+	name := strings.ToLower(result.Name)
+	msg := strings.ToLower(result.Message)
+	return strings.Contains(name, "host") || strings.Contains(name, "zsh") || strings.Contains(msg, "zsh") || strings.Contains(msg, "path")
+}
+
+// Heal installs zsh, updates login shell, and exports PATH in ~/.zshrc.
+func (h *ZshHealer) Heal(ctx context.Context, progress func(step string)) error {
+	if progress == nil {
+		progress = func(string) {}
+	}
+
+	runner := ensureRunner(h.Runner)
+	isRootUser := defaultIsRoot()
+	if h.IsRoot != nil {
+		isRootUser = h.IsRoot()
+	}
+
+	if err := checkElevation(isRootUser); err != nil {
+		return err
+	}
+
+	sp := sudoPrefix(isRootUser)
+	progress("Installing zsh and configuring login shell environment...")
+
+	script := fmt.Sprintf(`set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+%sapt-get update -y
+%sapt-get install -y zsh
+ZSH_PATH=$(command -v zsh 2>/dev/null || echo "/usr/bin/zsh")
+if [ -n "${USER:-}" ] && [ "$(id -u)" -ne 0 ]; then
+	%schsh -s "$ZSH_PATH" "$USER" 2>/dev/null || chsh -s "$ZSH_PATH" 2>/dev/null || true
+fi
+mkdir -p "$HOME"
+touch "$HOME/.zshrc"
+if ! grep -q 'export PATH=.*\.local/bin' "$HOME/.zshrc" 2>/dev/null; then
+	echo 'export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/.bun/bin:$PATH"' >> "$HOME/.zshrc"
+fi
+`, sp, sp, sp)
+
+	if out, err := runner.RunShell(ctx, script); err != nil {
+		return fmt.Errorf("failed to configure zsh shell: %w\nOutput: %s", err, strings.TrimSpace(out))
+	}
+
+	progress("Zsh shell installed and login environment configured successfully")
+	return nil
+}

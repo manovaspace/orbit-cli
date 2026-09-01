@@ -141,15 +141,15 @@ func TestRegistry(t *testing.T) {
 	}
 }
 
-// TestDefaultRegistry verifies NewDefaultRegistry registers all 5 standard healers.
+// TestDefaultRegistry verifies NewDefaultRegistry registers all 9 standard healers.
 func TestDefaultRegistry(t *testing.T) {
 	reg := NewDefaultRegistry()
 	all := reg.All()
-	if len(all) != 5 {
-		t.Fatalf("expected 5 default healers, got %d", len(all))
+	if len(all) != 9 {
+		t.Fatalf("expected 9 default healers, got %d", len(all))
 	}
 
-	names := []string{"Go 1.26", "Bun", "Node.js 24 LTS", "Git", "Docker Compose"}
+	names := []string{"Go 1.26", "Bun", "Node.js 24 LTS", "Git", "Docker Compose", "Docker Daemon", "Caddy Reverse Proxy", "Typst Compiler", "Zsh & Shell Profile"}
 	for _, expectedName := range names {
 		if _, ok := reg.Get(expectedName); !ok {
 			t.Fatalf("expected default registry to contain %q", expectedName)
@@ -566,10 +566,90 @@ func TestIsAutoHealable(t *testing.T) {
 	if !IsAutoHealable(doctor.DiagnosticResult{Name: "Go Compiler", Status: doctor.StatusError}) {
 		t.Errorf("expected Go Compiler to be auto healable")
 	}
+	if !IsAutoHealable(doctor.DiagnosticResult{Name: "Docker Daemon", Status: doctor.StatusError, Message: "docker cli not found"}) {
+		t.Errorf("expected Docker Daemon to be auto healable")
+	}
+	if !IsAutoHealable(doctor.DiagnosticResult{Name: "Caddy Reverse Proxy", Status: doctor.StatusWarning}) {
+		t.Errorf("expected Caddy to be auto healable")
+	}
+	if !IsAutoHealable(doctor.DiagnosticResult{Name: "Typst Compiler", Status: doctor.StatusWarning}) {
+		t.Errorf("expected Typst to be auto healable")
+	}
+	if !IsAutoHealable(doctor.DiagnosticResult{Name: "Host", Status: doctor.StatusError, Message: "chsh to zsh"}) {
+		t.Errorf("expected Host/Zsh to be auto healable")
+	}
 	if IsAutoHealable(doctor.DiagnosticResult{Name: "Go Compiler", Status: doctor.StatusOK}) {
 		t.Errorf("expected OK status not to be auto healable")
 	}
 	if IsAutoHealable(doctor.DiagnosticResult{Name: "Unknown Custom Tool", Status: doctor.StatusError}) {
 		t.Errorf("expected Unknown Tool not to be auto healable")
+	}
+}
+
+func TestDockerDaemonHealer(t *testing.T) {
+	runner := &mockRunner{}
+	h := &DockerDaemonHealer{Runner: runner, IsRoot: func() bool { return false }}
+
+	if !h.CanHeal(doctor.DiagnosticResult{Name: "Docker Daemon", Status: doctor.StatusError}) {
+		t.Errorf("expected DockerDaemonHealer to match Docker Daemon")
+	}
+
+	err := h.Heal(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(runner.getLastScript(), "apt-get install -y docker") {
+		t.Errorf("expected docker install script, got: %s", runner.getLastScript())
+	}
+}
+
+func TestCaddyHealer(t *testing.T) {
+	runner := &mockRunner{}
+	h := &CaddyHealer{Runner: runner, IsRoot: func() bool { return false }}
+
+	if !h.CanHeal(doctor.DiagnosticResult{Name: "Caddy Reverse Proxy", Status: doctor.StatusWarning}) {
+		t.Errorf("expected CaddyHealer to match Caddy Reverse Proxy")
+	}
+
+	err := h.Heal(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(runner.getLastScript(), "apt-get install -y caddy") {
+		t.Errorf("expected caddy install script, got: %s", runner.getLastScript())
+	}
+}
+
+func TestTypstHealer(t *testing.T) {
+	runner := &mockRunner{}
+	h := &TypstHealer{Runner: runner, IsRoot: func() bool { return false }}
+
+	if !h.CanHeal(doctor.DiagnosticResult{Name: "Typst Compiler", Status: doctor.StatusWarning}) {
+		t.Errorf("expected TypstHealer to match Typst Compiler")
+	}
+
+	err := h.Heal(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(runner.getLastScript(), "typst") {
+		t.Errorf("expected typst install script, got: %s", runner.getLastScript())
+	}
+}
+
+func TestZshHealer(t *testing.T) {
+	runner := &mockRunner{}
+	h := &ZshHealer{Runner: runner, IsRoot: func() bool { return false }}
+
+	if !h.CanHeal(doctor.DiagnosticResult{Name: "Host", Status: doctor.StatusError, Message: "chsh to zsh"}) {
+		t.Errorf("expected ZshHealer to match Host / zsh")
+	}
+
+	err := h.Heal(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(runner.getLastScript(), "apt-get install -y zsh") {
+		t.Errorf("expected zsh install script, got: %s", runner.getLastScript())
 	}
 }

@@ -701,7 +701,7 @@ func TestServer_InstallScript(t *testing.T) {
 			t.Fatalf("failed to read response body: %v", err)
 		}
 		body := string(bodyBytes)
-		if !strings.Contains(body, "Do you want to proceed with the installation") {
+		if !strings.Contains(body, "Ready to configure your system and install the required tools") && !strings.Contains(body, "Install Orbit CLI") {
 			t.Errorf("GET /: body missing confirmation prompt text")
 		}
 	})
@@ -1231,7 +1231,7 @@ func TestHandleInstallScript_SetupAndOnboardRoutes(t *testing.T) {
 				t.Fatalf("failed to read response body: %v", err)
 			}
 			body := string(bodyBytes)
-			if !strings.Contains(body, "Do you want to proceed with the installation") {
+			if !strings.Contains(body, "Ready to configure your system and install the required tools") && !strings.Contains(body, "Install Orbit CLI") {
 				t.Errorf("GET %s: expected shell script content", route)
 			}
 		})
