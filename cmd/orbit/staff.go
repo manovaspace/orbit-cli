@@ -97,7 +97,16 @@ func newStaffCreateCmd() *cobra.Command {
 
 			// --invite: generate a signed onboarding invite token and dispatch
 			if inviteFlag {
-				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, res.OTPAuth, noSendFlag)
+				otpauth := res.OTPAuth
+				if otpauth == "" && totpFlag {
+					inviteEmail := strings.TrimSpace(inviteEmailFlag)
+					if inviteEmail == "" {
+						inviteEmail = forward
+					}
+					_, fallbackURI, _ := invite.GenerateTOTP("Orbit", inviteEmail)
+					otpauth = fallbackURI
+				}
+				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth, noSendFlag)
 			}
 
 			return nil
@@ -387,7 +396,16 @@ func newStaffRecreateCmd() *cobra.Command {
 
 			// --invite: generate a signed onboarding invite token and dispatch
 			if inviteFlag {
-				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, res.OTPAuth, noSendFlag)
+				otpauth := res.OTPAuth
+				if otpauth == "" && totpFlag {
+					inviteEmail := strings.TrimSpace(inviteEmailFlag)
+					if inviteEmail == "" {
+						inviteEmail = forward
+					}
+					_, fallbackURI, _ := invite.GenerateTOTP("Orbit", inviteEmail)
+					otpauth = fallbackURI
+				}
+				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth, noSendFlag)
 			}
 
 			return nil
