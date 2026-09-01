@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,6 +111,9 @@ func newUninstallCmd() *cobra.Command {
 				}
 			}
 
+			// Clean installed man pages
+			cleanManPagesWithHome(home, out)
+
 			// Purge state directories if requested
 			if purgeState {
 				stateDirs := []string{
@@ -151,3 +155,26 @@ func removeFileElevated(target string) error {
 	}
 	return os.Remove(target)
 }
+
+func cleanManPagesWithHome(home string, out io.Writer) int {
+	removedCount := 0
+	manDirs := []string{
+		filepath.Join(home, ".local", "share", "man", "man1"),
+	}
+	for _, md := range manDirs {
+		matches, err := filepath.Glob(filepath.Join(md, "orbit*.1"))
+		if err == nil {
+			for _, mf := range matches {
+				if err := removeFileElevated(mf); err == nil {
+					fmt.Fprintf(out, "  %s  Removed man page: %s\n", iconOK, subtleStyle.Render(mf))
+					removedCount++
+				}
+			}
+		}
+	}
+	if _, err := exec.LookPath("mandb"); err == nil {
+		_ = exec.Command("mandb", "-q").Run()
+	}
+	return removedCount
+}
+
