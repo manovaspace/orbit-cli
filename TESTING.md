@@ -122,7 +122,7 @@ Agents must run the narrowest sufficient recipe matching the modified subsystem 
 | Touched Subsystem | File Patterns | Agent Verification Command | Target Duration |
 | :--- | :--- | :--- | :--- |
 | **Admin Vault** | `pkg/owner/**`, `cmd/orbit/admin*` | `go test -v ./pkg/owner/... ./cmd/orbit -run TestAdmin` | < 3s |
-| **Staff IAM** | `pkg/client/**`, `pkg/staffhmac/**`, `cmd/orbit/staff*` | `go test -v ./pkg/staffhmac/... ./cmd/orbit -run TestStaff` | < 3s |
+| **Staff IAM** | `pkg/client/**`, `pkg/staffhmac/**`, `cmd/orbit/staff*` | `go test -v ./pkg/client/... ./pkg/staffhmac/... ./cmd/orbit -run TestStaff` | < 3s |
 | **Invitations** | `pkg/invite/**`, `cmd/orbit/invite*` | `go test -v ./pkg/invite/... ./cmd/orbit -run TestInvite` | < 2s |
 | **Workspace Git** | `pkg/orchestrator/**`, `cmd/orbit/sync*`, `cmd/orbit/repair*`, `cmd/orbit/status*` | `go test -v ./pkg/orchestrator/...` | < 4s |
 | **Port Allocator**| `pkg/ports/**`, `cmd/orbit/port*` | `go test -v ./pkg/ports/...` | < 1s |
