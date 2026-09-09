@@ -509,6 +509,17 @@ case ":$PATH:" in
     ;;
 esac
 
+# 11. Install UNIX Man Pages
+echo -e "  ${GRAY}• Installing UNIX man pages...${RESET}"
+MAN1_DIR="${HOME}/.local/share/man/man1"
+mkdir -p "$MAN1_DIR"
+if "${INSTALL_DIR}/orbit" doc -f man -o "$MAN1_DIR" >/dev/null 2>&1; then
+  if command -v mandb >/dev/null 2>&1; then
+    mandb -q "$MAN1_DIR" >/dev/null 2>&1 || mandb -q >/dev/null 2>&1 || true
+  fi
+  echo -e "    ${GREEN}✔${RESET} UNIX man pages installed (${MAN1_DIR})"
+fi
+
 # Execute non-flag args directly if provided
 NON_FLAG_ARGS=()
 for arg in "$@"; do

@@ -122,5 +122,8 @@ func ResolveProjectID(projectName string, customMapping ...ProjectMapping) (int,
 		mapping = customMapping[0]
 	}
 	id, ok := mapping[projectName]
+	if !ok && projectName == "orbit-services" {
+		return 1, true
+	}
 	return id, ok
 }
