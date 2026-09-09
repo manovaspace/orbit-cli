@@ -128,7 +128,7 @@ Agents must run the narrowest sufficient recipe matching the modified subsystem 
 | **Port Allocator**| `pkg/ports/**`, `cmd/orbit/port*` | `go test -v ./pkg/ports/...` | < 1s |
 | **Environment** | `pkg/env/**`, `cmd/orbit/env*` | `go test -v ./pkg/env/...` | < 1s |
 | **Assets Sync** | `pkg/assets/**`, `cmd/orbit/assets*` | `go test -v ./pkg/assets/...` | < 2s |
-| **Full Regression**| Any cross-cutting changes | `go test ./cmd/orbit -run TestScenariosIntegration` | < 10s |
+| **Full Regression**| Any cross-cutting changes | `go test ./cmd/orbit -run TestScenariosIntegration` | ~30s |
 
 ---
 
