@@ -52,7 +52,8 @@ type ProjectMapping map[string]int
 // DefaultProjectMapping contains the canonical project-to-ID assignments defined in ADR-006 / 50-port model.
 var DefaultProjectMapping = ProjectMapping{
 	"orbit-platform": 0,
-	"orbit-services": 1,
+	"manova":         1,
 	"fryto":          2,
 	"jtash":          4,
+	"kohan_kherad":   5,
 }
