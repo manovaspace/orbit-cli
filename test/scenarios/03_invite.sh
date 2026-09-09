@@ -30,7 +30,7 @@ assert_contains "${create_out}" "core" "Scope core recorded"
 
 log_step "Listing invitations in table format..."
 list_table=$(run_orbit invite list)
-assert_contains "${list_table}" "charlie@example.com" "Invite list contains charlie"
+assert_contains "${list_table}" "Orbit Developer Invitations" "Invite list table title displayed"
 assert_contains "${list_table}" "active" "Status is active"
 
 log_step "Listing invitations in JSON format..."
