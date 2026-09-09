@@ -26,7 +26,7 @@
 - Consumes: `removeFileElevated(path string) error`
 - Produces: `cleanManPages(home string, out io.Writer) int` helper or inline cleanup in `newUninstallCmd()`
 
-- [ ] **Step 1: Write the failing test for man page cleanup**
+- [x] **Step 1: Write the failing test for man page cleanup**
 
 ```go
 package main
@@ -73,12 +73,12 @@ func TestCleanManPages(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `go test -v ./cmd/orbit -run TestCleanManPages`
 Expected: FAIL with undefined `cleanManPagesWithHome`
 
-- [ ] **Step 3: Implement man page cleanup in `cmd/orbit/uninstall.go`**
+- [x] **Step 3: Implement man page cleanup in `cmd/orbit/uninstall.go`**
 
 Implement `cleanManPagesWithHome(home string, out io.Writer) int` and call it inside `newUninstallCmd()`:
 
@@ -106,12 +106,12 @@ func cleanManPagesWithHome(home string, out io.Writer) int {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `go test -v ./cmd/orbit -run TestCleanManPages`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git -C orbit/orbit-cli add cmd/orbit/uninstall.go cmd/orbit/uninstall_test.go
@@ -129,7 +129,7 @@ git -C orbit/orbit-cli commit -m "feat(uninstall): clean installed man pages and
 **Interfaces:**
 - Consumes: `${INSTALL_DIR}/orbit doc -f man -o "${HOME}/.local/share/man/man1"`
 
-- [ ] **Step 1: Add step 11 to `install.sh`**
+- [x] **Step 1: Add step 11 to `install.sh`**
 
 In `orbit/orbit-cli/install.sh`:
 ```bash
@@ -145,11 +145,11 @@ if "${INSTALL_DIR}/orbit" doc -f man -o "$MAN1_DIR" >/dev/null 2>&1; then
 fi
 ```
 
-- [ ] **Step 2: Sync change to `pkg/onboard/install.sh`**
+- [x] **Step 2: Sync change to `pkg/onboard/install.sh`**
 
 Ensure `orbit/orbit-cli/pkg/onboard/install.sh` has the exact same block.
 
-- [ ] **Step 3: Test bash syntax of both install scripts**
+- [x] **Step 3: Test bash syntax of both install scripts**
 
 Run:
 ```bash
@@ -158,7 +158,7 @@ bash -n orbit/orbit-cli/pkg/onboard/install.sh
 ```
 Expected: Exit code 0 (no syntax errors).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git -C orbit/orbit-cli add install.sh pkg/onboard/install.sh
@@ -172,12 +172,12 @@ git -C orbit/orbit-cli commit -m "feat(install): automatically generate UNIX man
 **Files:**
 - Test all tests in `orbit/orbit-cli`
 
-- [ ] **Step 1: Run all tests in `orbit/orbit-cli`**
+- [x] **Step 1: Run all tests in `orbit/orbit-cli`**
 
 Run: `go test -v ./...` in `orbit/orbit-cli`
 Expected: ALL PASS
 
-- [ ] **Step 2: Verify `man -w orbit` and `man -w orbit-staff-list`**
+- [x] **Step 2: Verify `man -w orbit` and `man -w orbit-staff-list`**
 
 Run: `man -w orbit && man -w orbit-staff-list`
 Expected: Output path pointing to `~/.local/share/man/man1/orbit.1` and `orbit-staff-list.1`
