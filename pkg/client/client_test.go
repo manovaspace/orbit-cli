@@ -283,7 +283,7 @@ func TestClient_ClaimToken(t *testing.T) {
 					WireGuardConfig: "[Interface]\nAddress = 10.8.0.2/24",
 				},
 				Workspace: WorkspaceInfo{
-					GitRemoteBase:        "ssh://git@git.dev.manova.space/manova",
+					GitRemoteBase:        "ssh://git@git.internal.manova.space/manova",
 					DefaultManifestScope: "core",
 				},
 			})

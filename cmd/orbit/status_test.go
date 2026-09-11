@@ -72,7 +72,7 @@ func TestStatusTableWithVariousRepoStates(t *testing.T) {
 	manifestContent := `version: "1"
 workspace: "test-workspace"
 remotes:
-  forgejo: "ssh://git@git.dev.manova.space/manova"
+  forgejo: "ssh://git@git.internal.manova.space/manova"
 groups:
   testgroup:
     path: ""
@@ -141,7 +141,7 @@ func TestStatusScopeEmpty(t *testing.T) {
 	manifestContent := `version: "1"
 workspace: "test-workspace"
 remotes:
-  forgejo: "ssh://git@git.dev.manova.space/manova"
+  forgejo: "ssh://git@git.internal.manova.space/manova"
 groups:
   testgroup:
     path: ""
@@ -204,7 +204,7 @@ func TestStatusTableSyncStates(t *testing.T) {
 	os.WriteFile(filepath.Join(localRepo, "file.txt"), []byte("v1"), 0644)
 	exec.Command("git", "-C", localRepo, "add", "file.txt").Run()
 	exec.Command("git", "-C", localRepo, "commit", "-m", "v1").Run()
-	exec.Command("git", "-C", localRepo, "push", "-u", "origin", "main").Run()
+	exec.Command("git", "-C", localRepo, "push", "--no-verify", "-u", "origin", "main").Run()
 
 	// Add a local commit (now 1 ahead)
 	os.WriteFile(filepath.Join(localRepo, "file.txt"), []byte("v2"), 0644)
@@ -214,7 +214,7 @@ func TestStatusTableSyncStates(t *testing.T) {
 	manifestContent := `version: "1"
 workspace: "test-workspace"
 remotes:
-  forgejo: "ssh://git@git.dev.manova.space/manova"
+  forgejo: "ssh://git@git.internal.manova.space/manova"
 groups:
   testgroup:
     path: ""

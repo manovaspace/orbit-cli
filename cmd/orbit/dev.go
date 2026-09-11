@@ -179,10 +179,10 @@ func renderEndpointsBanner(out io.Writer, statuses []ServiceStatus) {
 		URL  string
 	}{
 		{Name: "Developer Portal", URL: "http://localhost:10007"},
-		{Name: "Authelia SSO", URL: "http://auth.dev.manova.space:10000"},
-		{Name: "Forgejo Git", URL: "http://git.dev.manova.space:10000"},
-		{Name: "Mailpit", URL: "http://mail.dev.manova.space:10000"},
-		{Name: "Grafana", URL: "http://grafana.dev.manova.space:10000"},
+		{Name: "Authelia SSO", URL: "http://auth.internal.manova.space:10000"},
+		{Name: "Forgejo Git", URL: "http://git.internal.manova.space:10000"},
+		{Name: "Mailpit", URL: "http://mail.internal.manova.space:10000"},
+		{Name: "Grafana", URL: "http://grafana.internal.manova.space:10000"},
 	}
 
 	for _, ep := range endpoints {
@@ -362,10 +362,10 @@ func newDevPortalCmd() *cobra.Command {
 
 			fmt.Fprintln(out, titleStyle.Render("Orbit Local Developer Portal"))
 			fmt.Fprintf(out, "  %s  Portal URL:     %s\n", iconOK, boldStyle.Render(portalURL))
-			fmt.Fprintf(out, "  %s  Authelia SSO:   %s\n", iconInfo, subtleStyle.Render("http://auth.dev.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Forgejo Git:    %s\n", iconInfo, subtleStyle.Render("http://git.dev.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Mailpit:        %s\n", iconInfo, subtleStyle.Render("http://mail.dev.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Grafana:        %s\n", iconInfo, subtleStyle.Render("http://grafana.dev.manova.space:10000"))
+			fmt.Fprintf(out, "  %s  Authelia SSO:   %s\n", iconInfo, subtleStyle.Render("http://auth.internal.manova.space:10000"))
+			fmt.Fprintf(out, "  %s  Forgejo Git:    %s\n", iconInfo, subtleStyle.Render("http://git.internal.manova.space:10000"))
+			fmt.Fprintf(out, "  %s  Mailpit:        %s\n", iconInfo, subtleStyle.Render("http://mail.internal.manova.space:10000"))
+			fmt.Fprintf(out, "  %s  Grafana:        %s\n", iconInfo, subtleStyle.Render("http://grafana.internal.manova.space:10000"))
 
 			return nil
 		},

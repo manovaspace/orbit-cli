@@ -312,12 +312,12 @@ func TestEvaluateSSH(t *testing.T) {
 		t.Errorf("expected StatusOK for forgejo auth, got %v", forgejoOk.Status)
 	}
 
-	forgejoDenied := EvaluateForgejoSSH("git@git.dev.manova.space: Permission denied (publickey).", errors.New("exit status 255"))
+	forgejoDenied := EvaluateForgejoSSH("git@git.internal.manova.space: Permission denied (publickey).", errors.New("exit status 255"))
 	if forgejoDenied.Status != StatusWarning {
 		t.Errorf("expected StatusWarning for permission denied, got %v", forgejoDenied.Status)
 	}
 
-	forgejoRefused := EvaluateForgejoSSH("ssh: connect to host git.dev.manova.space port 22: Connection refused", errors.New("exit status 255"))
+	forgejoRefused := EvaluateForgejoSSH("ssh: connect to host git.internal.manova.space port 22: Connection refused", errors.New("exit status 255"))
 	if forgejoRefused.Status != StatusWarning {
 		t.Errorf("expected StatusWarning for connection refused, got %v", forgejoRefused.Status)
 	}

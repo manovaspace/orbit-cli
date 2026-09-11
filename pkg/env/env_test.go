@@ -25,7 +25,7 @@ variables:
 
   - name: FORGEJO_ACCESS_TOKEN
     type: secret
-    description: "Personal access token for git.dev.manova.space"
+    description: "Personal access token for git.internal.manova.space"
     required: true
     generator: "interactive"
 

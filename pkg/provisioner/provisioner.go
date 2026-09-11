@@ -60,9 +60,9 @@ func NewDevProvisioner() *DevProvisioner {
 		forgejoUsers:       make(map[string]ForgejoAccount),
 		wireguardPeers:     make(map[string]WireGuardPeer),
 		allocatedIPs:       make(map[int]string),
-		GitRemoteBase:      "ssh://git@git.dev.manova.space/manova",
+		GitRemoteBase:      "ssh://git@git.internal.manova.space/manova",
 		DefaultScope:       "core",
-		WireGuardEndpoint:  "vpn.dev.manova.space:51820",
+		WireGuardEndpoint:  "vpn.internal.manova.space:51820",
 		WireGuardDNS:       "10.8.0.1",
 		WireGuardSubnet:    "10.8.0.0/24",
 		WireGuardServerPub: "k8+8fW51TqJz9wQf+18/fR2XpL2kL5Lw8K3P6R7M=",
@@ -380,7 +380,7 @@ func (m *MockProvisioner) Provision(ctx context.Context, req ClaimRequest) (*Cla
 			WireGuardConfig: "[Interface]\nAddress = 10.8.0.99/24\n",
 		},
 		Workspace: WorkspaceInfo{
-			GitRemoteBase:        "ssh://git@git.dev.manova.space/manova",
+			GitRemoteBase:        "ssh://git@git.internal.manova.space/manova",
 			DefaultManifestScope: "core",
 		},
 	}, nil

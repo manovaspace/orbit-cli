@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultStaffServerURL = "https://staff.dev.manova.space"
+	defaultStaffServerURL = "https://staff.internal.manova.space"
 	staffOwnerUnverified  = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before managing staff."
 )
 

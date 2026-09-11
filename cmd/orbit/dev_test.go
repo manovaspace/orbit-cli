@@ -176,10 +176,10 @@ func TestDevPortalCmd_Output(t *testing.T) {
 	expectedStrings := []string{
 		"Orbit Local Developer Portal",
 		"http://localhost:10007",
-		"http://auth.dev.manova.space:10000",
-		"http://git.dev.manova.space:10000",
-		"http://mail.dev.manova.space:10000",
-		"http://grafana.dev.manova.space:10000",
+		"http://auth.internal.manova.space:10000",
+		"http://git.internal.manova.space:10000",
+		"http://mail.internal.manova.space:10000",
+		"http://grafana.internal.manova.space:10000",
 	}
 
 	for _, exp := range expectedStrings {

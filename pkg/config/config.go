@@ -20,7 +20,7 @@ var ErrKeyNotFound = errors.New("configuration key not found")
 
 const (
 	DefaultServerURL   = "https://orbit.manova.space"
-	DefaultStaffURL    = "https://staff.dev.manova.space"
+	DefaultStaffURL    = "https://staff.internal.manova.space"
 	DefaultAssetBucket = "orbit-assets"
 	DefaultScope       = "all"
 	DefaultExpiryDays  = 7
@@ -929,7 +929,7 @@ server:
 
 # Staff control-plane connection (ADR-024)
 staff:
-  url: https://staff.dev.manova.space
+  url: https://staff.internal.manova.space
 
 # Cloudflare R2 Media & Assets (ADR-022)
 assets:

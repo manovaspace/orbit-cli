@@ -11,7 +11,7 @@ version: "1"
 workspace: "manova"
 
 remotes:
-  forgejo: "ssh://git@git.dev.manova.space/manova"
+  forgejo: "ssh://git@git.internal.manova.space/manova"
   github_manovaspace: "git@github.com:manovaspace"
 
 groups:
@@ -120,7 +120,7 @@ func TestParseAndResolveScope(t *testing.T) {
 			t.Errorf("expected orbit-render branch 'develop', got %s", r.DefaultBranch)
 		}
 		if r.Name == "orbit-auth" {
-			expectedURL := "ssh://git@git.dev.manova.space/manova/orbit-auth.git"
+			expectedURL := "ssh://git@git.internal.manova.space/manova/orbit-auth.git"
 			if r.RemoteURL != expectedURL {
 				t.Errorf("expected remote URL %s, got %s", expectedURL, r.RemoteURL)
 			}
@@ -170,7 +170,7 @@ func TestParseAndResolveScope(t *testing.T) {
 		if r.Path != "clients/fryto/"+r.Name {
 			t.Errorf("expected path clients/fryto/%s, got %s", r.Name, r.Path)
 		}
-		expectedURL := "ssh://git@git.dev.manova.space/manova/" + r.Name + ".git"
+		expectedURL := "ssh://git@git.internal.manova.space/manova/" + r.Name + ".git"
 		if r.RemoteURL != expectedURL {
 			t.Errorf("expected remote URL %s, got %s", expectedURL, r.RemoteURL)
 		}
@@ -216,7 +216,7 @@ func TestRemoteURLResolution(t *testing.T) {
 version: "1"
 workspace: "manova"
 remotes:
-  forgejo: "ssh://git@git.dev.manova.space/manova/"
+  forgejo: "ssh://git@git.internal.manova.space/manova/"
   github: "git@github.com:manovaspace"
   https_remote: "https://gitlab.com/manova"
 
@@ -247,8 +247,8 @@ groups:
 	}
 
 	expectedURLs := map[string]string{
-		"repo-with-trailing-slash": "ssh://git@git.dev.manova.space/manova/repo-with-trailing-slash.git",
-		"repo-with-git-ext":        "ssh://git@git.dev.manova.space/manova/custom-name.git",
+		"repo-with-trailing-slash": "ssh://git@git.internal.manova.space/manova/repo-with-trailing-slash.git",
+		"repo-with-git-ext":        "ssh://git@git.internal.manova.space/manova/custom-name.git",
 		"github-repo":              "git@github.com:manovaspace/github-repo.git",
 		"https-repo":               "https://gitlab.com/manova/https-repo.git",
 		"raw-url-repo":             "git@custom.internal:foo/bar.git",
@@ -342,7 +342,7 @@ remotes:
 
 groups:
   single_repo:
-    remote: "ssh://git@git.dev.manova.space/custom/direct"
+    remote: "ssh://git@git.internal.manova.space/custom/direct"
     default_branch: "release"
 
   client_group:
@@ -376,7 +376,7 @@ groups:
 	if single[0].DefaultBranch != "release" {
 		t.Errorf("expected default branch 'release', got %s", single[0].DefaultBranch)
 	}
-	if single[0].RemoteURL != "ssh://git@git.dev.manova.space/custom/direct/single_repo.git" {
+	if single[0].RemoteURL != "ssh://git@git.internal.manova.space/custom/direct/single_repo.git" {
 		t.Errorf("expected direct ssh url, got %s", single[0].RemoteURL)
 	}
 

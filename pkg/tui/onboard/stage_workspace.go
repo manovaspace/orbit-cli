@@ -286,7 +286,7 @@ func (m *WorkspaceModel) SelectedTargets() []manifest.RepoTarget {
 			}
 
 			if remoteURL == "" {
-				remoteBase := "git@git.dev.manova.space:"
+				remoteBase := "git@git.internal.manova.space:"
 				if m.parent != nil && m.parent.Session != nil && m.parent.Session.Metadata != nil && m.parent.Session.Metadata["git_remote_base"] != "" {
 					remoteBase = m.parent.Session.Metadata["git_remote_base"]
 				}

@@ -51,8 +51,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Server.Timeout != 15*time.Second {
 		t.Errorf("expected default server timeout 15s, got %v", cfg.Server.Timeout)
 	}
-	if cfg.Staff.URL != "https://staff.dev.manova.space" {
-		t.Errorf("expected default staff URL https://staff.dev.manova.space, got %s", cfg.Staff.URL)
+	if cfg.Staff.URL != "https://staff.internal.manova.space" {
+		t.Errorf("expected default staff URL https://staff.internal.manova.space, got %s", cfg.Staff.URL)
 	}
 	if cfg.Assets.Bucket != "orbit-assets" {
 		t.Errorf("expected default assets bucket 'orbit-assets', got %s", cfg.Assets.Bucket)
@@ -283,7 +283,7 @@ server:
 
 # Staff control-plane connection
 staff:
-  url: https://staff.dev.manova.space
+  url: https://staff.internal.manova.space
 
 # Cloudflare R2 Media storage
 assets:

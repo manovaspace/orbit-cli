@@ -29,11 +29,11 @@ type StackLauncherFunc func(services []StackService) []StackService
 // defaultStackServices returns the canonical Orbit dev-stack service list.
 func defaultStackServices() []StackService {
 	return []StackService{
-		{Name: "Forgejo",      URL: "http://git.dev.manova.space:10000",  Status: "pending"},
-		{Name: "Authelia",     URL: "http://auth.dev.manova.space:10000", Status: "pending"},
-		{Name: "Mailpit",      URL: "http://mail.dev.manova.space:10000", Status: "pending"},
+		{Name: "Forgejo",      URL: "http://git.internal.manova.space:10000",  Status: "pending"},
+		{Name: "Authelia",     URL: "http://auth.internal.manova.space:10000", Status: "pending"},
+		{Name: "Mailpit",      URL: "http://mail.internal.manova.space:10000", Status: "pending"},
 		{Name: "Orbit Portal", URL: "http://localhost:10007",             Status: "pending"},
-		{Name: "Caddy",        URL: "https://dev.manova.space",           Status: "pending"},
+		{Name: "Caddy",        URL: "https://internal.manova.space",           Status: "pending"},
 	}
 }
 

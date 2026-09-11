@@ -24,8 +24,8 @@ import (
 // Default paths and server configuration.
 const (
 	DefaultSSHKeyName = "id_ed25519_orbit"
-	DefaultServerURL  = "https://api.dev.manova.space"
-	DefaultSSHHost    = "git.dev.manova.space"
+	DefaultServerURL  = "https://api.internal.manova.space"
+	DefaultSSHHost    = "git.internal.manova.space"
 	DefaultSSHUser    = "git"
 )
 
@@ -259,7 +259,7 @@ func NewIdentityModel(parent *WizardModel) *IdentityModel {
 
 	// Server Base URL input
 	serverTi := textinput.New()
-	serverTi.Placeholder = "https://api.dev.manova.space or http://localhost:8080"
+	serverTi.Placeholder = "https://api.internal.manova.space or http://localhost:8080"
 	serverTi.CharLimit = 128
 	serverTi.Width = 48
 	serverTi.Prompt = "Server URL   ❯ "

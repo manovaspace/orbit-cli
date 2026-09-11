@@ -393,7 +393,7 @@ func TestGitHealer(t *testing.T) {
 	if !h.CanHeal(doctor.DiagnosticResult{Name: "Git CLI", Status: doctor.StatusError}) {
 		t.Errorf("expected GitHealer to match Git CLI error")
 	}
-	if h.CanHeal(doctor.DiagnosticResult{Name: "Forgejo SSH (git.dev.manova.space)", Status: doctor.StatusWarning}) {
+	if h.CanHeal(doctor.DiagnosticResult{Name: "Forgejo SSH (git.internal.manova.space)", Status: doctor.StatusWarning}) {
 		t.Errorf("expected GitHealer not to match SSH auth result")
 	}
 	if h.CanHeal(doctor.DiagnosticResult{Name: "GitHub SSH (github.com)", Status: doctor.StatusWarning}) {

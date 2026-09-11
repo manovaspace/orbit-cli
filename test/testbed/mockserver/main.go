@@ -521,7 +521,7 @@ func (s *MockServer) handleOnboardClaim(w http.ResponseWriter, r *http.Request) 
 			WireGuardConfig: "[Interface]\nPrivateKey = mock-wg-key\nAddress = 10.0.0.2/32\n\n[Peer]\nPublicKey = mock-peer-key\nEndpoint = vpn.dev.manova.space:51820\nAllowedIPs = 10.0.0.0/16\n",
 		},
 		Workspace: provisioner.WorkspaceInfo{
-			GitRemoteBase:        "http://git.dev.manova.space:3000",
+			GitRemoteBase:        "http://git.internal.manova.space:3000",
 			DefaultManifestScope: "core",
 		},
 	}

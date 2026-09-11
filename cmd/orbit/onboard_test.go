@@ -641,7 +641,7 @@ func TestConfigureShellEnvironment(t *testing.T) {
 			t.Fatalf("failed to read %s: %v", rc, err)
 		}
 		content := string(data)
-		if !strings.Contains(content, `export GOPRIVATE="git.dev.manova.space/*"`) {
+		if !strings.Contains(content, `export GOPRIVATE="git.internal.manova.space/*"`) {
 			t.Errorf("expected GOPRIVATE in %s, got: %s", rc, content)
 		}
 		if !strings.Contains(content, `export GOPROXY="https://proxy.golang.org,direct"`) {
@@ -658,8 +658,8 @@ func TestConfigureShellEnvironment(t *testing.T) {
 		path := filepath.Join(tempHome, rc)
 		data, _ := os.ReadFile(path)
 		content := string(data)
-		if strings.Count(content, "git.dev.manova.space") != 1 {
-			t.Errorf("expected exactly 1 GOPRIVATE in %s, got %d", rc, strings.Count(content, "git.dev.manova.space"))
+		if strings.Count(content, "git.internal.manova.space") != 1 {
+			t.Errorf("expected exactly 1 GOPRIVATE in %s, got %d", rc, strings.Count(content, "git.internal.manova.space"))
 		}
 		if strings.Count(content, "proxy.golang.org") != 1 {
 			t.Errorf("expected exactly 1 GOPROXY in %s, got %d", rc, strings.Count(content, "proxy.golang.org"))

@@ -75,7 +75,7 @@ func TestIdentityConfigureSSHHost(t *testing.T) {
 	keyPath := filepath.Join(tmpSSH, "id_ed25519_orbit")
 
 	// 1. Create config from scratch
-	err := tuiOnboard.ConfigureSSHHost(configPath, "git.dev.manova.space", "git.dev.manova.space", "git", keyPath)
+	err := tuiOnboard.ConfigureSSHHost(configPath, "git.internal.manova.space", "git.internal.manova.space", "git", keyPath)
 	if err != nil {
 		t.Fatalf("failed to configure SSH host: %v", err)
 	}
@@ -87,8 +87,8 @@ func TestIdentityConfigureSSHHost(t *testing.T) {
 
 	cfgStr := string(content)
 	expectedDirectives := []string{
-		"Host git.dev.manova.space",
-		"HostName git.dev.manova.space",
+		"Host git.internal.manova.space",
+		"HostName git.internal.manova.space",
 		"User git",
 		"IdentityFile " + keyPath,
 		"IdentitiesOnly yes",
@@ -116,7 +116,7 @@ func TestIdentityConfigureSSHHost(t *testing.T) {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	err = tuiOnboard.ConfigureSSHHost(configPath, "git.dev.manova.space", "custom.manova.space", "gituser", "/custom/key")
+	err = tuiOnboard.ConfigureSSHHost(configPath, "git.internal.manova.space", "custom.manova.space", "gituser", "/custom/key")
 	if err != nil {
 		t.Fatalf("failed to update SSH host: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestIdentityModelClaimSuccess(t *testing.T) {
 				WireGuardConfig: "[Interface]\nPrivateKey = privkey\nAddress = 10.0.0.2/32\n",
 			},
 			Workspace: client.WorkspaceInfo{
-				GitRemoteBase:        "git@git.dev.manova.space:",
+				GitRemoteBase:        "git@git.internal.manova.space:",
 				DefaultManifestScope: "core",
 			},
 		}, nil
@@ -298,7 +298,7 @@ func TestIdentityModelClaimSuccess(t *testing.T) {
 	if root.Session.WireGuardConfig == "" {
 		t.Errorf("expected non-empty WireGuardConfig in session")
 	}
-	if root.Session.Metadata["git_remote_base"] != "git@git.dev.manova.space:" {
+	if root.Session.Metadata["git_remote_base"] != "git@git.internal.manova.space:" {
 		t.Errorf("expected git_remote_base in session metadata, got %v", root.Session.Metadata)
 	}
 

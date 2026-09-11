@@ -518,7 +518,7 @@ Actions that will be executed during onboarding:
 		}
 
 		// Validate loopback / DNS resolution for local dev domain
-		devDomain := "dev.manova.space"
+		devDomain := "internal.manova.space"
 		if addrs, err := net.LookupHost(devDomain); err == nil && len(addrs) > 0 {
 			if !opts.json {
 				fmt.Fprintf(out, "  %s  Local dev DNS: %s -> %s\n", iconOK, codeStyle.Render(devDomain), subtleStyle.Render(strings.Join(addrs, ", ")))
@@ -952,7 +952,7 @@ func configureShellEnvironment(homeDir string) error {
 	}
 
 	rcFiles := []string{".zshrc", ".bashrc"}
-	goprivateLine := `export GOPRIVATE="git.dev.manova.space/*"`
+	goprivateLine := `export GOPRIVATE="git.internal.manova.space/*"`
 	goproxyLine := `export GOPROXY="https://proxy.golang.org,direct"`
 
 	for _, rc := range rcFiles {
@@ -963,7 +963,7 @@ func configureShellEnvironment(homeDir string) error {
 		}
 
 		var additions []string
-		if !strings.Contains(existingContent, "GOPRIVATE=") && !strings.Contains(existingContent, "git.dev.manova.space") {
+		if !strings.Contains(existingContent, "GOPRIVATE=") && !strings.Contains(existingContent, "git.internal.manova.space") {
 			additions = append(additions, goprivateLine)
 		}
 		if !strings.Contains(existingContent, "GOPROXY=") {

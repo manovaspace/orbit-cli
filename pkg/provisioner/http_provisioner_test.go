@@ -38,7 +38,7 @@ func TestHTTPProvisioner_Provision_Success(t *testing.T) {
 				WireGuardConfig: "[Interface]\nAddress = 10.8.0.5/24",
 			},
 			Workspace: client.WorkspaceInfo{
-				GitRemoteBase:        "ssh://git@git.dev.manova.space/manova",
+				GitRemoteBase:        "ssh://git@git.internal.manova.space/manova",
 				DefaultManifestScope: "core",
 			},
 		})
@@ -74,7 +74,7 @@ func TestHTTPProvisioner_Provision_Success(t *testing.T) {
 	if resp.Credentials.ForgejoMCPToken != "fjo_tok_987654321" {
 		t.Fatalf("expected token fjo_tok_987654321, got %s", resp.Credentials.ForgejoMCPToken)
 	}
-	if resp.Workspace.GitRemoteBase != "ssh://git@git.dev.manova.space/manova" {
+	if resp.Workspace.GitRemoteBase != "ssh://git@git.internal.manova.space/manova" {
 		t.Fatalf("unexpected git remote base: %s", resp.Workspace.GitRemoteBase)
 	}
 }

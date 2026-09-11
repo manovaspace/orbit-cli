@@ -14,9 +14,9 @@ import (
 func TestCompletionDashboardRendering(t *testing.T) {
 	dashboard := tuiOnboard.RenderCompletionDashboard(tuiOnboard.DashboardInfo{
 		PortalURL:  "http://localhost:10007",
-		AuthURL:    "http://auth.dev.manova.space:10000",
-		MailpitURL: "http://mail.dev.manova.space:10000",
-		GitURL:     "http://git.dev.manova.space:10000",
+		AuthURL:    "http://auth.internal.manova.space:10000",
+		MailpitURL: "http://mail.internal.manova.space:10000",
+		GitURL:     "http://git.internal.manova.space:10000",
 		TotalRepos: 5,
 	})
 

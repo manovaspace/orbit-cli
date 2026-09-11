@@ -351,7 +351,7 @@ func EvaluateDockerCompose(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckSSHAuth checks SSH agent status and connectivity to git.dev.manova.space and github.com.
+// CheckSSHAuth checks SSH agent status and connectivity to git.internal.manova.space and github.com.
 func CheckSSHAuth() []DiagnosticResult {
 	var results []DiagnosticResult
 
@@ -393,7 +393,7 @@ func CheckSSHAuth() []DiagnosticResult {
 	}
 
 	// 2. Forgejo SSH check
-	forgejoOut, forgejoErr := runCommand(shortCommandTimeout, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@git.dev.manova.space")
+	forgejoOut, forgejoErr := runCommand(shortCommandTimeout, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@git.internal.manova.space")
 	results = append(results, EvaluateForgejoSSH(forgejoOut, forgejoErr))
 
 	// 3. GitHub SSH check
@@ -403,10 +403,10 @@ func CheckSSHAuth() []DiagnosticResult {
 	return results
 }
 
-// EvaluateForgejoSSH evaluates SSH probe output for git.dev.manova.space.
+// EvaluateForgejoSSH evaluates SSH probe output for git.internal.manova.space.
 func EvaluateForgejoSSH(rawOutput string, execErr error) DiagnosticResult {
 	category := "Authentication"
-	name := "Forgejo SSH (git.dev.manova.space)"
+	name := "Forgejo SSH (git.internal.manova.space)"
 
 	combined := rawOutput
 	if execErr != nil {
@@ -422,7 +422,7 @@ func EvaluateForgejoSSH(rawOutput string, execErr error) DiagnosticResult {
 			Category: category,
 			Name:     name,
 			Status:   StatusOK,
-			Message:  "SSH connection to git.dev.manova.space successful",
+			Message:  "SSH connection to git.internal.manova.space successful",
 		}
 	}
 
@@ -431,7 +431,7 @@ func EvaluateForgejoSSH(rawOutput string, execErr error) DiagnosticResult {
 			Category:      category,
 			Name:          name,
 			Status:        StatusWarning,
-			Message:       "SSH authentication to git.dev.manova.space failed (Permission denied)",
+			Message:       "SSH authentication to git.internal.manova.space failed (Permission denied)",
 			FixSuggestion: "Ensure your public key is added to your Forgejo profile and loaded into ssh-agent.",
 		}
 	}
@@ -444,7 +444,7 @@ func EvaluateForgejoSSH(rawOutput string, execErr error) DiagnosticResult {
 			Category:      category,
 			Name:          name,
 			Status:        StatusWarning,
-			Message:       "Could not reach git.dev.manova.space (stack or host may be offline)",
+			Message:       "Could not reach git.internal.manova.space (stack or host may be offline)",
 			FixSuggestion: "Start local dev stack with 'manova dev up' or check network/DNS configuration.",
 		}
 	}
@@ -454,7 +454,7 @@ func EvaluateForgejoSSH(rawOutput string, execErr error) DiagnosticResult {
 		Name:          name,
 		Status:        StatusWarning,
 		Message:       fmt.Sprintf("Forgejo SSH probe: %s", strings.TrimSpace(rawOutput)),
-		FixSuggestion: "Verify SSH key and network connectivity to git.dev.manova.space.",
+		FixSuggestion: "Verify SSH key and network connectivity to git.internal.manova.space.",
 	}
 }
 

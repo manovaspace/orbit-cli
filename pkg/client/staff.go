@@ -14,7 +14,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
 
-const defaultStaffURL = "https://staff.dev.manova.space"
+const defaultStaffURL = "https://staff.internal.manova.space"
 
 // StaffClient talks to orbit-staff with owner HMAC signing.
 type StaffClient struct {

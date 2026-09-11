@@ -191,12 +191,12 @@ func TestCheckUpdate_ForgejoMock(t *testing.T) {
 			{
 				ID:                 1,
 				Name:               fmt.Sprintf("manova_1.5.0_%s_%s.tar.gz", goos, goarch),
-				BrowserDownloadURL: fmt.Sprintf("https://git.dev.manova.space/attachments/manova_1.5.0_%s_%s.tar.gz", goos, goarch),
+				BrowserDownloadURL: fmt.Sprintf("https://git.internal.manova.space/attachments/manova_1.5.0_%s_%s.tar.gz", goos, goarch),
 			},
 			{
 				ID:                 2,
 				Name:               "manova_1.5.0_windows_amd64.zip",
-				BrowserDownloadURL: "https://git.dev.manova.space/attachments/manova_1.5.0_windows_amd64.zip",
+				BrowserDownloadURL: "https://git.internal.manova.space/attachments/manova_1.5.0_windows_amd64.zip",
 			},
 		},
 	}
@@ -232,7 +232,7 @@ func TestCheckUpdate_ForgejoMock(t *testing.T) {
 	if res.Release.TagName != "v1.5.0" {
 		t.Errorf("expected TagName = 'v1.5.0', got %q", res.Release.TagName)
 	}
-	expectedAsset := fmt.Sprintf("https://git.dev.manova.space/attachments/manova_1.5.0_%s_%s.tar.gz", goos, goarch)
+	expectedAsset := fmt.Sprintf("https://git.internal.manova.space/attachments/manova_1.5.0_%s_%s.tar.gz", goos, goarch)
 	if res.Release.AssetURL != expectedAsset {
 		t.Errorf("expected AssetURL = %q, got %q", expectedAsset, res.Release.AssetURL)
 	}

@@ -142,13 +142,13 @@ func defaultEnvSteps() []EnvStepItem {
 		},
 		{
 			Name:        "Local Dev DNS",
-			Description: "Verify /etc/hosts entries for *.dev.manova.space",
+			Description: "Verify /etc/hosts entries for *.internal.manova.space",
 			Status:      "pending",
 			Required:    false,
 		},
 		{
 			Name:        "Go Proxy & GOPRIVATE",
-			Description: "Verify GOPRIVATE includes git.dev.manova.space",
+			Description: "Verify GOPRIVATE includes git.internal.manova.space",
 			Status:      "pending",
 			Required:    false,
 		},
@@ -192,20 +192,20 @@ func defaultEnvRunner(workspaceRoot string, steps []EnvStepItem, parent *WizardM
 			}
 
 		case "Local Dev DNS":
-			addrs, err := net.LookupHost("dev.manova.space")
+			addrs, err := net.LookupHost("internal.manova.space")
 			if err != nil || len(addrs) == 0 {
-				results[i] = EnvStepResult{Name: step.Name, Success: false, Error: "dev.manova.space not resolvable (add to /etc/hosts or configure DNS)"}
+				results[i] = EnvStepResult{Name: step.Name, Success: false, Error: "internal.manova.space not resolvable (add to /etc/hosts or configure DNS)"}
 			} else {
 				results[i] = EnvStepResult{Name: step.Name, Success: true}
 			}
 
 		case "Go Proxy & GOPRIVATE":
 			goprivate := os.Getenv("GOPRIVATE")
-			if strings.Contains(goprivate, "git.dev.manova.space") {
+			if strings.Contains(goprivate, "git.internal.manova.space") {
 				results[i] = EnvStepResult{Name: step.Name, Success: true}
 			} else {
 				// Non-fatal: just note it
-				results[i] = EnvStepResult{Name: step.Name, Success: true, Error: "GOPRIVATE not set (add GOPRIVATE=git.dev.manova.space/* to shell profile)"}
+				results[i] = EnvStepResult{Name: step.Name, Success: true, Error: "GOPRIVATE not set (add GOPRIVATE=git.internal.manova.space/* to shell profile)"}
 			}
 
 		default:

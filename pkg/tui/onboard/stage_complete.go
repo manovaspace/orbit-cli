@@ -82,9 +82,9 @@ func NewCompleteModel(parent *WizardModel) *CompleteModel {
 func (m *CompleteModel) buildDashboard() string {
 	info := DashboardInfo{
 		PortalURL:  "http://localhost:10007",
-		AuthURL:    "http://auth.dev.manova.space:10000",
-		MailpitURL: "http://mail.dev.manova.space:10000",
-		GitURL:     "http://git.dev.manova.space:10000",
+		AuthURL:    "http://auth.internal.manova.space:10000",
+		MailpitURL: "http://mail.internal.manova.space:10000",
+		GitURL:     "http://git.internal.manova.space:10000",
 	}
 
 	if m.parent != nil && m.parent.Session != nil {

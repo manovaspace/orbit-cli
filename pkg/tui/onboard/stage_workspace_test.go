@@ -16,7 +16,7 @@ func sampleManifest() *manifest.WorkspaceManifest {
 		Version:   "1.0",
 		Workspace: "manova",
 		Remotes: manifest.RemotesConfig{
-			"forgejo": "git@git.dev.manova.space:",
+			"forgejo": "git@git.internal.manova.space:",
 		},
 		Groups: map[string]manifest.GroupConfig{
 			"orbit": {

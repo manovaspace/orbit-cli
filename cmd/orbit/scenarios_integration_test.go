@@ -276,7 +276,7 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 				WireGuardConfig: "mock-wg-config",
 			},
 			Workspace: provisioner.WorkspaceInfo{
-				GitRemoteBase:        "http://git.dev.manova.space:3000",
+				GitRemoteBase:        "http://git.internal.manova.space:3000",
 				DefaultManifestScope: "core",
 			},
 		})
@@ -1080,7 +1080,7 @@ variables:
 		}
 
 		// Set properties
-		_, _ = executeOrbit("config", "set", "server.url", "http://orbit.dev.manova.space:8080")
+		_, _ = executeOrbit("config", "set", "server.url", "http://orbit.internal.manova.space:8080")
 		_, _ = executeOrbit("config", "set", "assets.bucket", "custom-bucket")
 		_, _ = executeOrbit("config", "set", "custom.api_token", "super-secret-12345")
 
