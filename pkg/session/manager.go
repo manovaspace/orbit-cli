@@ -22,6 +22,9 @@ func NewSessionManager(customPath string) (*SessionManager, error) {
 	if customPath != "" {
 		return &SessionManager{filePath: customPath}, nil
 	}
+	if envPath := os.Getenv("ORBIT_SESSION_FILE"); envPath != "" {
+		return &SessionManager{filePath: envPath}, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err

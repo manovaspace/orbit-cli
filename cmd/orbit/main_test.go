@@ -154,3 +154,52 @@ ui:
 		}
 	})
 }
+
+func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionPath := filepath.Join(tmpDir, "session.json")
+	ownerPath := filepath.Join(tmpDir, "owner.json")
+
+	// Set env to redirect session and owner store to temp files
+	t.Setenv("ORBIT_SESSION_FILE", sessionPath)
+	t.Setenv("ORBIT_OWNER_STORE", ownerPath)
+
+	// Create an uncompleted session at stage init
+	sessData := `{"id":"test-sess","current_stage":"init"}`
+	if err := os.WriteFile(sessionPath, []byte(sessData), 0600); err != nil {
+		t.Fatalf("failed to write session file: %v", err)
+	}
+
+	// Case 1: Owner vault does not exist or unverified -> notice is shown
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"port", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("port list failed: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "Ongoing onboarding session detected") {
+		t.Errorf("expected onboarding notice when owner is unverified, got: %s", buf.String())
+	}
+
+	// Case 2: Owner vault exists and is verified -> notice is suppressed
+	ownerData := `{"email":"admin@example.com","root_signing_secret":"0123456789abcdef0123456789abcdef","verified_at":"2026-09-01T00:00:00Z"}`
+	if err := os.WriteFile(ownerPath, []byte(ownerData), 0600); err != nil {
+		t.Fatalf("failed to write owner file: %v", err)
+	}
+
+	buf.Reset()
+	cmd = newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"port", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("port list failed: %v", err)
+	}
+
+	if strings.Contains(buf.String(), "Ongoing onboarding session detected") {
+		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", buf.String())
+	}
+}
