@@ -22,6 +22,23 @@ Orbit CLI follows a dual-binary architecture:
 - **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
 
+## Non-negotiables
+
+1. **`o` commands, never `cd` loops** — every agent using orbit-cli must use `orbit` / `o` commands for workspace orchestration.
+2. **`log/slog` only** — no `log.Printf`, `fmt.Println`, or other loggers anywhere.
+3. **`orbit doctor --fix` before any workspace mutation** — confirm toolchain health before making changes.
+4. **Port allocation via ADR-006** — never hardcode ports. Use `o port list` to inspect allocations.
+5. **Sequential migrations** — `orbit migrate` only; never run raw SQL against production.
+6. **`orbit staff` is HMAC-auth only** — never embed admin credentials in workstation commands.
+
+## Engineering gotchas
+
+- **Dual-binary architecture:** `orbit` (workstation CLI) and `orbit-server` (edge daemon) are separate binaries with separate concerns. Workstation commands must never hold lldap/Stalwart admin credentials.
+- **`orbit repair` is non-destructive:** It copies `.git` onto gitless trees; it never runs `checkout -f`. Do not confuse with `orbit init`.
+- **`orbit status` distinguishes states:** "not cloned" (absent dir) vs "gitless" (dir exists, no `.git`) vs "dirty" (uncommitted changes). These require different remediation.
+- **`--resume` vs `--reset` in `orbit onboard`:** `--resume` continues from checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it entirely.
+- **Mail templates are owned by `orbit-notifications`:** `pkg/mailtemplates` is the canonical source. Never duplicate or inline mail templates in orbit-cli.
+
 ## Commands
 
 ### Build & Test
@@ -109,7 +126,22 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | Generated man pages | `orbit/orbit-cli/docs/cli/man/` (`orbit doc -f man`) |
 | Ownership & email delivery (repo) | `orbit/orbit-cli/docs/guides/platform-ownership-and-email-delivery.md` |
 
+## Session pre-flight
+
+1. `go build -o bin/orbit ./cmd/orbit` — confirm clean build before any changes
+2. `rtk o doctor` — check toolchain and workspace health
+3. `rtk o status all` — confirm workspace-wide branch state
+
+## Definition of done
+
+- [ ] `go build -o bin/orbit ./cmd/orbit` exits 0
+- [ ] `go test ./...` exits 0
+- [ ] `go vet ./...` exits 0
+- [ ] `orbit doctor` shows no errors on clean workspace
+- [ ] Docs updated in `handbook/docs/orbit/guides/` if CLI commands changed
+
 ## Do / don't
+
 
 - Invite and owner-challenge mail HTML/text come from `github.com/manovaspace/orbit-notifications/pkg/mailtemplates` (local replace `../orbit-notifications`). Do not add HTML strings in `pkg/invite`.
 - Invite curl host is `https://orbit.manova.space` (not `get.manova.space`).
