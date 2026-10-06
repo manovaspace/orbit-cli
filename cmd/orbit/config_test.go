@@ -12,9 +12,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func execConfig(args ...string) (*bytes.Buffer, error) {
+func execConfig(t *testing.T, args ...string) (*bytes.Buffer, error) {
+	t.Helper()
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs(append([]string{"config"}, args...))
@@ -27,7 +28,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 
 	// 1. config init on fresh path
-	buf, err := execConfig("init", "--config", cfgPath)
+	buf, err := execConfig(t, "init", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config init failed: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	}
 
 	// 2. config init on existing file without --force
-	buf, err = execConfig("init", "--config", cfgPath)
+	buf, err = execConfig(t, "init", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config init on existing file failed: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	}
 
 	// 3. config init with --force
-	buf, err = execConfig("init", "--config", cfgPath, "--force")
+	buf, err = execConfig(t, "init", "--config", cfgPath, "--force")
 	if err != nil {
 		t.Fatalf("config init --force failed: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	}
 
 	// 4. config show (default YAML format)
-	buf, err = execConfig("show", "--config", cfgPath)
+	buf, err = execConfig(t, "show", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config show failed: %v", err)
 	}
@@ -73,7 +74,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	}
 
 	// 5. config show --format json
-	buf, err = execConfig("show", "--config", cfgPath, "--format", "json")
+	buf, err = execConfig(t, "show", "--config", cfgPath, "--format", "json")
 	if err != nil {
 		t.Fatalf("config show --format json failed: %v", err)
 	}
@@ -91,12 +92,12 @@ func TestConfigGetRaw(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 
 	// Initialize config
-	if _, err := execConfig("init", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "init", "--config", cfgPath); err != nil {
 		t.Fatalf("config init failed: %v", err)
 	}
 
 	// 1. Standard get (has newline)
-	buf, err := execConfig("get", "server.url", "--config", cfgPath)
+	buf, err := execConfig(t, "get", "server.url", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config get server.url failed: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestConfigGetRaw(t *testing.T) {
 	}
 
 	// 2. Get with --raw (no trailing newline)
-	buf, err = execConfig("get", "server.url", "--raw", "--config", cfgPath)
+	buf, err = execConfig(t, "get", "server.url", "--raw", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config get --raw failed: %v", err)
 	}
@@ -118,12 +119,12 @@ func TestConfigSetSecretWarning(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 
-	if _, err := execConfig("init", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "init", "--config", cfgPath); err != nil {
 		t.Fatalf("config init failed: %v", err)
 	}
 
 	// 1. Set normal key (no warning)
-	buf, err := execConfig("set", "defaults.scope", "custom-scope", "--config", cfgPath)
+	buf, err := execConfig(t, "set", "defaults.scope", "custom-scope", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config set defaults.scope failed: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestConfigSetSecretWarning(t *testing.T) {
 	}
 
 	// 2. Set key with 'secret' in name -> must emit warning
-	buf, err = execConfig("set", "custom.jwt_secret", "supersecret123", "--config", cfgPath)
+	buf, err = execConfig(t, "set", "custom.jwt_secret", "supersecret123", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config set custom.jwt_secret failed: %v", err)
 	}
@@ -141,7 +142,7 @@ func TestConfigSetSecretWarning(t *testing.T) {
 	}
 
 	// 3. Set key with 'token' in name -> must emit warning
-	buf, err = execConfig("set", "custom.api_token", "tok_xyz987", "--config", cfgPath)
+	buf, err = execConfig(t, "set", "custom.api_token", "tok_xyz987", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config set custom.api_token failed: %v", err)
 	}
@@ -150,7 +151,7 @@ func TestConfigSetSecretWarning(t *testing.T) {
 	}
 
 	// 4. Set key with 'pass' in name -> must emit warning
-	buf, err = execConfig("set", "custom.db_password", "p@ssword", "--config", cfgPath)
+	buf, err = execConfig(t, "set", "custom.db_password", "p@ssword", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config set custom.db_password failed: %v", err)
 	}
@@ -159,7 +160,7 @@ func TestConfigSetSecretWarning(t *testing.T) {
 	}
 
 	// 5. Verify values persisted correctly
-	buf, err = execConfig("get", "custom.jwt_secret", "--raw", "--config", cfgPath)
+	buf, err = execConfig(t, "get", "custom.jwt_secret", "--raw", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config get custom.jwt_secret failed: %v", err)
 	}
@@ -191,7 +192,7 @@ defaults:
 	}
 
 	// Mutate server.url via orbit config set
-	if _, err := execConfig("set", "server.url", "https://custom-edge.manova.space", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "set", "server.url", "https://custom-edge.manova.space", "--config", cfgPath); err != nil {
 		t.Fatalf("config set failed: %v", err)
 	}
 
@@ -217,17 +218,17 @@ func TestConfigUnsetCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 
-	if _, err := execConfig("init", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "init", "--config", cfgPath); err != nil {
 		t.Fatalf("config init failed: %v", err)
 	}
 
 	// 1. Set a custom key
-	if _, err := execConfig("set", "custom.debug_mode", "true", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "set", "custom.debug_mode", "true", "--config", cfgPath); err != nil {
 		t.Fatalf("config set custom.debug_mode failed: %v", err)
 	}
 
 	// 2. Unset the custom key
-	buf, err := execConfig("unset", "custom.debug_mode", "--config", cfgPath)
+	buf, err := execConfig(t, "unset", "custom.debug_mode", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config unset custom.debug_mode failed: %v", err)
 	}
@@ -236,12 +237,12 @@ func TestConfigUnsetCommand(t *testing.T) {
 	}
 
 	// Verify key no longer exists
-	if _, err := execConfig("get", "custom.debug_mode", "--config", cfgPath); err == nil {
+	if _, err := execConfig(t, "get", "custom.debug_mode", "--config", cfgPath); err == nil {
 		t.Fatalf("expected error getting unset custom key, got nil")
 	}
 
 	// 3. Unset a core domain property (resets or deletes node)
-	buf, err = execConfig("unset", "server.url", "--config", cfgPath)
+	buf, err = execConfig(t, "unset", "server.url", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config unset server.url failed: %v", err)
 	}
@@ -250,7 +251,7 @@ func TestConfigUnsetCommand(t *testing.T) {
 	}
 
 	// 4. Unset an unknown/invalid key must return error
-	_, err = execConfig("unset", "invalid_key", "--config", cfgPath)
+	_, err = execConfig(t, "unset", "invalid_key", "--config", cfgPath)
 	if err == nil {
 		t.Fatal("expected error unsetting unknown key 'invalid_key', got nil")
 	}
@@ -267,7 +268,7 @@ func TestConfigListCommand(t *testing.T) {
 	t.Setenv("ORBIT_DEFAULTS_SCOPE", "env-scoped")
 
 	// 1. Table format (default)
-	buf, err := execConfig("list", "--config", cfgPath)
+	buf, err := execConfig(t, "list", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config list failed: %v", err)
 	}
@@ -289,10 +290,10 @@ func TestConfigListCommand(t *testing.T) {
 	}
 
 	// Test user-config source rendering in table
-	if _, err := execConfig("set", "defaults.expiry_days", "14", "--config", cfgPath); err != nil {
+	if _, err := execConfig(t, "set", "defaults.expiry_days", "14", "--config", cfgPath); err != nil {
 		t.Fatalf("config set failed: %v", err)
 	}
-	buf, err = execConfig("list", "--config", cfgPath)
+	buf, err = execConfig(t, "list", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config list after set failed: %v", err)
 	}
@@ -302,7 +303,7 @@ func TestConfigListCommand(t *testing.T) {
 	}
 
 	// 2. JSON format
-	buf, err = execConfig("list", "--config", cfgPath, "--format", "json")
+	buf, err = execConfig(t, "list", "--config", cfgPath, "--format", "json")
 	if err != nil {
 		t.Fatalf("config list --format json failed: %v", err)
 	}
@@ -331,7 +332,7 @@ func TestConfigListCommand(t *testing.T) {
 	}
 
 	// 3. YAML format
-	buf, err = execConfig("list", "--config", cfgPath, "--format", "yaml")
+	buf, err = execConfig(t, "list", "--config", cfgPath, "--format", "yaml")
 	if err != nil {
 		t.Fatalf("config list --format yaml failed: %v", err)
 	}
@@ -348,7 +349,7 @@ func TestConfigPathCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "custom-path.yaml")
 
-	buf, err := execConfig("path", "--config", cfgPath)
+	buf, err := execConfig(t, "path", "--config", cfgPath)
 	if err != nil {
 		t.Fatalf("config path failed: %v", err)
 	}
@@ -362,7 +363,7 @@ func TestConfigViaRootCmd(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"config", "init", "--config", cfgPath})
@@ -371,7 +372,7 @@ func TestConfigViaRootCmd(t *testing.T) {
 	}
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"config", "path", "--config", cfgPath})
@@ -383,7 +384,7 @@ func TestConfigViaRootCmd(t *testing.T) {
 	}
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"config", "get", "server.url", "--config", cfgPath})
