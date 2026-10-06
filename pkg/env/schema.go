@@ -32,7 +32,7 @@ func ParseSchema(data []byte) (*EnvSchema, error) {
 
 	var schema EnvSchema
 	if err := yaml.Unmarshal(trimmed, &schema); err != nil {
-		return nil, fmt.Errorf("failed to parse schema YAML: %w", err)
+		return nil, fmt.Errorf("failed to parse schema YAML: invalid schema syntax or field types")
 	}
 
 	if schema.Version == "" {

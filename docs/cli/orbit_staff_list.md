@@ -9,7 +9,9 @@ orbit staff list [flags]
 ### Options
 
 ```
-  -h, --help   help for list
+  -h, --help        help for list
+      --limit int   maximum rows per page (0 = all)
+      --page int    page number to display (default 1)
 ```
 
 ### Options inherited from parent commands
@@ -23,4 +25,3 @@ orbit staff list [flags]
 ### SEE ALSO
 
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
-

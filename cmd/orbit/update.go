@@ -125,9 +125,12 @@ func newUpdateCmd() *cobra.Command {
 			// Phase 4: Environment Validation
 			if !skipEnv {
 				fmt.Fprintln(out, headerStyle.Render("── 4/4 Environment Validation ───────────────────────────────"))
-				schemas := findSchemaFiles(workspaceRoot)
+				schemas, err := findSchemaFiles(workspaceRoot)
+				if err != nil {
+					return fmt.Errorf("schema discovery failed: %w", err)
+				}
 				if len(schemas) == 0 {
-					fmt.Fprintf(out, "  %s  No .env.schema.yaml contracts found\n", iconInfo)
+					fmt.Fprintf(out, "  %s  Environment unverified: no .env.schema.yaml contracts found\n", iconInfo)
 				} else {
 					validSchemas := 0
 					envErrors := 0

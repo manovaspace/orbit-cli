@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,11 +14,11 @@ import (
 // 2. Configure git core.hooksPath if .githooks exists.
 // 3. Setup .cursor/mcp.env from templates if missing.
 // 4. Symlink Cursor rules and skills from handbook/cursor into .cursor/.
-func SetupWorkspace(workspaceRoot string) error {
+func SetupWorkspace(workspaceRoot string, repoPaths ...string) error {
 	if err := EnsureWorkspaceDirs(workspaceRoot); err != nil {
 		return err
 	}
-	if err := InstallGitHooks(workspaceRoot); err != nil {
+	if err := InstallGitHooks(workspaceRoot, repoPaths...); err != nil {
 		return err
 	}
 	if err := SetupMCPEnvironment(workspaceRoot); err != nil {
@@ -39,33 +40,83 @@ func EnsureWorkspaceDirs(workspaceRoot string) error {
 	dirs := []string{"orbit", "manovaspace", "clients", "documents", "share", "temp"}
 	for _, d := range dirs {
 		target := filepath.Join(workspaceRoot, d)
-		if err := os.MkdirAll(target, 0755); err != nil {
+		if err := ensureSafeDirectory(target); err != nil {
 			return fmt.Errorf("failed to create workspace directory %s: %w", target, err)
 		}
 	}
 	return nil
 }
 
-// InstallGitHooks configures git to use .githooks as its hooks directory if .githooks exists.
-func InstallGitHooks(workspaceRoot string) error {
+// InstallGitHooks installs shared hooks only in explicitly selected repository roots.
+// With no selection it considers the workspace root itself, never its ancestor.
+func InstallGitHooks(workspaceRoot string, repoPaths ...string) error {
 	githooksPath := filepath.Join(workspaceRoot, ".githooks")
 	fi, err := os.Stat(githooksPath)
-	if err != nil || !fi.IsDir() {
-		// .githooks does not exist, nothing to configure
+	if os.IsNotExist(err) {
 		return nil
 	}
-
-	cmd := exec.Command("git", "config", "core.hooksPath", ".githooks")
-	cmd.Dir = workspaceRoot
-	if out, err := cmd.CombinedOutput(); err != nil {
-		outStr := string(out)
-		// If workspaceRoot is not a git repo, skip gracefully without failure
-		if strings.Contains(outStr, "not in a git directory") || strings.Contains(outStr, "fatal: not a git repository") {
-			return nil
-		}
-		return fmt.Errorf("failed to configure git core.hooksPath: %s: %w", strings.TrimSpace(outStr), err)
+	if err != nil {
+		return err
 	}
-
+	if !fi.IsDir() {
+		return fmt.Errorf("hooks path is not a directory: %s", githooksPath)
+	}
+	if len(repoPaths) == 0 {
+		repoPaths = []string{"."}
+	}
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	for _, repoPath := range repoPaths {
+		repoRoot := repoPath
+		if !filepath.IsAbs(repoRoot) {
+			repoRoot = filepath.Join(absRoot, repoRoot)
+		}
+		if err := checkDirectoryParents(repoRoot); err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(absRoot, repoRoot)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("selected repository escapes workspace: %s", repoPath)
+		}
+		if _, err := os.Lstat(filepath.Join(repoRoot, ".git")); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return err
+		}
+		top, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--show-toplevel").Output()
+		if err != nil {
+			return fmt.Errorf("selected path is not a worktree: %s", repoRoot)
+		}
+		realRoot, err := filepath.EvalSymlinks(repoRoot)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(string(top)) != realRoot {
+			return fmt.Errorf("selected path is not a repository root: %s", repoRoot)
+		}
+		hooks := filepath.Join(absRoot, ".githooks")
+		if rel == "." {
+			hooks = ".githooks"
+		}
+		old, err := exec.Command("git", "-C", repoRoot, "config", "--local", "--get", "core.hooksPath").Output()
+		if err != nil {
+			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+				return fmt.Errorf("read hooks config: %w", err)
+			}
+		}
+		if value := strings.TrimSpace(string(old)); value != "" && value != hooks {
+			return fmt.Errorf("refusing conflicting core.hooksPath in %s", repoRoot)
+		}
+		global, _ := exec.Command("git", "config", "--global", "--show-origin", "--get", "core.hooksPath").Output()
+		if len(global) > 0 {
+			slog.Warn("Global hooks override present; installing selected repository local override", "repository", repoRoot)
+		}
+		if out, err := exec.Command("git", "-C", repoRoot, "config", "--local", "core.hooksPath", hooks).CombinedOutput(); err != nil {
+			return fmt.Errorf("configure repository hooks: %s: %w", strings.TrimSpace(string(out)), err)
+		}
+	}
 	return nil
 }
 
@@ -74,9 +125,17 @@ func SetupMCPEnvironment(workspaceRoot string) error {
 	cursorDir := filepath.Join(workspaceRoot, ".cursor")
 	targetEnv := filepath.Join(cursorDir, "mcp.env")
 
-	// If .cursor/mcp.env already exists, do nothing
-	if _, err := os.Stat(targetEnv); err == nil {
+	if err := checkDirectoryParents(cursorDir); err != nil {
+		return err
+	}
+	// Existing regular environments are preserved; aliases and other entries are conflicts.
+	if info, err := os.Lstat(targetEnv); err == nil {
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("refusing non-regular environment path %s", targetEnv)
+		}
 		return nil
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 
 	// Candidate template paths in order of preference
@@ -98,12 +157,21 @@ func SetupMCPEnvironment(workspaceRoot string) error {
 		templateData = []byte("# Cursor MCP Environment Configuration\n# Set credentials for local MCP servers\n")
 	}
 
-	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+	if err := ensureSafeDirectory(cursorDir); err != nil {
 		return fmt.Errorf("failed to create .cursor directory: %w", err)
 	}
 
-	if err := os.WriteFile(targetEnv, templateData, 0600); err != nil {
-		return fmt.Errorf("failed to write %s: %w", targetEnv, err)
+	file, err := os.OpenFile(targetEnv, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create %s without replacement: %w", targetEnv, err)
+	}
+	_, writeErr := file.Write(templateData)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return fmt.Errorf("failed to write %s: %w", targetEnv, writeErr)
+	}
+	if closeErr != nil {
+		return closeErr
 	}
 
 	return nil
@@ -119,7 +187,12 @@ func SymlinkCursorRules(workspaceRoot string) error {
 	}
 
 	cursorDir := filepath.Join(workspaceRoot, ".cursor")
-	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+	for _, directory := range []string{cursorDir, filepath.Join(cursorDir, "rules"), filepath.Join(cursorDir, "skills")} {
+		if err := checkDirectoryParents(directory); err != nil {
+			return err
+		}
+	}
+	if err := ensureSafeDirectory(cursorDir); err != nil {
 		return fmt.Errorf("failed to create .cursor directory: %w", err)
 	}
 
@@ -127,7 +200,7 @@ func SymlinkCursorRules(workspaceRoot string) error {
 	handbookRules := filepath.Join(handbookCursor, "rules")
 	if rfi, err := os.Stat(handbookRules); err == nil && rfi.IsDir() {
 		targetRulesDir := filepath.Join(cursorDir, "rules")
-		if err := os.MkdirAll(targetRulesDir, 0755); err != nil {
+		if err := ensureSafeDirectory(targetRulesDir); err != nil {
 			return fmt.Errorf("failed to create .cursor/rules directory: %w", err)
 		}
 
@@ -149,7 +222,7 @@ func SymlinkCursorRules(workspaceRoot string) error {
 	handbookSkills := filepath.Join(handbookCursor, "skills")
 	if sfi, err := os.Stat(handbookSkills); err == nil && sfi.IsDir() {
 		targetSkillsDir := filepath.Join(cursorDir, "skills")
-		if err := os.MkdirAll(targetSkillsDir, 0755); err != nil {
+		if err := ensureSafeDirectory(targetSkillsDir); err != nil {
 			return fmt.Errorf("failed to create .cursor/skills directory: %w", err)
 		}
 
@@ -201,27 +274,52 @@ func SymlinkCursorRules(workspaceRoot string) error {
 	return nil
 }
 
-// createSymlink creates a symbolic link at dest pointing to src, replacing any existing symlink or file if necessary.
+// createSymlink refuses replacement conflicts and preserves existing originals.
 func createSymlink(src, dest string) error {
 	destDir := filepath.Dir(dest)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", destDir, err)
+	if err := ensureSafeDirectory(destDir); err != nil {
+		return fmt.Errorf("create directory %s: %w", destDir, err)
 	}
-
-	// Check if dest already exists as a symlink
-	if target, err := os.Readlink(dest); err == nil {
-		if target == src {
-			return nil
-		}
-		_ = os.Remove(dest)
-	} else if _, err := os.Lstat(dest); err == nil {
-		// Existing file or broken symlink
-		_ = os.RemoveAll(dest)
+	if target, err := os.Readlink(dest); err == nil && target == src {
+		return nil
 	}
-
+	if _, err := os.Lstat(dest); err == nil {
+		return fmt.Errorf("refusing to replace existing path %s", dest)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	if err := os.Symlink(src, dest); err != nil {
-		return fmt.Errorf("failed to symlink %s to %s: %w", src, dest, err)
+		return fmt.Errorf("symlink %s to %s: %w", src, dest, err)
 	}
-
 	return nil
+}
+
+// checkDirectoryParents rejects aliases before bootstrap writes. Missing descendants
+// are allowed, but every existing directory up to the filesystem root must be real.
+func checkDirectoryParents(directory string) error {
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return err
+	}
+	for path := absolute; ; path = filepath.Dir(path) {
+		info, err := os.Lstat(path)
+		if err == nil {
+			if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("refusing aliased or non-directory destination %s", path)
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		if filepath.Dir(path) == path {
+			break
+		}
+	}
+	return nil
+}
+
+func ensureSafeDirectory(directory string) error {
+	if err := checkDirectoryParents(directory); err != nil {
+		return err
+	}
+	return os.MkdirAll(directory, 0755)
 }

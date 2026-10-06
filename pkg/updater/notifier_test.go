@@ -12,6 +12,8 @@ import (
 
 func TestNotifyIfUpdateAvailable(t *testing.T) {
 	tempDir := t.TempDir()
+	t.Setenv("CI", "")
+	t.Setenv("ORBIT_NO_UPDATE_NOTIFIER", "")
 	cachePath := filepath.Join(tempDir, "update-check.json")
 
 	// 1. Create a cached result with an available update

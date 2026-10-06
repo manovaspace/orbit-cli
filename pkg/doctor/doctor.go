@@ -22,19 +22,34 @@ const (
 	shortCommandTimeout   = 3 * time.Second
 )
 
-// RunDiagnostics executes the full suite of pre-flight system diagnostics and returns an aggregated DoctorReport.
-func RunDiagnostics() *DoctorReport {
+// DiagnosticOptions selects explicit remote probes and host-key mutation.
+type DiagnosticOptions struct {
+	Remote         bool
+	AcceptHostKeys bool
+}
+
+// RunDiagnostics performs local inspection without network probes or writes.
+func RunDiagnostics() *DoctorReport { return RunDiagnosticsWithOptions(DiagnosticOptions{}) }
+
+// RunDiagnosticsWithOptions executes the selected suite of pre-flight system diagnostics and returns an aggregated DoctorReport.
+func RunDiagnosticsWithOptions(opts DiagnosticOptions) *DoctorReport {
 	report := &DoctorReport{
 		Results: make([]DiagnosticResult, 0),
 	}
 
 	report.Add(CheckHost())
 	report.Add(CheckGit())
-	report.Add(CheckGo())
-	report.AddAll(CheckNodeAndBun())
-	report.AddAll(CheckDocker())
-	report.AddAll(CheckSSHAuth())
-	report.Add(CheckPorts())
+	report.AddAll(checkProjectToolchains())
+	if opts.Remote {
+		report.AddAll(CheckDocker())
+		report.AddAll(checkSSHAuth(true, opts.AcceptHostKeys))
+		report.Add(CheckPorts())
+	} else {
+		report.Add(DiagnosticResult{Category: "Container", Name: "Docker CLI", Status: StatusUnverified, Message: "Daemon connectivity unverified (local mode)"})
+		report.AddAll(checkSSHAuth(false, false))
+		report.Add(DiagnosticResult{Category: "Ports", Name: "Listener probe", Status: StatusUnverified, Message: "Listener availability unverified (local mode)"})
+		report.Add(DiagnosticResult{Category: "Network", Name: "Remote probes", Status: StatusUnverified, Message: "Remote connectivity unverified; select --remote to probe"})
+	}
 	report.AddAll(CheckOptionalTools())
 
 	return report
@@ -238,32 +253,7 @@ func EvaluateBunVersion(rawOutput string, execErr error) DiagnosticResult {
 		}
 	}
 
-	if CompareVersions(v, "1.4.0") < 0 {
-		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusError,
-			Message:       fmt.Sprintf("Bun v%s is below required version (1.4.x)", v),
-			FixSuggestion: "Upgrade Bun to 1.4.x: bun upgrade",
-		}
-	}
-
-	if CompareVersions(v, "1.5.0") >= 0 {
-		return DiagnosticResult{
-			Category:      category,
-			Name:          name,
-			Status:        StatusError,
-			Message:       fmt.Sprintf("Bun v%s is not 1.4.x", v),
-			FixSuggestion: "Install Bun 1.4.x: curl -fsSL https://bun.sh/install | bash",
-		}
-	}
-
-	return DiagnosticResult{
-		Category: category,
-		Name:     name,
-		Status:   StatusOK,
-		Message:  fmt.Sprintf("Bun v%s installed (1.4.x required)", v),
-	}
+	return DiagnosticResult{Category: category, Name: name, Status: StatusOK, Message: fmt.Sprintf("Bun v%s installed; compatibility requires project manifest validation", v)}
 }
 
 // CheckDocker checks if Docker daemon is running and Docker Compose v2 is available.
@@ -352,7 +342,9 @@ func EvaluateDockerCompose(rawOutput string, execErr error) DiagnosticResult {
 }
 
 // CheckSSHAuth checks SSH agent status and connectivity to git.internal.manova.space and github.com.
-func CheckSSHAuth() []DiagnosticResult {
+func CheckSSHAuth() []DiagnosticResult { return checkSSHAuth(true, false) }
+
+func checkSSHAuth(remote, acceptHostKeys bool) []DiagnosticResult {
 	var results []DiagnosticResult
 
 	// 1. SSH Agent check
@@ -365,6 +357,8 @@ func CheckSSHAuth() []DiagnosticResult {
 			Message:       "SSH agent is not running (SSH_AUTH_SOCK unset)",
 			FixSuggestion: "Start SSH agent: eval $(ssh-agent -s) && ssh-add.",
 		})
+	} else if !remote {
+		results = append(results, DiagnosticResult{Category: "Authentication", Name: "SSH Agent", Status: StatusUnverified, Message: "SSH_AUTH_SOCK set; identities unverified (local mode)"})
 	} else {
 		addOut, addErr := runCommand(shortCommandTimeout, "ssh-add", "-l")
 		if addErr == nil {
@@ -392,12 +386,21 @@ func CheckSSHAuth() []DiagnosticResult {
 		}
 	}
 
+	if !remote {
+		return results
+	}
+	hostKeyMode := "yes"
+	if acceptHostKeys {
+		hostKeyMode = "accept-new"
+	}
+	// Disable user SSH config hooks, multiplexing and implicit key updates.
+	sshArgs := []string{"-F", "/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "UpdateHostKeys=no", "-o", "ControlMaster=no", "-o", "StrictHostKeyChecking=" + hostKeyMode, "-T"}
 	// 2. Forgejo SSH check
-	forgejoOut, forgejoErr := runCommand(shortCommandTimeout, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@git.internal.manova.space")
+	forgejoOut, forgejoErr := runCommand(shortCommandTimeout, "ssh", append(append([]string{}, sshArgs...), "git@git.internal.manova.space")...)
 	results = append(results, EvaluateForgejoSSH(forgejoOut, forgejoErr))
 
 	// 3. GitHub SSH check
-	githubOut, githubErr := runCommand(shortCommandTimeout, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=accept-new", "-T", "git@github.com")
+	githubOut, githubErr := runCommand(shortCommandTimeout, "ssh", append(append([]string{}, sshArgs...), "git@github.com")...)
 	results = append(results, EvaluateGitHubSSH(githubOut, githubErr))
 
 	return results
@@ -725,7 +728,7 @@ func parseVersionComponents(v string) []int {
 }
 
 func runCommand(timeout time.Duration, name string, args ...string) (string, error) {
-	return runCommandWithEnv(timeout, nil, name, args...)
+	return runCommandWithEnv(timeout, []string{"GOTOOLCHAIN=local", "GOTELEMETRY=off", "GOPROXY=off", "GOSUMDB=off"}, name, args...)
 }
 
 func runCommandWithEnv(timeout time.Duration, extraEnv []string, name string, args ...string) (string, error) {

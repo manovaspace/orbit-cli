@@ -4,7 +4,7 @@ Manage and inspect the hybrid 50-port allocation model
 
 ### Synopsis
 
-Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and dynamically allocate ports (10-49).
+Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and suggest ports (10-49) after a momentary IPv4 loopback bind probe. Suggestions are not durable reservations.
 
 ### Options
 
@@ -21,6 +21,5 @@ Inspect project port ranges (50-port blocks), deterministic service slots (0-9),
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
-* [orbit port allocate](orbit_port_allocate.md)	 - Dynamically allocate the next free port in a project's 50-port range
+* [orbit port allocate](orbit_port_allocate.md)	 - Suggest a bindable dynamic port; no reservation is retained
 * [orbit port list](orbit_port_list.md)	 - List base ports and deterministic slots for all registered projects
-

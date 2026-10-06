@@ -564,6 +564,8 @@ func setupIntegrationSandbox(t *testing.T, serverURL string) (string, func()) {
 
 	origEnv := map[string]string{
 		"HOME":                    os.Getenv("HOME"),
+		"PATH":                    os.Getenv("PATH"),
+		"SSH_AUTH_SOCK":           os.Getenv("SSH_AUTH_SOCK"),
 		"XDG_CONFIG_HOME":         os.Getenv("XDG_CONFIG_HOME"),
 		"ORBIT_CONFIG_DIR":        os.Getenv("ORBIT_CONFIG_DIR"),
 		"ORBIT_OWNER_STORE":       os.Getenv("ORBIT_OWNER_STORE"),
@@ -591,6 +593,12 @@ func setupIntegrationSandbox(t *testing.T, serverURL string) (string, func()) {
 	r2EnvFile := filepath.Join(configDir, "r2.env")
 
 	_ = os.Setenv("HOME", tmpDir)
+	localBin := filepath.Join(tmpDir, ".local", "bin")
+	if err := os.MkdirAll(localBin, 0755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Setenv("PATH", localBin+string(os.PathListSeparator)+origEnv["PATH"])
+	_ = os.Setenv("SSH_AUTH_SOCK", "")
 	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
 	_ = os.Setenv("ORBIT_CONFIG_DIR", configDir)
 	_ = os.Setenv("ORBIT_OWNER_STORE", ownerFile)
@@ -913,8 +921,8 @@ func TestScenariosIntegration(t *testing.T) {
 			t.Errorf("DOC-01 doctor json output missing results key: %s", jsonOut)
 		}
 
-		fixOut, _ := executeOrbit("doctor", "--fix", "--non-interactive")
-		if !strings.Contains(fixOut, "Doctor") && !strings.Contains(fixOut, "passed") {
+		fixOut, _ := executeOrbit("doctor", "--local", "--fix", "--non-interactive")
+		if !strings.Contains(fixOut, "--local cannot be combined") {
 			t.Errorf("DOC-02 doctor --fix failed: %s", fixOut)
 		}
 	})
@@ -1007,7 +1015,7 @@ groups:
 		}
 
 		allocOut, err := executeOrbit("port", "allocate", "orbit-platform", "test-worker")
-		if err != nil || !strings.Contains(allocOut, "Successful") {
+		if err != nil || !strings.Contains(allocOut, "not reserved") {
 			t.Fatalf("PRT-01 port allocate failed: %v\nOutput: %s", err, allocOut)
 		}
 

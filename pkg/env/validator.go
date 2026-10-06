@@ -42,7 +42,7 @@ func ParseEnvContent(content string) (map[string]string, error) {
 
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			return nil, fmt.Errorf("line %d: invalid syntax (missing '='): %s", lineNum, line)
+			return nil, fmt.Errorf("line %d: invalid syntax (missing '=')", lineNum)
 		}
 
 		key := strings.TrimSpace(line[:idx])
@@ -128,7 +128,7 @@ func unquoteEnvValue(raw string) string {
 // Validate checks an environment file against a given schema and returns all validation errors found.
 func Validate(envPath string, schema *EnvSchema) []ValidationError {
 	if schema == nil {
-		return nil
+		return []ValidationError{{Type: "no_contract", Message: "environment unverified: no schema contract supplied"}}
 	}
 
 	values, err := ParseEnvFile(envPath)
@@ -170,7 +170,7 @@ func ValidateEnv(envPath string, schema *EnvSchema) []ValidationError {
 // ValidateValues validates a map of environment key-value pairs against a given schema.
 func ValidateValues(values map[string]string, schema *EnvSchema) []ValidationError {
 	if schema == nil {
-		return nil
+		return []ValidationError{{Type: "no_contract", Message: "environment unverified: no schema contract supplied"}}
 	}
 
 	var errors []ValidationError
@@ -196,7 +196,7 @@ func ValidateValues(values map[string]string, schema *EnvSchema) []ValidationErr
 			if _, err := strconv.Atoi(valTrimmed); err != nil {
 				errors = append(errors, ValidationError{
 					Variable: v.Name,
-					Message:  fmt.Sprintf("variable %q must be an integer, got %q", v.Name, valTrimmed),
+					Message:  fmt.Sprintf("variable %q must be an integer", v.Name),
 					Type:     "invalid_integer",
 				})
 			}
@@ -206,7 +206,7 @@ func ValidateValues(values map[string]string, schema *EnvSchema) []ValidationErr
 			if err != nil || u.Scheme == "" || (u.Host == "" && u.Scheme != "file") {
 				errors = append(errors, ValidationError{
 					Variable: v.Name,
-					Message:  fmt.Sprintf("variable %q must be a valid URL, got %q", v.Name, valTrimmed),
+					Message:  fmt.Sprintf("variable %q must be a valid URL", v.Name),
 					Type:     "invalid_url",
 				})
 			}
@@ -219,7 +219,7 @@ func ValidateValues(values map[string]string, schema *EnvSchema) []ValidationErr
 			default:
 				errors = append(errors, ValidationError{
 					Variable: v.Name,
-					Message:  fmt.Sprintf("variable %q must be a boolean (true/false/1/0), got %q", v.Name, valTrimmed),
+					Message:  fmt.Sprintf("variable %q must be a boolean (true/false/1/0)", v.Name),
 					Type:     "invalid_boolean",
 				})
 			}

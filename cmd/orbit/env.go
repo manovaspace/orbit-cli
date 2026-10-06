@@ -25,12 +25,12 @@ func newEnvCmd() *cobra.Command {
 	return cmd
 }
 
-func findSchemaFiles(searchRoot string) []string {
+func findSchemaFiles(searchRoot string) ([]string, error) {
 	var schemas []string
 
-	_ = filepath.WalkDir(searchRoot, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(searchRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 
 		if d.IsDir() {
@@ -49,7 +49,7 @@ func findSchemaFiles(searchRoot string) []string {
 	})
 
 	sort.Strings(schemas)
-	return schemas
+	return schemas, walkErr
 }
 
 func newEnvCheckCmd() *cobra.Command {
@@ -72,12 +72,14 @@ func newEnvCheckCmd() *cobra.Command {
 			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Validator"))
 			fmt.Fprintf(out, "  Search Path: %s\n\n", subtleStyle.Render(targetPath))
 
-			schemas := findSchemaFiles(targetPath)
-			if len(schemas) == 0 {
-				fmt.Fprintln(out, subtleStyle.Render("No .env.schema.yaml contracts found in target path."))
-				return nil
+			schemas, err := findSchemaFiles(targetPath)
+			if err != nil {
+				return fmt.Errorf("schema discovery failed: %w", err)
 			}
 
+			if len(schemas) == 0 {
+				fmt.Fprintln(out, "Environment unverified: no .env.schema.yaml contracts found.")
+			}
 			totalErrors := 0
 			validCount := 0
 
@@ -139,28 +141,38 @@ func newEnvCheckCmd() *cobra.Command {
 						boldStyle.Render(".cursor/mcp.env"),
 						perm,
 					)
+					totalErrors++
 				} else {
 					fmt.Fprintf(out, "\n  %s  %s: permissions 0600 secure\n",
 						iconOK,
 						boldStyle.Render(".cursor/mcp.env"),
 					)
 				}
+			} else if !os.IsNotExist(err) {
+				totalErrors++
+				fmt.Fprintf(out, "MCP permission inspection failed: %v\n", err)
 			}
 
-			// Summary
-			fmt.Fprintf(out, "\n%s  %s\n",
-				successStyle.Render(fmt.Sprintf("✔ %d schemas valid", validCount)),
-				errorStyle.Render(fmt.Sprintf("✖ %d errors across all env files", totalErrors)),
-			)
+			// No contract cannot produce a successful validation summary.
+			if len(schemas) > 0 {
+				fmt.Fprintf(out, "\n%s  %s\n",
+					successStyle.Render(fmt.Sprintf("✔ %d schemas valid", validCount)),
+					errorStyle.Render(fmt.Sprintf("✖ %d errors across all env files", totalErrors)),
+				)
+			} else {
+				fmt.Fprintf(out, "\nEnvironment unverified; %d permission or inspection error(s).\n", totalErrors)
+			}
 
 			if totalErrors > 0 {
 				return fmt.Errorf("environment validation failed with %d error(s)", totalErrors)
 			}
 
+			if len(schemas) == 0 {
+				return fmt.Errorf("environment unverified: no .env.schema.yaml contracts found")
+			}
 			return nil
 		},
 	}
-
 	return cmd
 }
 
@@ -186,7 +198,14 @@ func newEnvSetupCmd() *cobra.Command {
 
 			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Setup"))
 
-			schemas := findSchemaFiles(targetPath)
+			schemas, err := findSchemaFiles(targetPath)
+			if err != nil {
+				return fmt.Errorf("schema discovery failed: %w", err)
+			}
+			if len(schemas) == 0 {
+				return fmt.Errorf("environment setup unverified: no .env.schema.yaml contracts found")
+			}
+			setupErrors := 0
 			createdCount := 0
 			skippedCount := 0
 
@@ -206,11 +225,13 @@ func newEnvSetupCmd() *cobra.Command {
 
 				schema, err := env.LoadSchema(schemaPath)
 				if err != nil {
+					setupErrors++
 					fmt.Fprintf(out, "  %s  %s: error reading schema: %v\n", iconError, boldStyle.Render(relDir), err)
 					continue
 				}
 
 				if err := env.GenerateFromSchema(envPath, schema, nil); err != nil {
+					setupErrors++
 					fmt.Fprintf(out, "  %s  %s: generation failed: %v\n", iconError, boldStyle.Render(relDir), err)
 				} else {
 					createdCount++
@@ -220,6 +241,7 @@ func newEnvSetupCmd() *cobra.Command {
 
 			// Ensure .cursor/mcp.env
 			if err := migrate.SetupMCPEnvironment(workspaceRoot); err != nil {
+				setupErrors++
 				fmt.Fprintf(out, "  %s  .cursor/mcp.env setup warning: %v\n", iconWarn, err)
 			} else {
 				fmt.Fprintf(out, "  %s  %s: %s\n", iconOK, boldStyle.Render(".cursor/mcp.env"), successStyle.Render("ready (chmod 0600)"))
@@ -230,6 +252,9 @@ func newEnvSetupCmd() *cobra.Command {
 				infoStyle.Render(fmt.Sprintf("ℹ %d already existed", skippedCount)),
 			)
 
+			if setupErrors > 0 {
+				return fmt.Errorf("environment setup failed with %d error(s)", setupErrors)
+			}
 			return nil
 		},
 	}

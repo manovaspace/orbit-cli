@@ -413,16 +413,17 @@ func TestSymlinkCursorRules(t *testing.T) {
 		t.Errorf("re-running SymlinkCursorRules failed: %v", err)
 	}
 
-	// Case 4: Overwriting existing regular file or outdated symlink
+	// Existing files are conflicts and remain untouched.
 	dummyFile := filepath.Join(tmpDir2, ".cursor", "rules", "sample.mdc")
 	_ = os.Remove(dummyFile)
 	_ = os.WriteFile(dummyFile, []byte("old non-symlink file"), 0644)
-	if err := SymlinkCursorRules(tmpDir2); err != nil {
-		t.Fatalf("SymlinkCursorRules failed when replacing regular file: %v", err)
+	if err := SymlinkCursorRules(tmpDir2); err == nil {
+		t.Fatal("expected replacement conflict")
 	}
-	if target, err := os.Readlink(dummyFile); err != nil || target != filepath.Join(handbookRules, "sample.mdc") {
-		t.Errorf("expected symlink to be restored, got target: %s, err: %v", target, err)
+	if data, _ := os.ReadFile(dummyFile); string(data) != "old non-symlink file" {
+		t.Fatal("conflicting file changed")
 	}
+
 }
 
 func TestSetupWorkspace(t *testing.T) {

@@ -4,6 +4,8 @@ package doctor
 type CheckStatus string
 
 const (
+	// StatusUnverified indicates a probe or requirement was intentionally not verified.
+	StatusUnverified CheckStatus = "UNVERIFIED"
 	// StatusOK indicates the check passed successfully.
 	StatusOK CheckStatus = "OK"
 	// StatusPass is an alias for StatusOK.
@@ -78,7 +80,7 @@ func (r *DoctorReport) HasWarnings() bool {
 		return false
 	}
 	for _, res := range r.Results {
-		if res.Status == StatusWarning {
+		if res.Status == StatusWarning || res.Status == StatusUnverified {
 			return true
 		}
 	}
@@ -106,7 +108,7 @@ func (r *DoctorReport) CountWarnings() int {
 	}
 	count := 0
 	for _, res := range r.Results {
-		if res.Status == StatusWarning {
+		if res.Status == StatusWarning || res.Status == StatusUnverified {
 			count++
 		}
 	}

@@ -15,6 +15,8 @@ orbit config list [flags]
 ```
   -f, --format string   Output format: table, json, or yaml (default "table")
   -h, --help            help for list
+      --limit int       maximum rows per page (0 = all)
+      --page int        page number to display (default 1)
 ```
 
 ### Options inherited from parent commands
@@ -26,4 +28,3 @@ orbit config list [flags]
 ### SEE ALSO
 
 * [orbit config](orbit_config.md)	 - Manage Orbit CLI configuration
-

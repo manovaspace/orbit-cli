@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,9 +176,10 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"port", "list"})
+	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
+	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("port list failed: %v", err)
+		t.Fatalf("fixture command failed: %v", err)
 	}
 
 	if !strings.Contains(buf.String(), "Ongoing onboarding session detected") {
@@ -194,9 +196,10 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 	cmd = newRootCmd()
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"port", "list"})
+	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
+	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("port list failed: %v", err)
+		t.Fatalf("fixture command failed: %v", err)
 	}
 
 	if strings.Contains(buf.String(), "Ongoing onboarding session detected") {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
@@ -32,6 +33,11 @@ func newDocCmd() *cobra.Command {
 					Section: "1",
 					Source:  "Orbit Developer Platform",
 					Manual:  "Orbit Platform Manual",
+				}
+				if os.Getenv("SOURCE_DATE_EPOCH") == "" {
+					// Keep the original publication date stable across CI regenerations.
+					publicationDate := time.Date(2026, time.August, 31, 0, 0, 0, 0, time.UTC)
+					header.Date = &publicationDate
 				}
 				if err := doc.GenManTree(root, header, outputDir); err != nil {
 					return fmt.Errorf("failed to generate man pages: %w", err)

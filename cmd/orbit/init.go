@@ -106,8 +106,13 @@ Scopes:
 			// Post-clone setup & workspace initialization
 			if !skipHooks {
 				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Clone Setup & Workspace Initialization ─────────────"))
-				if err := migrate.SetupWorkspace(workspaceRoot); err != nil {
-					fmt.Fprintf(out, "  %s  Workspace setup warning: %v\n", iconWarn, err)
+				var selectedRepoPaths []string
+				for _, target := range targets {
+					selectedRepoPaths = append(selectedRepoPaths, target.Path)
+				}
+				if err := migrate.SetupWorkspace(workspaceRoot, selectedRepoPaths...); err != nil {
+					fmt.Fprintf(out, "  %s  Workspace setup incomplete: %v\n", iconError, err)
+					return fmt.Errorf("repositories processed; workspace setup incomplete: %w", err)
 				} else {
 					fmt.Fprintf(out, "  %s  Workspace directory structure, hooks, and Cursor rules initialized.\n", iconOK)
 				}

@@ -26,7 +26,7 @@ Orbit CLI follows a dual-binary architecture:
 
 1. **`o` commands, never `cd` loops** — every agent using orbit-cli must use `orbit` / `o` commands for workspace orchestration.
 2. **`log/slog` only** — no `log.Printf`, `fmt.Println`, or other loggers anywhere.
-3. **`orbit doctor --fix` before any workspace mutation** — confirm toolchain health before making changes.
+3. **`orbit doctor --local` for research and inspection** — diagnostics never implicitly heal. Only select `--fix` when repairs are explicitly authorized; remote probes require `--remote`, and host-key acceptance additionally requires `--accept-host-keys --fix`.
 4. **Port allocation via ADR-006** — never hardcode ports. Use `o port list` to inspect allocations.
 5. **Sequential migrations** — `orbit migrate` only; never run raw SQL against production.
 6. **`orbit staff` is HMAC-auth only** — never embed admin credentials in workstation commands.
@@ -129,8 +129,9 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 ## Session pre-flight
 
 1. `go build -o bin/orbit ./cmd/orbit` — confirm clean build before any changes
-2. `rtk o doctor` — check toolchain and workspace health
-3. `rtk o status all` — confirm workspace-wide branch state
+2. `rtk proxy bash scripts/check-agent-cli.sh` — check the installed diagnostic interface using version/help only; if it fails, validate the source build before installing an update
+3. `rtk o doctor --local` — inspect local toolchain without remote probes or repairs, after the compatibility check passes
+4. `rtk o status all` — confirm workspace-wide branch state
 
 ## Definition of done
 
@@ -143,7 +144,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 ## Do / don't
 
 
-- Invite and owner-challenge mail HTML/text come from `github.com/manovaspace/orbit-notifications/pkg/mailtemplates` (local replace `../orbit-notifications`). Do not add HTML strings in `pkg/invite`.
+- Invite and owner-challenge mail HTML/text come from the pinned `github.com/manovaspace/orbit-notifications/pkg/mailtemplates` module. Standalone builds must resolve it without a sibling replacement. Do not add HTML strings in `pkg/invite`.
 - Invite curl host is `https://orbit.manova.space` (not `get.manova.space`).
 - Never put the HMAC token or OTP in the email subject.
 - Use `pkg/tui` Lipgloss styling for output formatting — do not write unformatted console prints.

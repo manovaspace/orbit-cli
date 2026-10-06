@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version = "v0.9.4"
+	version = "v0.9.5"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -141,6 +141,10 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		names = append(names, p.Name())
 	}
 	suppressList := map[string]bool{
+		"doctor":      true,
+		"env":         true,
+		"status":      true,
+		"port":        true,
 		"uninstall":   true,
 		"remove":      true,
 		"purge":       true,

@@ -22,8 +22,16 @@ List base ports and deterministic slots for all registered projects
 	help for list
 
 .PP
-\fB--scan\fP[=true]
-	Scan active network sockets on loopback
+\fB--limit\fP=0
+	maximum projects per page (0 = all)
+
+.PP
+\fB--page\fP=1
+	page number to display
+
+.PP
+\fB--scan\fP[=false]
+	Momentarily attempt IPv4 loopback binds; no reservation is retained
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
