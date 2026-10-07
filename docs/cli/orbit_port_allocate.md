@@ -1,6 +1,6 @@
 ## orbit port allocate
 
-Dynamically allocate the next free port in a project's 50-port range
+Suggest a bindable dynamic port; no reservation is retained
 
 ```
 orbit port allocate <project> <service> [flags]
@@ -21,4 +21,3 @@ orbit port allocate <project> <service> [flags]
 ### SEE ALSO
 
 * [orbit port](orbit_port.md)	 - Manage and inspect the hybrid 50-port allocation model
-

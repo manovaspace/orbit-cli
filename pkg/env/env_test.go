@@ -151,15 +151,15 @@ DOLLAR_VAL="val_with_\$dollar"
 	}
 
 	expected := map[string]string{
-		"APP_NAME":        "My Application",
-		"PORT":            "8080",
-		"DATABASE_URL":    "postgres://user:pass@localhost:5432/db",
-		"SECRET":          "key_with_\"quotes\"_and_\nnewline",
-		"SIMPLE_SECRET":   "secret123",
-		"EMPTY_VAL":       "",
-		"SPACED_KEY":      "value_with_spaces_around_equal",
-		"WITH_HASH":       "value with # hash symbol",
-		"DOLLAR_VAL":      "val_with_$dollar",
+		"APP_NAME":      "My Application",
+		"PORT":          "8080",
+		"DATABASE_URL":  "postgres://user:pass@localhost:5432/db",
+		"SECRET":        "key_with_\"quotes\"_and_\nnewline",
+		"SIMPLE_SECRET": "secret123",
+		"EMPTY_VAL":     "",
+		"SPACED_KEY":    "value_with_spaces_around_equal",
+		"WITH_HASH":     "value with # hash symbol",
+		"DOLLAR_VAL":    "val_with_$dollar",
 	}
 
 	for k, expVal := range expected {
@@ -319,8 +319,8 @@ SERVICE_URL=https://api.manova.space
 	}
 
 	// Case 6: Nil schema
-	if errs := Validate(validEnvPath, nil); errs != nil {
-		t.Errorf("expected nil for nil schema, got %+v", errs)
+	if errs := Validate(validEnvPath, nil); len(errs) != 1 || errs[0].Type != "no_contract" {
+		t.Errorf("expected explicit no_contract for nil schema, got %+v", errs)
 	}
 }
 

@@ -17,7 +17,11 @@ orbit staff recreate [flags]
       --groups string            comma-separated groups (default server-side: dev)
   -h, --help                     help for recreate
       --idempotency-key string   idempotency key for create (generated if empty)
+      --invite                   generate and print a signed onboarding invite token after account recreation
+      --invite-email string      email address for the invite token (defaults to --forward value)
+      --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
       --name string              display name
+      --no-send                  suppress dispatching onboarding invitation email
       --totp                     enroll Authelia TOTP after recreate
       --uid string               staff uid (required)
 ```
@@ -33,4 +37,3 @@ orbit staff recreate [flags]
 ### SEE ALSO
 
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
-

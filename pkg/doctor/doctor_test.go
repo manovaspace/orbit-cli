@@ -268,13 +268,13 @@ func TestEvaluateNodeAndBunVersions(t *testing.T) {
 	}
 
 	bun11 := EvaluateBunVersion("1.1.0\n", nil)
-	if bun11.Status != StatusError {
-		t.Errorf("expected StatusError for Bun 1.1.0, got %v", bun11.Status)
+	if bun11.Status != StatusOK {
+		t.Errorf("expected presence-only StatusOK for Bun 1.1.0, got %v", bun11.Status)
 	}
 
 	bun15 := EvaluateBunVersion("1.5.0\n", nil)
-	if bun15.Status != StatusError {
-		t.Errorf("expected StatusError for Bun 1.5.0, got %v", bun15.Status)
+	if bun15.Status != StatusOK {
+		t.Errorf("expected presence-only StatusOK for Bun 1.5.0, got %v", bun15.Status)
 	}
 
 	bunMissing := EvaluateBunVersion("", errors.New("not found"))

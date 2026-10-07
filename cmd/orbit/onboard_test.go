@@ -66,6 +66,7 @@ func TestOnboardFlagsAndResumePrompt(t *testing.T) {
 
 func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 	requireNode24(t)
+	setupOnboardPrerequisiteFixture(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -526,6 +527,7 @@ func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
 
 func TestOnboardAutoFixFullProgression(t *testing.T) {
 	requireNode24(t)
+	setupOnboardPrerequisiteFixture(t)
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -710,4 +712,3 @@ func TestOnboardTOTPPresentation(t *testing.T) {
 		t.Errorf("expected TOTP URI in summary card: %s", out)
 	}
 }
-

@@ -13,10 +13,14 @@ orbit-doctor - Run pre-flight system diagnostics and environment health checks
 
 .SH DESCRIPTION
 .PP
-Executes comprehensive diagnostics across OS, Go compiler, Node/Bun, Docker, SSH keys, dev ports, and optional tools.
+Local diagnostics are the default: no remote probes, updater activity or repairs. --remote selects SSH, Docker daemon, listener and cloud probes. --fix explicitly selects repairs; --accept-host-keys additionally requires --remote --fix. --local rejects remote probes and repairs.
 
 
 .SH OPTIONS
+.PP
+\fB--accept-host-keys\fP[=false]
+	Accept new SSH host keys (requires --remote --fix)
+
 .PP
 \fB-f\fP, \fB--fix\fP[=false]
 	Automatically install and configure missing toolchain dependencies
@@ -30,8 +34,16 @@ Executes comprehensive diagnostics across OS, Go compiler, Node/Bun, Docker, SSH
 	Output diagnostic report in JSON format
 
 .PP
+\fB--local\fP[=false]
+	Explicitly require diagnostics without remote probes or writes (default behavior)
+
+.PP
 \fB--non-interactive\fP[=false]
 	Disable interactive prompts
+
+.PP
+\fB--remote\fP[=false]
+	Opt in to remote SSH/cloud and daemon/listener probes
 
 .PP
 \fB-y\fP, \fB--yes\fP[=false]

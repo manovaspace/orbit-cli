@@ -5,36 +5,42 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
-	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 
 func newDoctorCmd() *cobra.Command {
 	var (
-		jsonOutput     bool
-		fix            bool
-		nonInteractive bool
-		yesFlag        bool
+		jsonOutput                    bool
+		fix                           bool
+		nonInteractive                bool
+		yesFlag                       bool
+		local, remote, acceptHostKeys bool
 	)
 
 	cmd := &cobra.Command{
 		Use:          "doctor",
 		Short:        "Run pre-flight system diagnostics and environment health checks",
-		Long:         "Executes comprehensive diagnostics across OS, Go compiler, Node/Bun, Docker, SSH keys, dev ports, and optional tools.",
+		Long:         "Local diagnostics are the default: no remote probes, updater activity or repairs. --remote selects SSH, Docker daemon, listener and cloud probes. --fix explicitly selects repairs; --accept-host-keys additionally requires --remote --fix. --local rejects remote probes and repairs.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			in := cmd.InOrStdin()
+			if local && (remote || fix || acceptHostKeys) {
+				return fmt.Errorf("--local cannot be combined with remote probes or mutation flags")
+			}
+			if acceptHostKeys && !(remote && fix) {
+				return fmt.Errorf("--accept-host-keys requires --remote --fix")
+			}
+			opts := doctor.DiagnosticOptions{Remote: remote, AcceptHostKeys: acceptHostKeys}
 			ctx := cmd.Context()
 
-			report := doctor.RunDiagnostics()
-			addAssetDiagnostics(cmd.Context(), report, fix)
+			report := doctor.RunDiagnosticsWithOptions(opts)
+			addSelectedAssetDiagnostics(cmd.Context(), report, remote, fix)
 			addWorkspaceGitDiagnostics(report)
 
 			if jsonOutput {
@@ -43,8 +49,8 @@ func newDoctorCmd() *cobra.Command {
 					healables := reg.FindHealers(report.Results)
 					if len(healables) > 0 {
 						_, _ = reg.Run(ctx, report.Results, nil)
-						report = doctor.RunDiagnostics()
-						addAssetDiagnostics(ctx, report, true)
+						report = doctor.RunDiagnosticsWithOptions(opts)
+						addSelectedAssetDiagnostics(ctx, report, remote, true)
 						addWorkspaceGitDiagnostics(report)
 					}
 				}
@@ -69,13 +75,7 @@ func newDoctorCmd() *cobra.Command {
 			reg := healer.NewDefaultRegistry()
 			healableHealers := reg.FindHealers(report.Results)
 
-			isNonInteractive := nonInteractive || yesFlag
 			shouldHeal := fix
-			if !shouldHeal && len(healableHealers) > 0 && !isNonInteractive && (istty.IsInteractiveSession() || cmd.InOrStdin() != os.Stdin) {
-				fmt.Fprintln(out)
-				promptMsg := fmt.Sprintf("Found %d auto-healable toolchain issue(s). Attempt automated fix?", len(healableHealers))
-				shouldHeal = promptYesNo(in, out, promptMsg, true)
-			}
 
 			if shouldHeal && len(healableHealers) > 0 {
 				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Auto-Healing Toolchains & Dependencies ─────────────────"))
@@ -90,8 +90,8 @@ func newDoctorCmd() *cobra.Command {
 				})
 
 				// Re-evaluate diagnostics after auto-healing
-				report = doctor.RunDiagnostics()
-				addAssetDiagnostics(ctx, report, false)
+				report = doctor.RunDiagnosticsWithOptions(opts)
+				addSelectedAssetDiagnostics(ctx, report, remote, false)
 				addWorkspaceGitDiagnostics(report)
 				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Healing Diagnostic Report ─────────────────────────"))
 				renderDoctorReport(out, report)
@@ -105,6 +105,9 @@ func newDoctorCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&local, "local", false, "Explicitly require diagnostics without remote probes or writes (default behavior)")
+	cmd.Flags().BoolVar(&remote, "remote", false, "Opt in to remote SSH/cloud and daemon/listener probes")
+	cmd.Flags().BoolVar(&acceptHostKeys, "accept-host-keys", false, "Accept new SSH host keys (requires --remote --fix)")
 	cmd.Flags().BoolVarP(&fix, "fix", "f", false, "Automatically install and configure missing toolchain dependencies")
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip interactive confirmation prompts")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Disable interactive prompts")
@@ -120,6 +123,8 @@ func addWorkspaceGitDiagnostics(report *doctor.DoctorReport) {
 	root := findWorkspaceRoot("")
 	manifestPath := findManifestPath(root, "")
 	if _, err := os.Stat(manifestPath); err != nil {
+		report.Add(doctor.DiagnosticResult{Category: "Workspace", Name: "Manifest", Status: doctor.StatusError,
+			Message: "Workspace targets unverified: cannot inspect workspace.yaml", FixSuggestion: "Provide a readable workspace.yaml for workspace diagnostics."})
 		return
 	}
 	m, err := manifest.Load(manifestPath)
@@ -127,30 +132,46 @@ func addWorkspaceGitDiagnostics(report *doctor.DoctorReport) {
 		report.Add(doctor.DiagnosticResult{
 			Category:      "Workspace",
 			Name:          "Manifest",
-			Status:        doctor.StatusWarning,
-			Message:       err.Error(),
-			FixSuggestion: "Fix workspace.yaml parse errors.",
+			Status:        doctor.StatusError,
+			Message:       "Workspace targets unverified: cannot load workspace.yaml",
+			FixSuggestion: "Fix workspace.yaml readability or parse errors.",
 		})
 		return
 	}
-	statuses := orchestrator.GetWorkspaceStatus(root, m.ResolveScope("all"))
-	gitless := 0
-	missing := 0
-	for _, s := range statuses {
-		switch s.Error {
-		case orchestrator.ErrGitless:
-			gitless++
-		case orchestrator.ErrMissing:
+	targets := m.ResolveScope("all")
+	if len(targets) == 0 {
+		report.Add(doctor.DiagnosticResult{Category: "Workspace", Name: "Manifest", Status: doctor.StatusError,
+			Message: "Workspace targets unverified: workspace.yaml declares no repository targets", FixSuggestion: "Declare the intended repositories before workspace diagnostics."})
+		return
+	}
+	gitless, missing, inspectionErrors := 0, 0, 0
+	for _, target := range targets {
+		repoPath := filepath.Join(root, target.Path)
+		info, err := os.Stat(repoPath)
+		if os.IsNotExist(err) {
 			missing++
+			continue
+		}
+		if err != nil || !info.IsDir() {
+			inspectionErrors++
+			report.Add(doctor.DiagnosticResult{Category: "Workspace", Name: target.Name, Status: doctor.StatusError, Message: "Cannot inspect repository directory"})
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(repoPath, ".git")); os.IsNotExist(err) {
+			gitless++
+		} else if err != nil {
+			inspectionErrors++
+			report.Add(doctor.DiagnosticResult{Category: "Workspace", Name: target.Name, Status: doctor.StatusError, Message: "Cannot inspect repository .git entry"})
 		}
 	}
+
 	switch {
-	case gitless == 0 && missing == 0:
+	case gitless == 0 && missing == 0 && inspectionErrors == 0:
 		report.Add(doctor.DiagnosticResult{
 			Category: "Workspace",
 			Name:     "Git trees",
 			Status:   doctor.StatusOK,
-			Message:  fmt.Sprintf("all %d manifest repos have .git", len(statuses)),
+			Message:  fmt.Sprintf("all %d manifest paths have .git (repository integrity unverified)", len(targets)),
 		})
 	default:
 		if gitless > 0 {
@@ -192,7 +213,7 @@ func renderDoctorReport(out io.Writer, report *doctor.DoctorReport) (passed, war
 		switch res.Status {
 		case doctor.StatusOK:
 			passed++
-		case doctor.StatusWarning:
+		case doctor.StatusWarning, doctor.StatusUnverified:
 			warnings++
 		case doctor.StatusError:
 			errors++
@@ -213,7 +234,7 @@ func renderDoctorReport(out io.Writer, report *doctor.DoctorReport) (passed, war
 		switch res.Status {
 		case doctor.StatusOK:
 			statusIcon = iconOK
-		case doctor.StatusWarning:
+		case doctor.StatusWarning, doctor.StatusUnverified:
 			statusIcon = iconWarn
 		case doctor.StatusError:
 			statusIcon = iconError

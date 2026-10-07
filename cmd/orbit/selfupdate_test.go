@@ -11,7 +11,7 @@ import (
 
 func TestSelfUpdateHelp(t *testing.T) {
 	buf := new(bytes.Buffer)
-	rootCmd := newRootCmd()
+	rootCmd := newRootCmdForTest(t)
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 	rootCmd.SetArgs([]string{"self-update", "--help"})
@@ -27,7 +27,7 @@ func TestSelfUpdateHelp(t *testing.T) {
 }
 
 func TestSubcommandRegistration(t *testing.T) {
-	rootCmd := newRootCmd()
+	rootCmd := newRootCmdForTest(t)
 	registered := make(map[string]bool)
 	for _, c := range rootCmd.Commands() {
 		registered[c.Name()] = true
@@ -73,7 +73,7 @@ func TestSelfUpdateCheckUpToDate(t *testing.T) {
 	t.Setenv("ORBIT_RELEASE_API_URL", srv.URL)
 
 	buf := new(bytes.Buffer)
-	rootCmd := newRootCmd()
+	rootCmd := newRootCmdForTest(t)
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 	rootCmd.SetArgs([]string{"self-update", "--check"})

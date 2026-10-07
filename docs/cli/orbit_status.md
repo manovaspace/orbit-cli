@@ -14,7 +14,9 @@ orbit status [scope] [flags]
 
 ```
   -h, --help              help for status
+      --limit int         maximum rows per page (0 = all)
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
+      --page int          page number to display (default 1)
 ```
 
 ### Options inherited from parent commands
@@ -26,4 +28,3 @@ orbit status [scope] [flags]
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
-

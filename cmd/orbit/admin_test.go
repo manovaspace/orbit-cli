@@ -80,7 +80,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -140,7 +140,7 @@ func TestAdminInit_APIServer_InteractiveCode(t *testing.T) {
 	buf := new(bytes.Buffer)
 	in := bytes.NewBufferString("883311\n")
 
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetIn(in)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
@@ -172,7 +172,7 @@ func TestAdminInit_APIServer_ChallengeFails(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -199,7 +199,7 @@ func TestAdminInit_APIServer_InvalidVerificationCode(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -243,7 +243,7 @@ func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -322,7 +322,7 @@ func TestAdminInit_AlreadyVerified(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -367,7 +367,7 @@ func TestAdminInit_ForceReInit(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -400,7 +400,7 @@ func TestAdminInit_InvalidEmail(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -423,7 +423,7 @@ func TestAdminInit_InteractivePrompt(t *testing.T) {
 	buf := new(bytes.Buffer)
 	in := bytes.NewBufferString("interactive-owner@manova.space\n")
 
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetIn(in)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
@@ -459,7 +459,7 @@ func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -484,7 +484,7 @@ func TestAdminStatus_Unverified(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -522,7 +522,7 @@ func TestAdminStatus_VerifiedTable(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -569,7 +569,7 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -627,7 +627,7 @@ func TestAdminStatus_InsecurePermissions(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -650,7 +650,7 @@ func TestAdminVerify_Success(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -697,7 +697,7 @@ func TestAdminVerify_AlreadyVerified(t *testing.T) {
 	_ = store.SaveOwner(rec)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -734,7 +734,7 @@ func TestAdminRotateSecret_Success(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -783,7 +783,7 @@ func TestAdminRotateSecret_PromptCancel(t *testing.T) {
 	buf := new(bytes.Buffer)
 	in := bytes.NewBufferString("n\n")
 
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetIn(in)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
@@ -811,7 +811,7 @@ func TestAdminRotateSecret_UnverifiedError(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -841,7 +841,7 @@ func TestAdminGrant_Success(t *testing.T) {
 	_ = store.SaveOwner(rec)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -872,7 +872,7 @@ func TestAdminGrant_UnverifiedError(t *testing.T) {
 	storePath := filepath.Join(tempDir, "owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -900,7 +900,7 @@ func TestAdminGrant_JSONOutput(t *testing.T) {
 	_ = store.SaveOwner(rec)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -939,7 +939,7 @@ func TestAdminTOTPReset_Success(t *testing.T) {
 	_ = store.SaveOwner(rec)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -959,4 +959,3 @@ func TestAdminTOTPReset_Success(t *testing.T) {
 		t.Errorf("output missing recipient email: %s", out)
 	}
 }
-

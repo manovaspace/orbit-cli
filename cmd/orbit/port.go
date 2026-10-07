@@ -27,7 +27,7 @@ func newPortCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "port",
 		Short: "Manage and inspect the hybrid 50-port allocation model",
-		Long:  "Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and dynamically allocate ports (10-49).",
+		Long:  "Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and suggest ports (10-49) after a momentary IPv4 loopback bind probe. Suggestions are not durable reservations.",
 	}
 
 	cmd.AddCommand(newPortListCmd())
@@ -92,7 +92,14 @@ func newPortListCmd() *cobra.Command {
 				start, end := ports.GetProjectRange(p.id)
 
 				// Scan ports
-				scanResults, _ := ports.ScanProjectPorts(p.id)
+				var scanResults map[int]bool
+				if scanNetwork {
+					var err error
+					scanResults, err = ports.ScanProjectPorts(p.id)
+					if err != nil {
+						return err
+					}
+				}
 				activeCount := 0
 				for _, inUse := range scanResults {
 					if inUse {
@@ -105,7 +112,12 @@ func newPortListCmd() *cobra.Command {
 				fmt.Fprintf(out, "  Base Port: %s  |  Total Range: %s  |  Active: %s\n\n",
 					codeStyle.Render(strconv.Itoa(base)),
 					subtleStyle.Render(fmt.Sprintf("%d-%d (50 ports)", start, end)),
-					boldStyle.Render(fmt.Sprintf("%d in use", activeCount)),
+					boldStyle.Render(func() string {
+						if !scanNetwork {
+							return "UNVERIFIED"
+						}
+						return fmt.Sprintf("%d unavailable at probe time", activeCount)
+					}()),
 				)
 
 				// Deterministic slots (0-9)
@@ -115,10 +127,12 @@ func newPortListCmd() *cobra.Command {
 					inUse := scanResults[port]
 
 					var statusBadge string
-					if inUse {
-						statusBadge = warningStyle.Render("[IN USE]")
+					if !scanNetwork {
+						statusBadge = subtleStyle.Render("[UNVERIFIED]")
+					} else if inUse {
+						statusBadge = warningStyle.Render("[UNAVAILABLE AT PROBE]")
 					} else {
-						statusBadge = successStyle.Render("[FREE]")
+						statusBadge = successStyle.Render("[BINDABLE AT PROBE]")
 					}
 
 					slotName := defaultSlotNames[slot]
@@ -139,12 +153,16 @@ func newPortListCmd() *cobra.Command {
 				}
 				dynamicFree := 40 - dynamicInUse
 
-				fmt.Fprintf(out, "\n  %s %s (%d free, %d in use)\n",
-					boldStyle.Render("Dynamic Slots (10-49):"),
-					subtleStyle.Render(fmt.Sprintf("Ports %d-%d", base+10, base+49)),
-					dynamicFree,
-					dynamicInUse,
-				)
+				if scanNetwork {
+					fmt.Fprintf(out, "\n  %s %s (%d bindable, %d unavailable at probe time)\n",
+						boldStyle.Render("Dynamic Slots (10-49):"),
+						subtleStyle.Render(fmt.Sprintf("Ports %d-%d", base+10, base+49)),
+						dynamicFree,
+						dynamicInUse,
+					)
+				} else {
+					fmt.Fprintf(out, "\n  Dynamic Slots (10-49): Ports %d-%d [UNVERIFIED]\n", base+10, base+49)
+				}
 			}
 
 			if limitFlag > 0 {
@@ -164,7 +182,7 @@ func newPortListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&scanNetwork, "scan", true, "Scan active network sockets on loopback")
+	cmd.Flags().BoolVar(&scanNetwork, "scan", false, "Momentarily attempt IPv4 loopback binds; no reservation is retained")
 	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
 	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum projects per page (0 = all)")
 	return cmd
@@ -173,7 +191,7 @@ func newPortListCmd() *cobra.Command {
 func newPortAllocateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "allocate <project> <service>",
-		Short: "Dynamically allocate the next free port in a project's 50-port range",
+		Short: "Suggest a bindable dynamic port; no reservation is retained",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectName := args[0]
@@ -218,8 +236,8 @@ func newPortAllocateCmd() *cobra.Command {
 
 			slot := allocatedPort - ports.BasePort(projectID)
 
-			fmt.Fprintln(out, titleStyle.Render("Port Allocation Successful"))
-			fmt.Fprintf(out, "  %s  Allocated port %s for service %s\n",
+			fmt.Fprintln(out, titleStyle.Render("Port Assignment Suggestion (not reserved)"))
+			fmt.Fprintf(out, "  %s  Suggested port %s for service %s\n",
 				iconOK,
 				successStyle.Render(strconv.Itoa(allocatedPort)),
 				boldStyle.Render(serviceName),

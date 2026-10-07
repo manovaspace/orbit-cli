@@ -11,12 +11,19 @@ import (
 
 func TestStatusTableOutputStructure(t *testing.T) {
 	// Verify that table output contains aligned columns and headers
+	workspace := t.TempDir()
+	t.Chdir(workspace)
+	manifestPath := filepath.Join(workspace, "workspace.yaml")
+	manifest := "version: \"1\"\nworkspace: test\ngroups:\n  test:\n    repositories:\n      - name: missing-repo\n        path: missing-repo\n"
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0600); err != nil {
+		t.Fatal(err)
+	}
 	out := &bytes.Buffer{}
 	cmd := newStatusCmd()
 	cmd.SetOut(out)
-	cmd.SetArgs([]string{"all"})
+	cmd.SetArgs([]string{"all", "--manifest", manifestPath})
 
-	// Run status against the current repo/workspace
+	// Inspect the isolated manifest, independent of the developer's workspace.
 	err := cmd.Execute()
 	if err != nil {
 		t.Fatalf("unexpected error running status: %v", err)
@@ -160,14 +167,10 @@ groups:
 	cmd.SetOut(out)
 	cmd.SetArgs([]string{"nonexistent-scope", "--manifest", manifestPath})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected no command error for empty scope, got: %v", err)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "no repositories found") {
+		t.Fatalf("expected unknown scope error, got %v", err)
 	}
 
-	output := out.String()
-	if !strings.Contains(output, `No repositories found for scope "nonexistent-scope"`) {
-		t.Errorf("expected empty scope message, got:\n%s", output)
-	}
 }
 
 func TestStatusMissingManifest(t *testing.T) {
@@ -243,5 +246,3 @@ groups:
 		t.Errorf("expected '↑1 ahead' in output:\n%s", output)
 	}
 }
-
-

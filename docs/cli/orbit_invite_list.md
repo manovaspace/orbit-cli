@@ -16,6 +16,8 @@ orbit invite list [flags]
   -a, --all                 Include revoked and expired invitations
   -f, --format string       Output format (table or json) (default "table")
   -h, --help                help for list
+      --limit int           maximum rows per page (0 = all)
+      --page int            page number to display (default 1)
       --store-file string   Custom path to invites storage file
 ```
 
@@ -28,4 +30,3 @@ orbit invite list [flags]
 ### SEE ALSO
 
 * [orbit invite](orbit_invite.md)	 - Manage developer onboarding invite tokens
-

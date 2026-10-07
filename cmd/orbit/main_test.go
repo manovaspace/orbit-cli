@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +37,7 @@ ui:
 	}
 
 	t.Run("RootPersistentFlagRegistration", func(t *testing.T) {
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		flag := cmd.PersistentFlags().Lookup("config")
 		if flag == nil {
 			t.Fatal("expected --config to be registered as a persistent flag on root command")
@@ -48,7 +49,7 @@ ui:
 
 	t.Run("FlagBeforeSubcommand", func(t *testing.T) {
 		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		cmd.SetOut(buf)
 		cmd.SetErr(buf)
 		cmd.SetArgs([]string{"--config", customConfigPath, "config", "get", "server.url", "--raw"})
@@ -65,7 +66,7 @@ ui:
 
 	t.Run("FlagAfterSubcommand", func(t *testing.T) {
 		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		cmd.SetOut(buf)
 		cmd.SetErr(buf)
 		cmd.SetArgs([]string{"config", "get", "server.url", "--raw", "--config", customConfigPath})
@@ -82,7 +83,7 @@ ui:
 
 	t.Run("FlagInMiddleOfSubcommands", func(t *testing.T) {
 		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		cmd.SetOut(buf)
 		cmd.SetErr(buf)
 		cmd.SetArgs([]string{"config", "--config", customConfigPath, "get", "defaults.scope", "--raw"})
@@ -99,7 +100,7 @@ ui:
 
 	t.Run("ConfigShowWithRootFlag", func(t *testing.T) {
 		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		cmd.SetOut(buf)
 		cmd.SetErr(buf)
 		cmd.SetArgs([]string{"--config", customConfigPath, "config", "show", "--format", "json"})
@@ -123,7 +124,7 @@ ui:
 
 	t.Run("ConfigListWithRootFlag", func(t *testing.T) {
 		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
+		cmd := newRootCmdForTest(t)
 		cmd.SetOut(buf)
 		cmd.SetErr(buf)
 		cmd.SetArgs([]string{"--config", customConfigPath, "config", "list", "--format", "json"})
@@ -171,13 +172,14 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 	}
 
 	// Case 1: Owner vault does not exist or unverified -> notice is shown
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"port", "list"})
+	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
+	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("port list failed: %v", err)
+		t.Fatalf("fixture command failed: %v", err)
 	}
 
 	if !strings.Contains(buf.String(), "Ongoing onboarding session detected") {
@@ -191,12 +193,13 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 	}
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"port", "list"})
+	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
+	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("port list failed: %v", err)
+		t.Fatalf("fixture command failed: %v", err)
 	}
 
 	if strings.Contains(buf.String(), "Ongoing onboarding session detected") {

@@ -653,3 +653,14 @@ func TestZshHealer(t *testing.T) {
 		t.Errorf("expected zsh install script, got: %s", runner.getLastScript())
 	}
 }
+
+func TestUnverifiedChecksCannotTriggerHealing(t *testing.T) {
+	result := doctor.DiagnosticResult{Category: "Toolchain", Name: "Go Compiler requirement", Status: doctor.CheckStatus("UNVERIFIED"), Message: "No manifest requirement; unverified"}
+	reg := NewDefaultRegistry()
+	if _, ok := reg.FindHealer(result); ok {
+		t.Error("unverified requirement selected installer")
+	}
+	if len(reg.FindHealers([]doctor.DiagnosticResult{result})) != 0 {
+		t.Error("unverified requirement selected batch installer")
+	}
+}

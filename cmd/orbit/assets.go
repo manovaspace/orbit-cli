@@ -180,6 +180,15 @@ func resolveAssetRepos(manifestFlag, scope string) (workspaceRoot string, rels [
 	return workspaceRoot, rels, nil
 }
 
+// addSelectedAssetDiagnostics keeps local inspection free of cloud credential activity.
+func addSelectedAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, remote, fix bool) {
+	if remote {
+		addAssetDiagnostics(ctx, report, fix)
+		return
+	}
+	report.Add(doctor.DiagnosticResult{Category: "Assets", Name: "R2 assets", Status: doctor.StatusUnverified, Message: "Cloud assets unverified (local mode); select --remote to probe"})
+}
+
 func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix bool) {
 	if report == nil {
 		return

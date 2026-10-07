@@ -43,7 +43,10 @@ func newStatusCmd() *cobra.Command {
 				return fmt.Errorf("failed to load workspace manifest: %w", err)
 			}
 
-			targets := m.ResolveScope(scope)
+			targets, err := m.ResolveRepos(scope)
+			if err != nil {
+				return err
+			}
 			if len(targets) == 0 {
 				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
 				return nil

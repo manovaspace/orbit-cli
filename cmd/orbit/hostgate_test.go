@@ -10,6 +10,8 @@ import (
 )
 
 func TestEnforceHost_Allowlist(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
+	t.Setenv("ORBIT_TESTBED", "")
 	fail := func() host.Report {
 		return host.Report{OK: false, Failures: []host.Failure{{Code: "os", Message: "nope"}}}
 	}

@@ -96,7 +96,7 @@ func (r *Registry) Get(name string) (Healer, bool) {
 func (r *Registry) FindHealer(result doctor.DiagnosticResult) (Healer, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if result.Status == doctor.StatusOK {
+	if result.Status == doctor.StatusOK || result.Status == doctor.StatusUnverified {
 		return nil, false
 	}
 	for _, h := range r.healers {
@@ -115,7 +115,7 @@ func (r *Registry) FindHealers(results []doctor.DiagnosticResult) []Healer {
 	seen := make(map[string]bool)
 
 	for _, res := range results {
-		if res.Status == doctor.StatusOK {
+		if res.Status == doctor.StatusOK || res.Status == doctor.StatusUnverified {
 			continue
 		}
 		for _, h := range r.healers {

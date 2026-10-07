@@ -34,8 +34,24 @@ Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them
 	idempotency key for create (generated if empty)
 
 .PP
+\fB--invite\fP[=false]
+	generate and print a signed onboarding invite token after account recreation
+
+.PP
+\fB--invite-email\fP=""
+	email address for the invite token (defaults to --forward value)
+
+.PP
+\fB--invite-ttl\fP="7d"
+	invite token TTL (e.g. 7d, 24h, 168h)
+
+.PP
 \fB--name\fP=""
 	display name
+
+.PP
+\fB--no-send\fP[=false]
+	suppress dispatching onboarding invitation email
 
 .PP
 \fB--totp\fP[=false]

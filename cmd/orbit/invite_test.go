@@ -41,7 +41,7 @@ func TestInviteOwnerGuard_Unverified(t *testing.T) {
 	unverifiedOwnerPath := filepath.Join(tempDir, "nonexistent-owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -68,7 +68,7 @@ func TestInviteOwnerGuard_InsecureBypass(t *testing.T) {
 	unverifiedOwnerPath := filepath.Join(tempDir, "nonexistent-owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -98,7 +98,7 @@ func TestInviteOwnerGuard_VerifiedOwner(t *testing.T) {
 	ownerPath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -154,7 +154,7 @@ func TestInviteCreateCmd(t *testing.T) {
 	ownerPath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -235,7 +235,7 @@ func TestInviteCreateWithStorePath(t *testing.T) {
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -272,7 +272,7 @@ func TestInviteCreateCmd_WithTOTP(t *testing.T) {
 	ownerPath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -317,14 +317,13 @@ func TestInviteCreateCmd_WithTOTP(t *testing.T) {
 	}
 }
 
-
 func TestInviteCreateInvalidArgs(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "invites.json")
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	// Missing email arg
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "--owner-store", ownerPath})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error for missing email arg, got nil")
@@ -332,7 +331,7 @@ func TestInviteCreateInvalidArgs(t *testing.T) {
 
 	// Invalid email
 	buf := new(bytes.Buffer)
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "create", "not-an-email", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
@@ -342,7 +341,7 @@ func TestInviteCreateInvalidArgs(t *testing.T) {
 
 	// Invalid expires duration
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "create", "dev@example.com", "--expires", "invalid-duration", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
@@ -358,7 +357,7 @@ func TestInviteListCmd(t *testing.T) {
 
 	// 1. List when empty
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
@@ -371,17 +370,17 @@ func TestInviteListCmd(t *testing.T) {
 	}
 
 	// 2. Create two invites
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "alex@example.com", "--name", "Alex", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
 
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "bob@example.com", "--name", "Bob", "--scope", "client", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
 
 	// 3. Table format list (both active)
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
@@ -403,7 +402,7 @@ func TestInviteListCmd(t *testing.T) {
 
 	// 4. JSON format list
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--store-file", storePath})
@@ -433,7 +432,7 @@ func TestInviteListCmd(t *testing.T) {
 
 	// Default list should now only show 1 active invite (Bob), but summary shows total 2, 1 active, 1 revoked
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
@@ -453,7 +452,7 @@ func TestInviteListCmd(t *testing.T) {
 
 	// List with --all should show both Alex (revoked) and Bob (active)
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--all", "--store-file", storePath})
@@ -470,7 +469,7 @@ func TestInviteListCmd(t *testing.T) {
 
 	// JSON format with --all should return 2 records, without --all returns 1 record
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--store-file", storePath})
@@ -482,7 +481,7 @@ func TestInviteListCmd(t *testing.T) {
 	}
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--all", "--store-file", storePath})
@@ -502,7 +501,7 @@ func TestInviteListCmd(t *testing.T) {
 	}
 	_, _ = store.RevokeInvite(bobID)
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--store-file", storePath})
@@ -518,7 +517,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	// 1. Create an invite
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "claire@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("invite create failed: %v", err)
@@ -533,7 +532,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 2. Revoke by ID prefix
 	buf := new(bytes.Buffer)
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", inviteID[:6], "--store-file", storePath})
@@ -553,7 +552,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 	}
 
 	// 3. Create another invite and revoke by full token string
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "dan@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
 
@@ -566,7 +565,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 	}
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", danToken, "--store-file", storePath})
@@ -580,7 +579,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 4. Revoking nonexistent ID returns error
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", "nonexistent-id-12345", "--store-file", storePath})
@@ -590,7 +589,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 5. Revoking without args and without --all returns error
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", "--store-file", storePath})
@@ -600,7 +599,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 6. Revoking with positional arg AND --all returns error
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", "some-token", "--all", "--store-file", storePath})
@@ -610,15 +609,15 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 7. Test bulk revoke --all
 	// Create two new active invites
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "dev1@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "dev2@example.com", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	_ = cmd.Execute()
 
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", "--all", "--store-file", storePath})
@@ -635,7 +634,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 
 	// 8. Bulk revoke when none are active
 	buf.Reset()
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "revoke", "--all", "--store-file", storePath})
@@ -750,7 +749,7 @@ func TestInviteCreateWithSendFlag(t *testing.T) {
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -788,7 +787,7 @@ func TestInviteCreateWithNoSendFlag(t *testing.T) {
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -939,13 +938,13 @@ func TestInviteListTableOutputStructure(t *testing.T) {
 	ownerPath, _ := createTestVerifiedOwnerStore(t, tempDir)
 
 	// Create 3 invites: one active, one revoked, one expired
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "active@example.com", "--name", "Active User", "--scope", "core", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("failed to create active invite: %v", err)
 	}
 
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetArgs([]string{"invite", "create", "revoked@example.com", "--name", "Revoked User", "--scope", "client", "--store-file", storePath, "--owner-store", ownerPath, "--no-send"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("failed to create revoked invite: %v", err)
@@ -983,7 +982,7 @@ func TestInviteListTableOutputStructure(t *testing.T) {
 
 	// Test list with --all to see table layout with all statuses
 	buf := new(bytes.Buffer)
-	cmd = newRootCmd()
+	cmd = newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--all", "--store-file", storePath})

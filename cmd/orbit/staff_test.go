@@ -18,7 +18,7 @@ func TestStaffOwnerGuard_Unverified(t *testing.T) {
 	unverifiedOwnerPath := filepath.Join(tempDir, "nonexistent-owner.json")
 
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -37,7 +37,7 @@ func TestStaffOwnerGuard_Unverified(t *testing.T) {
 }
 
 func TestStaffCmdRegistered(t *testing.T) {
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	found := false
 	for _, c := range cmd.Commands() {
 		if c.Name() == "staff" {
@@ -97,7 +97,7 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -142,7 +142,7 @@ func TestStaffRecreateIgnoresDelete404(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -178,7 +178,7 @@ func TestStaffResetPasswordTOTP(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -212,7 +212,7 @@ func TestStaffDelete_MissingReturnsError(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -248,7 +248,7 @@ func TestStaffDelete_Success(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -281,7 +281,7 @@ func TestStaffDisable_MissingReturnsError(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -312,7 +312,7 @@ func TestStaffEnable_MissingReturnsError(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -343,7 +343,7 @@ func TestStaffGet_MissingReturnsError(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -371,7 +371,7 @@ func TestStaffUpdate_MissingReturnsError(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -413,7 +413,7 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath, ownerRec := createTestVerifiedOwnerStore(t, tempDir)
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -475,7 +475,7 @@ func TestStaffCreate_InviteWithNoSend(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -501,7 +501,6 @@ func TestStaffCreate_InviteWithNoSend(t *testing.T) {
 		t.Errorf("expected no email dispatch with --no-send, got:\n%s", out)
 	}
 }
-
 
 func TestStaffList_TableRendering(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -546,7 +545,7 @@ func TestStaffList_TableRendering(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -605,7 +604,7 @@ func TestStaffList_Empty(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -640,7 +639,7 @@ func TestStaffList_Pagination(t *testing.T) {
 
 	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
+	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
@@ -666,5 +665,3 @@ func TestStaffList_Pagination(t *testing.T) {
 		t.Errorf("expected pagination footer, got:\n%s", out)
 	}
 }
-
-
