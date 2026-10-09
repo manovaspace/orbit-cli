@@ -100,10 +100,16 @@ func TestDoctorCmdFlagsRegistration(t *testing.T) {
 	if yesFlag.Shorthand != "y" {
 		t.Errorf("expected shorthand for --yes to be 'y', got %q", yesFlag.Shorthand)
 	}
+	if yesFlag.Usage != "Compatibility flag; doctor does not prompt" {
+		t.Errorf("expected --yes usage to describe compatibility behavior, got %q", yesFlag.Usage)
+	}
 
 	nonInteractiveFlag := cmd.Flags().Lookup("non-interactive")
 	if nonInteractiveFlag == nil {
 		t.Fatal("expected --non-interactive flag to be registered")
+	}
+	if nonInteractiveFlag.Usage != "Compatibility flag; doctor does not prompt" {
+		t.Errorf("expected --non-interactive usage to describe compatibility behavior, got %q", nonInteractiveFlag.Usage)
 	}
 }
 
