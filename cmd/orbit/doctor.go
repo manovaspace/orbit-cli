@@ -109,8 +109,8 @@ func newDoctorCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&remote, "remote", false, "Opt in to remote SSH/cloud and daemon/listener probes")
 	cmd.Flags().BoolVar(&acceptHostKeys, "accept-host-keys", false, "Accept new SSH host keys (requires --remote --fix)")
 	cmd.Flags().BoolVarP(&fix, "fix", "f", false, "Automatically install and configure missing toolchain dependencies")
-	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Skip interactive confirmation prompts")
-	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Disable interactive prompts")
+	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Compatibility flag; doctor does not prompt")
+	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Compatibility flag; doctor does not prompt")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output diagnostic report in JSON format")
 
 	return cmd

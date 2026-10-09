@@ -18,9 +18,9 @@ orbit doctor [flags]
   -h, --help               help for doctor
       --json               Output diagnostic report in JSON format
       --local              Explicitly require diagnostics without remote probes or writes (default behavior)
-      --non-interactive    Disable interactive prompts
+      --non-interactive    Compatibility flag; doctor does not prompt
       --remote             Opt in to remote SSH/cloud and daemon/listener probes
-  -y, --yes                Skip interactive confirmation prompts
+  -y, --yes                Compatibility flag; doctor does not prompt
 ```
 
 ### Options inherited from parent commands
