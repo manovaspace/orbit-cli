@@ -166,6 +166,7 @@ func TestStaffResetPasswordLDAP(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ldap_password": "rotated-password",
+			"warning":       "password rotated, but Telegram delivery failed; use the returned password securely",
 		})
 	}))
 	defer srv.Close()
@@ -189,6 +190,9 @@ func TestStaffResetPasswordLDAP(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "shared rotated-password") {
 		t.Fatalf("output = %q", buf.String())
+	}
+	if !strings.Contains(buf.String(), "warning password rotated, but Telegram delivery failed") {
+		t.Fatalf("missing delivery warning: %q", buf.String())
 	}
 }
 

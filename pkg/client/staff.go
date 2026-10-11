@@ -59,6 +59,7 @@ type StaffUpdateInput struct {
 // StaffResetResult holds the rotated LLDAP password used for staff SSO and mail.
 type StaffResetResult struct {
 	LDAPPassword string `json:"ldap_password"`
+	Warning      string `json:"warning,omitempty"`
 }
 
 // NewStaffClient builds a client for the staff control plane.

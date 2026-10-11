@@ -315,6 +315,9 @@ func newStaffResetPasswordCmd() *cobra.Command {
 			if res.LDAPPassword != "" {
 				fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 			}
+			if res.Warning != "" {
+				fmt.Fprintf(out, "warning %s\n", res.Warning)
+			}
 			return nil
 		},
 	}
