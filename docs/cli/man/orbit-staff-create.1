@@ -3,7 +3,7 @@
 
 .SH NAME
 .PP
-orbit-staff-create - Create a staff member (lldap + mailbox)
+orbit-staff-create - Create a staff member (LLDAP + retained mailbox)
 
 
 .SH SYNOPSIS
@@ -52,10 +52,6 @@ Create a staff member and optionally generate a signed onboarding invite token w
 .PP
 \fB--no-send\fP[=false]
 	suppress dispatching onboarding invitation email
-
-.PP
-\fB--totp\fP[=false]
-	enroll Authelia TOTP
 
 .PP
 \fB--uid\fP=""

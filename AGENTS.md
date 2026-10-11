@@ -68,8 +68,8 @@ orbit dev up              # start local dev stack services
 orbit invite create <email> # issue HMAC-signed onboarding invite
 orbit onboard             # interactive onboarding wizard
 orbit staff create --uid … --name … --forward …
-orbit staff recreate --uid … --name … --forward … [--totp]
-orbit staff reset-password <uid> [--ldap|--mailbox|--totp]
+orbit staff recreate --uid … --name … --forward … # blocked; use Keycloak cleanup procedure
+orbit staff reset-password <uid> [--ldap|--mailbox]
 orbit assets pull         # download gitignored media from R2
 orbit assets push         # upload gitignored media to R2
 orbit assets add <path>   # upload a file, update orbit-assets.yaml + .gitignore

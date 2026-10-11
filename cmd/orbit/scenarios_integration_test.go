@@ -360,8 +360,6 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 			_ = json.NewEncoder(w).Encode(client.StaffCreateResult{
 				StaffMember:  *member,
 				LDAPPassword: "mock-ldap-password-" + in.UID,
-				MailPassword: "mock-mail-password-" + in.UID,
-				OTPAuth:      fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", in.UID),
 			})
 			return
 		}
@@ -481,8 +479,6 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(client.StaffResetResult{
 			LDAPPassword: "reset-mock-ldap-password-" + uid,
-			MailPassword: "reset-mock-mail-password-" + uid,
-			OTPAuth:      fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", uid),
 		})
 	})
 
@@ -514,8 +510,6 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 		_ = json.NewEncoder(w).Encode(client.StaffCreateResult{
 			StaffMember:  *member,
 			LDAPPassword: "recreated-mock-ldap-password-" + uid,
-			MailPassword: "recreated-mock-mail-password-" + uid,
-			OTPAuth:      fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", uid),
 		})
 	})
 
@@ -745,13 +739,12 @@ func TestScenariosIntegration(t *testing.T) {
 			"--name", "Alice Smith",
 			"--forward", "alice@example.com",
 			"--groups", "dev,core",
-			"--totp",
 			"--invite",
 		)
 		if err != nil {
 			t.Fatalf("STF-01 staff create failed: %v\nOutput: %s", err, createOut)
 		}
-		if !strings.Contains(createOut, "alice") || !strings.Contains(createOut, "sso") {
+		if !strings.Contains(createOut, "alice") || !strings.Contains(createOut, "shared") {
 			t.Errorf("STF-01 create output missing alice details: %s", createOut)
 		}
 
@@ -784,7 +777,7 @@ func TestScenariosIntegration(t *testing.T) {
 		}
 
 		pwOut, err := executeOrbit("staff", "reset-password", "alice", "--server", srv.URL)
-		if err != nil || (!strings.Contains(pwOut, "Password") && !strings.Contains(pwOut, "sso")) {
+		if err != nil || !strings.Contains(pwOut, "shared") {
 			t.Errorf("STF-04 staff reset-password failed: %v\nOutput: %s", err, pwOut)
 		}
 

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -19,15 +18,16 @@ import (
 )
 
 const (
-	defaultStaffServerURL = "https://staff.internal.manova.space"
-	staffOwnerUnverified  = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before managing staff."
+	defaultStaffServerURL     = "https://staff.internal.manova.space"
+	defaultKeycloakAccountURL = "https://identity.internal.manova.space/realms/staff/account"
+	staffOwnerUnverified      = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before managing staff."
 )
 
 func newStaffCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "staff",
 		Short: "Manage Orbit staff via the staff control plane",
-		Long:  "Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, verdaccio-bind, verdaccio-ci.",
+		Long:  "Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.",
 	}
 	cmd.PersistentFlags().String("server", "", "staff server URL (or ORBIT_STAFF_URL)")
 	cmd.PersistentFlags().String("owner-store", "", "path to owner.json vault")
@@ -50,7 +50,6 @@ func newStaffCreateCmd() *cobra.Command {
 		nameFlag        string
 		forwardFlag     string
 		groupsFlag      string
-		totpFlag        bool
 		idemFlag        string
 		inviteFlag      bool
 		inviteEmailFlag string
@@ -59,7 +58,7 @@ func newStaffCreateCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a staff member (lldap + mailbox)",
+		Short: "Create a staff member (LLDAP + retained mailbox)",
 		Long:  "Create a staff member and optionally generate a signed onboarding invite token with --invite.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
@@ -87,7 +86,6 @@ func newStaffCreateCmd() *cobra.Command {
 				DisplayName:     strings.TrimSpace(nameFlag),
 				PersonalForward: forward,
 				Groups:          groups,
-				TOTP:            totpFlag,
 				IdempotencyKey:  idem,
 			})
 			if err != nil {
@@ -97,16 +95,7 @@ func newStaffCreateCmd() *cobra.Command {
 
 			// --invite: generate a signed onboarding invite token and dispatch
 			if inviteFlag {
-				otpauth := res.OTPAuth
-				if otpauth == "" && totpFlag {
-					inviteEmail := strings.TrimSpace(inviteEmailFlag)
-					if inviteEmail == "" {
-						inviteEmail = forward
-					}
-					_, fallbackURI, _ := invite.GenerateTOTP("Orbit", inviteEmail)
-					otpauth = fallbackURI
-				}
-				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth, noSendFlag)
+				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, noSendFlag)
 			}
 
 			return nil
@@ -116,7 +105,6 @@ func newStaffCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
 	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email (required)")
 	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
-	cmd.Flags().BoolVar(&totpFlag, "totp", false, "enroll Authelia TOTP")
 	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key (generated if empty)")
 	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account creation")
 	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
@@ -307,37 +295,33 @@ func newStaffDeleteCmd() *cobra.Command {
 }
 
 func newStaffResetPasswordCmd() *cobra.Command {
-	var ldapFlag, mailboxFlag, totpFlag bool
+	var ldapFlag, mailboxFlag bool
 	cmd := &cobra.Command{
 		Use:   "reset-password <uid>",
-		Short: "Rotate ldap and/or mailbox passwords, optionally Authelia TOTP",
+		Short: "Rotate the LLDAP password used for staff SSO and mailbox sign-in",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
 			if err != nil {
 				return err
 			}
-			res, err := c.ResetPassword(context.Background(), args[0], ldapFlag, mailboxFlag, totpFlag)
+			res, err := c.ResetPassword(context.Background(), args[0], ldapFlag, mailboxFlag)
 			if err != nil {
 				return err
 			}
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "uid    %s\n", args[0])
 			if res.LDAPPassword != "" {
-				fmt.Fprintf(out, "sso    %s\n", res.LDAPPassword)
+				fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 			}
-			if res.MailPassword != "" {
-				fmt.Fprintf(out, "mail   %s\n", res.MailPassword)
-			}
-			if res.OTPAuth != "" {
-				fmt.Fprintf(out, "otpauth %s\n", res.OTPAuth)
+			if res.Warning != "" {
+				fmt.Fprintf(out, "warning %s\n", res.Warning)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset SSO/ldap password")
-	cmd.Flags().BoolVar(&mailboxFlag, "mailbox", false, "reset mailbox password")
-	cmd.Flags().BoolVar(&totpFlag, "totp", false, "replace Authelia TOTP and print otpauth")
+	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset the shared LLDAP password used for SSO and mail")
+	cmd.Flags().BoolVar(&mailboxFlag, "mailbox", false, "deprecated alias for the shared LLDAP password")
 	return cmd
 }
 
@@ -347,7 +331,6 @@ func newStaffRecreateCmd() *cobra.Command {
 		nameFlag        string
 		forwardFlag     string
 		groupsFlag      string
-		totpFlag        bool
 		idemFlag        string
 		inviteFlag      bool
 		inviteEmailFlag string
@@ -356,79 +339,26 @@ func newStaffRecreateCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "recreate",
-		Short: "Delete then create a staff member (fresh SSO + mailbox)",
-		Long:  "Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.",
+		Short: "Deprecated: use the safe Keycloak identity reset procedure",
+		Long:  "This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := staffClientFromCmd(cmd)
-			if err != nil {
-				return err
-			}
 			uid := strings.TrimSpace(uidFlag)
 			if uid == "" {
-				return errors.New("required flag --uid")
+				uid = "<uid>"
 			}
-			forward := strings.TrimSpace(forwardFlag)
-			if forward == "" || !strings.Contains(forward, "@") {
-				return errors.New("required flag --forward with an email address")
-			}
-			if err := c.Delete(context.Background(), uid); err != nil && !staffIsNotFound(err) {
-				return err
-			}
-			idem := strings.TrimSpace(idemFlag)
-			if idem == "" {
-				idem, err = newIdempotencyKey()
-				if err != nil {
-					return err
-				}
-			}
-			res, err := c.Create(context.Background(), client.StaffCreateInput{
-				UID:             uid,
-				DisplayName:     strings.TrimSpace(nameFlag),
-				PersonalForward: forward,
-				Groups:          splitCSV(groupsFlag),
-				TOTP:            totpFlag,
-				IdempotencyKey:  idem,
-			})
-			if err != nil {
-				return err
-			}
-			printStaffCreate(cmd, res)
-
-			// --invite: generate a signed onboarding invite token and dispatch
-			if inviteFlag {
-				otpauth := res.OTPAuth
-				if otpauth == "" && totpFlag {
-					inviteEmail := strings.TrimSpace(inviteEmailFlag)
-					if inviteEmail == "" {
-						inviteEmail = forward
-					}
-					_, fallbackURI, _ := invite.GenerateTOTP("Orbit", inviteEmail)
-					otpauth = fallbackURI
-				}
-				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth, noSendFlag)
-			}
-
-			return nil
+			return fmt.Errorf("staff recreate is disabled because it can leave a stale Keycloak login; use: o staff delete %s, python3 /opt/orbit-infra/scripts/remove-keycloak-staff-user.py --uid %s, then o staff create --uid %s --forward <email>", uid, uid, uid)
 		},
 	}
-	cmd.Flags().StringVar(&uidFlag, "uid", "", "staff uid (required)")
-	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
-	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email (required)")
-	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
-	cmd.Flags().BoolVar(&totpFlag, "totp", false, "enroll Authelia TOTP after recreate")
-	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key for create (generated if empty)")
-	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account recreation")
-	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
-	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "invite token TTL (e.g. 7d, 24h, 168h)")
-	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "suppress dispatching onboarding invitation email")
-	_ = cmd.MarkFlagRequired("uid")
-	_ = cmd.MarkFlagRequired("forward")
+	cmd.Flags().StringVar(&uidFlag, "uid", "", "UID to include in the safe reset instructions (legacy flag)")
+	cmd.Flags().StringVar(&nameFlag, "name", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&forwardFlag, "forward", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&groupsFlag, "groups", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "legacy flag; ignored because recreate is disabled")
 	return cmd
-}
-
-func staffIsNotFound(err error) bool {
-	var api *client.APIError
-	return errors.As(err, &api) && api.StatusCode == http.StatusNotFound
 }
 
 func staffClientFromCmd(cmd *cobra.Command) (*client.StaffClient, error) {
@@ -466,19 +396,15 @@ func printStaffCreate(cmd *cobra.Command, res *client.StaffCreateResult) {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "uid    %s\n", res.UID)
 	if res.LDAPPassword != "" {
-		fmt.Fprintf(out, "sso    %s\n", res.LDAPPassword)
-	}
-	if res.MailPassword != "" {
-		fmt.Fprintf(out, "mail   %s\n", res.MailPassword)
+		fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 	}
 	if res.PersonalForward != "" {
 		fmt.Fprintf(out, "fwd    %s\n", res.PersonalForward)
 	}
-	if res.OTPAuth != "" {
-		fmt.Fprintf(out, "otpauth %s\n", res.OTPAuth)
-	}
 	if res.Idempotent {
 		fmt.Fprintf(out, "idempotent true\n")
+	} else {
+		fmt.Fprintf(out, "next   sign in at %s with this LLDAP password, link Google, and register a passkey\n", defaultKeycloakAccountURL)
 	}
 }
 
@@ -509,7 +435,7 @@ func newIdempotencyKey() (string, error) {
 // createStaffInvite generates a signed onboarding invite token for a newly created staff member.
 // It resolves the signing secret from the owner store or environment, generates the token,
 // saves it to the invite store, and returns the token string and invite ID.
-func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr, otpauth string) (tokenStr, inviteID string, err error) {
+func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr string) (tokenStr, inviteID string, err error) {
 	ownerStoreFlag := staffPersistentString(cmd, "owner-store")
 	ownerStore := owner.NewStore(ownerStoreFlag)
 	ownerRecord, _ := ownerStore.LoadOwner()
@@ -535,20 +461,12 @@ func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr, otpauth s
 		createdBy = ownerRecord.Email
 	}
 
-	var metadata map[string]string
-	if strings.TrimSpace(otpauth) != "" {
-		metadata = map[string]string{
-			"otpauth": strings.TrimSpace(otpauth),
-		}
-	}
-
 	req := invite.InviteRequest{
 		Email:       email,
 		DisplayName: displayName,
 		Scope:       "core",
 		TTL:         ttl,
 		CreatedBy:   createdBy,
-		Metadata:    metadata,
 	}
 
 	tokenStr, claims, err := invite.GenerateToken(req, secret)
@@ -580,12 +498,12 @@ func createStaffInvite(cmd *cobra.Command, email, displayName, ttlStr, otpauth s
 	return tokenStr, claims.ID, nil
 }
 
-func dispatchStaffInvite(cmd *cobra.Command, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, otpauth string, noSend bool) {
+func dispatchStaffInvite(cmd *cobra.Command, forward, inviteEmailFlag, nameFlag, inviteTTLFlag string, noSend bool) {
 	inviteEmail := strings.TrimSpace(inviteEmailFlag)
 	if inviteEmail == "" {
 		inviteEmail = forward
 	}
-	tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag, otpauth)
+	tokenStr, invID, err := createStaffInvite(cmd, inviteEmail, strings.TrimSpace(nameFlag), inviteTTLFlag)
 	if err != nil {
 		fmt.Fprintf(cmd.OutOrStdout(), "warn   invite generation failed: %v\n", err)
 		return
@@ -618,4 +536,3 @@ func dispatchStaffInvite(cmd *cobra.Command, forward, inviteEmailFlag, nameFlag,
 		}
 	}
 }
-

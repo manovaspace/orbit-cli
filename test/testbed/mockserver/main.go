@@ -146,7 +146,7 @@ func NewMockServer(cfg Config) *MockServer {
 func isReservedUID(uid string) bool {
 	clean := strings.ToLower(strings.TrimSpace(uid))
 	switch clean {
-	case "admin", "authelia-bind", "verdaccio-bind", "verdaccio-ci":
+	case "admin", "authelia-bind", "keycloak-bind", "verdaccio-bind", "verdaccio-ci":
 		return true
 	default:
 		return false
@@ -674,16 +674,9 @@ func (s *MockServer) handleStaffCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.staffMembers[uid] = member
 
-	otpAuth := ""
-	if in.TOTP {
-		otpAuth = fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", uid)
-	}
-
 	writeJSON(w, http.StatusCreated, client.StaffCreateResult{
 		StaffMember:  *member,
 		LDAPPassword: "mock-ldap-password-" + uid,
-		MailPassword: "mock-mail-password-" + uid,
-		OTPAuth:      otpAuth,
 		Idempotent:   false,
 	})
 }
@@ -835,8 +828,6 @@ func (s *MockServer) handleStaffResetPassword(w http.ResponseWriter, r *http.Req
 
 	writeJSON(w, http.StatusOK, client.StaffResetResult{
 		LDAPPassword: "reset-mock-ldap-password-" + uid,
-		MailPassword: "reset-mock-mail-password-" + uid,
-		OTPAuth:      fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", uid),
 	})
 }
 
@@ -871,16 +862,9 @@ func (s *MockServer) handleStaffRecreate(w http.ResponseWriter, r *http.Request)
 	}
 	s.staffMembers[uid] = member
 
-	otpAuth := ""
-	if in.TOTP {
-		otpAuth = fmt.Sprintf("otpauth://totp/Orbit:%s@manova.space?secret=JBSWY3DPEHPK3PXP&issuer=Orbit", uid)
-	}
-
 	writeJSON(w, http.StatusCreated, client.StaffCreateResult{
 		StaffMember:  *member,
 		LDAPPassword: "recreated-mock-ldap-password-" + uid,
-		MailPassword: "recreated-mock-mail-password-" + uid,
-		OTPAuth:      otpAuth,
 		Idempotent:   false,
 	})
 }

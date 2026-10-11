@@ -23,3 +23,4 @@ orbit migrate status [flags]
 ### SEE ALSO
 
 * [orbit migrate](orbit_migrate.md)	 - Run and inspect workspace state migrations
+

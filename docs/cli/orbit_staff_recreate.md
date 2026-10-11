@@ -1,10 +1,10 @@
 ## orbit staff recreate
 
-Delete then create a staff member (fresh SSO + mailbox)
+Deprecated: use the safe Keycloak identity reset procedure
 
 ### Synopsis
 
-Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.
+This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.
 
 ```
 orbit staff recreate [flags]
@@ -13,17 +13,16 @@ orbit staff recreate [flags]
 ### Options
 
 ```
-      --forward string           personal forward email (required)
-      --groups string            comma-separated groups (default server-side: dev)
+      --forward string           legacy flag; ignored because recreate is disabled
+      --groups string            legacy flag; ignored because recreate is disabled
   -h, --help                     help for recreate
-      --idempotency-key string   idempotency key for create (generated if empty)
-      --invite                   generate and print a signed onboarding invite token after account recreation
-      --invite-email string      email address for the invite token (defaults to --forward value)
-      --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
-      --name string              display name
-      --no-send                  suppress dispatching onboarding invitation email
-      --totp                     enroll Authelia TOTP after recreate
-      --uid string               staff uid (required)
+      --idempotency-key string   legacy flag; ignored because recreate is disabled
+      --invite                   legacy flag; ignored because recreate is disabled
+      --invite-email string      legacy flag; ignored because recreate is disabled
+      --invite-ttl string        legacy flag; ignored because recreate is disabled (default "7d")
+      --name string              legacy flag; ignored because recreate is disabled
+      --no-send                  legacy flag; ignored because recreate is disabled
+      --uid string               UID to include in the safe reset instructions (legacy flag)
 ```
 
 ### Options inherited from parent commands
@@ -37,3 +36,4 @@ orbit staff recreate [flags]
 ### SEE ALSO
 
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
+

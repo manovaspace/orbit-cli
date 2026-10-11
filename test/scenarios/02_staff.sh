@@ -17,20 +17,18 @@ scenario_start "STF-01" "Staff Create with Onboarding Invite & TOTP Enrollment"
 setup_test_sandbox "stf-01"
 seed_owner_vault
 
-log_step "Creating staff member alice with TOTP and invite flags..."
+log_step "Creating staff member alice with invite flag..."
 create_out=$(run_orbit staff create --server "${ORBIT_STAFF_URL}" \
     --uid alice \
     --name "Alice Smith" \
     --forward alice@example.com \
     --groups "dev,core" \
-    --totp \
     --invite)
 
 assert_contains "${create_out}" "uid    alice" "Output confirms created UID alice"
-assert_contains "${create_out}" "sso    mock-ldap-password-alice" "SSO password generated"
-assert_contains "${create_out}" "mail   mock-mail-password-alice" "Mailbox password generated"
+assert_contains "${create_out}" "shared mock-ldap-password-alice" "Shared SSO and mail password generated"
 assert_contains "${create_out}" "fwd    alice@example.com" "Personal forward recorded"
-assert_contains "${create_out}" "otpauth" "Authelia TOTP URI generated"
+assert_not_contains "${create_out}" "otpauth" "No Authelia TOTP secret generated"
 assert_contains "${create_out}" "token" "Onboarding invite token generated"
 
 cleanup_test_sandbox
@@ -120,19 +118,21 @@ get_updated=$(run_orbit staff get dave --server "${ORBIT_STAFF_URL}")
 assert_contains "${get_updated}" "name   Dave Updated" "Get confirms updated name"
 assert_contains "${get_updated}" "fwd    dave-new@example.com" "Get confirms updated forward email"
 
-log_step "Resetting passwords & TOTP for dave..."
-reset_out=$(run_orbit staff reset-password dave --server "${ORBIT_STAFF_URL}" --ldap --totp)
-assert_contains "${reset_out}" "sso    reset-mock-ldap-password-dave" "SSO password reset confirmed"
-assert_contains "${reset_out}" "otpauth" "TOTP reset confirmed"
+log_step "Resetting the shared SSO and mail password for dave..."
+reset_out=$(run_orbit staff reset-password dave --server "${ORBIT_STAFF_URL}" --ldap)
+assert_contains "${reset_out}" "shared reset-mock-ldap-password-dave" "Shared password reset confirmed"
+assert_not_contains "${reset_out}" "otpauth" "No Authelia TOTP secret generated"
 
-log_step "Atomic recreate for dave..."
+log_step "Confirming staff recreate is blocked until the Keycloak shadow is removed..."
+set +e
 recreate_out=$(run_orbit staff recreate --server "${ORBIT_STAFF_URL}" \
     --uid dave \
     --name "Dave Miller Fresh" \
-    --forward dave-fresh@example.com \
-    --totp)
-assert_contains "${recreate_out}" "mock-ldap-password-dave" "Recreate generates fresh credentials"
-assert_contains "${recreate_out}" "dave-fresh@example.com" "Recreate saves updated personal forward"
+    --forward dave-fresh@example.com 2>&1)
+recreate_status=$?
+set -e
+assert_not_equals "${recreate_status}" "0" "Recreate refuses unsafe identity replacement"
+assert_contains "${recreate_out}" "remove-keycloak-staff-user.py --uid dave" "Recreate gives the Keycloak cleanup sequence"
 
 log_step "Deleting staff user dave..."
 del_out=$(run_orbit staff delete dave --server "${ORBIT_STAFF_URL}")
@@ -170,7 +170,7 @@ assert_contains "${bad_hmac_out}" "bad hmac" "Staff API rejects mismatched HMAC 
 seed_owner_vault
 
 log_step "Testing reserved system UIDs rejection on staff create..."
-reserved_uids=("admin" "authelia-bind" "verdaccio-bind" "verdaccio-ci")
+reserved_uids=("admin" "authelia-bind" "keycloak-bind" "verdaccio-bind" "verdaccio-ci")
 
 for uid in "${reserved_uids[@]}"; do
     set +e
