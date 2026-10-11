@@ -3,7 +3,7 @@
 
 .SH NAME
 .PP
-orbit-staff-recreate - Replace a staff login while retaining mailbox contents
+orbit-staff-recreate - Deprecated: use the safe Keycloak identity reset procedure
 
 
 .SH SYNOPSIS
@@ -13,17 +13,17 @@ orbit-staff-recreate - Replace a staff login while retaining mailbox contents
 
 .SH DESCRIPTION
 .PP
-Deletes and recreates only the LLDAP identity. The Stalwart mailbox, messages, and forwarding rule remain. The staff member signs in to Keycloak with the new LLDAP password, links Google, and enrolls a passkey. Reserved directory accounts are rejected.
+This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.
 
 
 .SH OPTIONS
 .PP
 \fB--forward\fP=""
-	personal forward email (required)
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--groups\fP=""
-	comma-separated groups (default server-side: dev)
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
@@ -31,31 +31,31 @@ Deletes and recreates only the LLDAP identity. The Stalwart mailbox, messages, a
 
 .PP
 \fB--idempotency-key\fP=""
-	idempotency key for create (generated if empty)
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--invite\fP[=false]
-	generate and print a signed onboarding invite token after account recreation
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--invite-email\fP=""
-	email address for the invite token (defaults to --forward value)
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--invite-ttl\fP="7d"
-	invite token TTL (e.g. 7d, 24h, 168h)
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--name\fP=""
-	display name
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--no-send\fP[=false]
-	suppress dispatching onboarding invitation email
+	legacy flag; ignored because recreate is disabled
 
 .PP
 \fB--uid\fP=""
-	staff uid (required)
+	UID to include in the safe reset instructions (legacy flag)
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS

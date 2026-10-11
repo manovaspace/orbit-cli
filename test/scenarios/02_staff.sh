@@ -123,14 +123,16 @@ reset_out=$(run_orbit staff reset-password dave --server "${ORBIT_STAFF_URL}" --
 assert_contains "${reset_out}" "shared reset-mock-ldap-password-dave" "Shared password reset confirmed"
 assert_not_contains "${reset_out}" "otpauth" "No Authelia TOTP secret generated"
 
-log_step "Atomic recreate for dave..."
+log_step "Confirming staff recreate is blocked until the Keycloak shadow is removed..."
+set +e
 recreate_out=$(run_orbit staff recreate --server "${ORBIT_STAFF_URL}" \
     --uid dave \
     --name "Dave Miller Fresh" \
-    --forward dave-fresh@example.com
-    )
-assert_contains "${recreate_out}" "shared mock-ldap-password-dave" "Recreate generates fresh shared credentials"
-assert_contains "${recreate_out}" "dave-fresh@example.com" "Recreate saves updated personal forward"
+    --forward dave-fresh@example.com 2>&1)
+recreate_status=$?
+set -e
+assert_not_equals "${recreate_status}" "0" "Recreate refuses unsafe identity replacement"
+assert_contains "${recreate_out}" "remove-keycloak-staff-user.py --uid dave" "Recreate gives the Keycloak cleanup sequence"
 
 log_step "Deleting staff user dave..."
 del_out=$(run_orbit staff delete dave --server "${ORBIT_STAFF_URL}")

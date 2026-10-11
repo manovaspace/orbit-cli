@@ -29,7 +29,7 @@ Create, list, update, disable, enable, delete, recreate, and reset passwords for
 * [orbit staff enable](orbit_staff_enable.md)	 - Enable a staff member
 * [orbit staff get](orbit_staff_get.md)	 - Get a staff member
 * [orbit staff list](orbit_staff_list.md)	 - List staff members
-* [orbit staff recreate](orbit_staff_recreate.md)	 - Replace a staff login while retaining mailbox contents
+* [orbit staff recreate](orbit_staff_recreate.md)	 - Deprecated: use the safe Keycloak identity reset procedure
 * [orbit staff reset-password](orbit_staff_reset-password.md)	 - Rotate the LLDAP password used for staff SSO and mailbox sign-in
 * [orbit staff update](orbit_staff_update.md)	 - Update display name, forward, or groups
 

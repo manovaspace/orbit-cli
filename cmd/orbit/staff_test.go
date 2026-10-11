@@ -64,79 +64,14 @@ func TestStaffRecreateRegistered(t *testing.T) {
 	}
 }
 
-func TestStaffRecreateDeletesThenCreates(t *testing.T) {
-	var methods []string
+func TestStaffRecreateRefusesWithoutDeleting(t *testing.T) {
+	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods = append(methods, r.Method+" "+r.URL.Path)
-		switch {
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/staff/sara":
-			w.WriteHeader(http.StatusNoContent)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/staff":
-			body, _ := io.ReadAll(r.Body)
-			var in map[string]any
-			_ = json.Unmarshal(body, &in)
-			if in["uid"] != "sara" || in["totp"] != nil {
-				t.Errorf("create body = %s", body)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"uid":              "sara",
-				"display_name":     "Sara",
-				"mail":             "sara@manova.space",
-				"personal_forward": "sara@gmail.com",
-				"ldap_password":    "sso-pass",
-			})
-		default:
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
-			w.WriteHeader(http.StatusNotFound)
-		}
+		called = true
+		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 	}))
 	defer srv.Close()
 
-	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
-	buf := new(bytes.Buffer)
-	cmd := newRootCmdForTest(t)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"staff", "recreate",
-		"--uid", "sara",
-		"--name", "Sara",
-		"--forward", "sara@gmail.com",
-		"--owner-store", storePath,
-		"--server", srv.URL,
-	})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("recreate: %v\n%s", err, buf.String())
-	}
-	if len(methods) != 2 || methods[0] != "DELETE /api/v1/staff/sara" || methods[1] != "POST /api/v1/staff" {
-		t.Fatalf("methods = %v", methods)
-	}
-	out := buf.String()
-	if !strings.Contains(out, "shared sso-pass") || !strings.Contains(out, "link Google") || !strings.Contains(out, "register a passkey") {
-		t.Fatalf("output = %q", out)
-	}
-}
-
-func TestStaffRecreateIgnoresDelete404(t *testing.T) {
-	created := false
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"error":"not found"}`))
-			return
-		}
-		created = true
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"uid":              "sara",
-			"personal_forward": "sara@gmail.com",
-			"ldap_password":    "sso-pass",
-		})
-	}))
-	defer srv.Close()
-
-	storePath, _ := createTestVerifiedOwnerStore(t, t.TempDir())
 	buf := new(bytes.Buffer)
 	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
@@ -145,14 +80,14 @@ func TestStaffRecreateIgnoresDelete404(t *testing.T) {
 		"staff", "recreate",
 		"--uid", "sara",
 		"--forward", "sara@gmail.com",
-		"--owner-store", storePath,
 		"--server", srv.URL,
 	})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("recreate: %v\n%s", err, buf.String())
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "staff recreate is disabled") {
+		t.Fatalf("expected safe refusal, got err=%v output=%s", err, buf.String())
 	}
-	if !created {
-		t.Fatal("expected create after 404 delete")
+	if !strings.Contains(err.Error(), "remove-keycloak-staff-user.py --uid sara") || called {
+		t.Fatalf("expected cleanup instructions and no HTTP calls, got err=%v called=%v", err, called)
 	}
 }
 

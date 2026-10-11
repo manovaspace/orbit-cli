@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -340,68 +339,26 @@ func newStaffRecreateCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "recreate",
-		Short: "Replace a staff login while retaining mailbox contents",
-		Long:  "Deletes and recreates only the LLDAP identity. The Stalwart mailbox, messages, and forwarding rule remain. The staff member signs in to Keycloak with the new LLDAP password, links Google, and enrolls a passkey. Reserved directory accounts are rejected.",
+		Short: "Deprecated: use the safe Keycloak identity reset procedure",
+		Long:  "This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := staffClientFromCmd(cmd)
-			if err != nil {
-				return err
-			}
 			uid := strings.TrimSpace(uidFlag)
 			if uid == "" {
-				return errors.New("required flag --uid")
+				uid = "<uid>"
 			}
-			forward := strings.TrimSpace(forwardFlag)
-			if forward == "" || !strings.Contains(forward, "@") {
-				return errors.New("required flag --forward with an email address")
-			}
-			if err := c.Delete(context.Background(), uid); err != nil && !staffIsNotFound(err) {
-				return err
-			}
-			idem := strings.TrimSpace(idemFlag)
-			if idem == "" {
-				idem, err = newIdempotencyKey()
-				if err != nil {
-					return err
-				}
-			}
-			res, err := c.Create(context.Background(), client.StaffCreateInput{
-				UID:             uid,
-				DisplayName:     strings.TrimSpace(nameFlag),
-				PersonalForward: forward,
-				Groups:          splitCSV(groupsFlag),
-				IdempotencyKey:  idem,
-			})
-			if err != nil {
-				return err
-			}
-			printStaffCreate(cmd, res)
-
-			// --invite: generate a signed onboarding invite token and dispatch
-			if inviteFlag {
-				dispatchStaffInvite(cmd, forward, inviteEmailFlag, nameFlag, inviteTTLFlag, noSendFlag)
-			}
-
-			return nil
+			return fmt.Errorf("staff recreate is disabled because it can leave a stale Keycloak login; use: o staff delete %s, python3 /opt/orbit-infra/scripts/remove-keycloak-staff-user.py --uid %s, then o staff create --uid %s --forward <email>", uid, uid, uid)
 		},
 	}
-	cmd.Flags().StringVar(&uidFlag, "uid", "", "staff uid (required)")
-	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
-	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email (required)")
-	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
-	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key for create (generated if empty)")
-	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "generate and print a signed onboarding invite token after account recreation")
-	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "email address for the invite token (defaults to --forward value)")
-	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "invite token TTL (e.g. 7d, 24h, 168h)")
-	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "suppress dispatching onboarding invitation email")
-	_ = cmd.MarkFlagRequired("uid")
-	_ = cmd.MarkFlagRequired("forward")
+	cmd.Flags().StringVar(&uidFlag, "uid", "", "UID to include in the safe reset instructions (legacy flag)")
+	cmd.Flags().StringVar(&nameFlag, "name", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&forwardFlag, "forward", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&groupsFlag, "groups", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().BoolVar(&inviteFlag, "invite", false, "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&inviteEmailFlag, "invite-email", "", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().StringVar(&inviteTTLFlag, "invite-ttl", "7d", "legacy flag; ignored because recreate is disabled")
+	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "legacy flag; ignored because recreate is disabled")
 	return cmd
-}
-
-func staffIsNotFound(err error) bool {
-	var api *client.APIError
-	return errors.As(err, &api) && api.StatusCode == http.StatusNotFound
 }
 
 func staffClientFromCmd(cmd *cobra.Command) (*client.StaffClient, error) {
