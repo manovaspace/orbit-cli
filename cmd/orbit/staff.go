@@ -313,13 +313,13 @@ func newStaffResetPasswordCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "uid    %s\n", args[0])
 			if res.LDAPPassword != "" {
-				fmt.Fprintf(out, "sso    %s\n", res.LDAPPassword)
+				fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset SSO/ldap password")
-	cmd.Flags().BoolVar(&mailboxFlag, "mailbox", false, "reset mailbox password")
+	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset the shared LLDAP password used for SSO and mail")
+	cmd.Flags().BoolVar(&mailboxFlag, "mailbox", false, "deprecated alias for the shared LLDAP password")
 	return cmd
 }
 
@@ -436,7 +436,7 @@ func printStaffCreate(cmd *cobra.Command, res *client.StaffCreateResult) {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "uid    %s\n", res.UID)
 	if res.LDAPPassword != "" {
-		fmt.Fprintf(out, "sso    %s\n", res.LDAPPassword)
+		fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 	}
 	if res.PersonalForward != "" {
 		fmt.Fprintf(out, "fwd    %s\n", res.PersonalForward)

@@ -73,4 +73,7 @@ func TestGeneratedMarkdownOmitsStaffResetTOTP(t *testing.T) {
 	if strings.Contains(string(body), "--totp") {
 		t.Fatalf("staff reset markdown contains retired --totp flag: %s", body)
 	}
+	if !strings.Contains(string(body), "deprecated alias for the shared LLDAP password") {
+		t.Fatalf("staff reset documentation must explain the mailbox alias: %s", body)
+	}
 }

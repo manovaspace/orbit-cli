@@ -10,8 +10,8 @@ orbit staff reset-password <uid> [flags]
 
 ```
   -h, --help      help for reset-password
-      --ldap      reset SSO/ldap password
-      --mailbox   reset mailbox password
+      --ldap      reset the shared LLDAP password used for SSO and mail
+      --mailbox   deprecated alias for the shared LLDAP password
 ```
 
 ### Options inherited from parent commands

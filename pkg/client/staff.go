@@ -133,7 +133,8 @@ func (c *StaffClient) Delete(ctx context.Context, uid string) error {
 	return c.do(ctx, http.MethodDelete, staffPath(uid), nil, nil, nil)
 }
 
-// ResetPassword POSTs reset-password with targets ldap/mailbox.
+// ResetPassword POSTs reset-password with legacy ldap/mailbox targets. Both
+// targets rotate the shared LLDAP password used for staff SSO and mail.
 func (c *StaffClient) ResetPassword(ctx context.Context, uid string, ldap, mailbox bool) (*StaffResetResult, error) {
 	targets := make([]string, 0, 2)
 	if ldap {

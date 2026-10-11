@@ -744,7 +744,7 @@ func TestScenariosIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("STF-01 staff create failed: %v\nOutput: %s", err, createOut)
 		}
-		if !strings.Contains(createOut, "alice") || !strings.Contains(createOut, "sso") {
+		if !strings.Contains(createOut, "alice") || !strings.Contains(createOut, "shared") {
 			t.Errorf("STF-01 create output missing alice details: %s", createOut)
 		}
 
@@ -777,7 +777,7 @@ func TestScenariosIntegration(t *testing.T) {
 		}
 
 		pwOut, err := executeOrbit("staff", "reset-password", "alice", "--server", srv.URL)
-		if err != nil || (!strings.Contains(pwOut, "Password") && !strings.Contains(pwOut, "sso")) {
+		if err != nil || !strings.Contains(pwOut, "shared") {
 			t.Errorf("STF-04 staff reset-password failed: %v\nOutput: %s", err, pwOut)
 		}
 

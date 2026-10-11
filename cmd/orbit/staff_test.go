@@ -113,7 +113,7 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 		t.Fatalf("methods = %v", methods)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "sso    sso-pass") || !strings.Contains(out, "link Google") || !strings.Contains(out, "register a passkey") {
+	if !strings.Contains(out, "shared sso-pass") || !strings.Contains(out, "link Google") || !strings.Contains(out, "register a passkey") {
 		t.Fatalf("output = %q", out)
 	}
 }
@@ -187,7 +187,7 @@ func TestStaffResetPasswordLDAP(t *testing.T) {
 	if !strings.Contains(string(gotBody), `"ldap"`) || strings.Contains(string(gotBody), `"totp"`) {
 		t.Fatalf("body = %s", gotBody)
 	}
-	if !strings.Contains(buf.String(), "sso    rotated-password") {
+	if !strings.Contains(buf.String(), "shared rotated-password") {
 		t.Fatalf("output = %q", buf.String())
 	}
 }
