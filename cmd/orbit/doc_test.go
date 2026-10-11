@@ -55,12 +55,12 @@ func TestGeneratedManPagesIncludeStaffRecreate(t *testing.T) {
 	if !strings.Contains(text, "recreate") {
 		t.Fatalf("man page missing recreate: %s", text)
 	}
-	if !strings.Contains(text, "--totp") {
-		t.Fatalf("man page missing --totp: %s", text)
+	if strings.Contains(text, "--totp") {
+		t.Fatalf("staff recreate man page contains retired --totp flag: %s", text)
 	}
 }
 
-func TestGeneratedMarkdownIncludesStaffResetTOTP(t *testing.T) {
+func TestGeneratedMarkdownOmitsStaffResetTOTP(t *testing.T) {
 	dir := t.TempDir()
 	if err := doc.GenMarkdownTree(newRootCmd(), dir); err != nil {
 		t.Fatalf("GenMarkdownTree: %v", err)
@@ -70,7 +70,7 @@ func TestGeneratedMarkdownIncludesStaffResetTOTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
-	if !strings.Contains(string(body), "--totp") {
-		t.Fatalf("markdown missing --totp: %s", body)
+	if strings.Contains(string(body), "--totp") {
+		t.Fatalf("staff reset markdown contains retired --totp flag: %s", body)
 	}
 }

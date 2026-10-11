@@ -45,7 +45,7 @@ Tier 1 invariants represent non-negotiable security, integrity, and safety prope
 #### 2. Staff HMAC & Reserved UID Protection
 - Every staff HTTP request must sign payloads with HMAC-SHA256 (`X-Orbit-Timestamp`, `X-Orbit-Signature`).
 - Mismatched, expired, or missing HMAC signatures must return HTTP 401 Unauthorized.
-- Reserved directory accounts (`admin`, `authelia-bind`, `verdaccio-bind`, `verdaccio-ci`) must be rejected on creation, modification, or deletion.
+- Reserved directory accounts (`admin`, `authelia-bind`, `keycloak-bind`, `verdaccio-bind`, `verdaccio-ci`) must be rejected on creation, modification, or deletion.
 
 #### 3. Admin Grant 3-Strike Lockout
 - 8-digit CSPRNG grant codes permit a maximum of 3 failed attempts.

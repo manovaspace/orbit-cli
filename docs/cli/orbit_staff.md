@@ -4,7 +4,7 @@ Manage Orbit staff via the staff control plane
 
 ### Synopsis
 
-Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, verdaccio-bind, verdaccio-ci.
+Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
 
 ### Options
 
@@ -23,13 +23,13 @@ Create, list, update, disable, enable, delete, recreate, and reset passwords for
 ### SEE ALSO
 
 * [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
-* [orbit staff create](orbit_staff_create.md)	 - Create a staff member (lldap + mailbox)
+* [orbit staff create](orbit_staff_create.md)	 - Create a staff member (LLDAP + retained mailbox)
 * [orbit staff delete](orbit_staff_delete.md)	 - Delete a staff member
 * [orbit staff disable](orbit_staff_disable.md)	 - Disable a staff member
 * [orbit staff enable](orbit_staff_enable.md)	 - Enable a staff member
 * [orbit staff get](orbit_staff_get.md)	 - Get a staff member
 * [orbit staff list](orbit_staff_list.md)	 - List staff members
-* [orbit staff recreate](orbit_staff_recreate.md)	 - Delete then create a staff member (fresh SSO + mailbox)
-* [orbit staff reset-password](orbit_staff_reset-password.md)	 - Rotate ldap and/or mailbox passwords, optionally Authelia TOTP
+* [orbit staff recreate](orbit_staff_recreate.md)	 - Replace a staff login while retaining mailbox contents
+* [orbit staff reset-password](orbit_staff_reset-password.md)	 - Rotate the LLDAP password used for staff SSO and mailbox sign-in
 * [orbit staff update](orbit_staff_update.md)	 - Update display name, forward, or groups
 

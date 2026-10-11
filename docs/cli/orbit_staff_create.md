@@ -1,6 +1,6 @@
 ## orbit staff create
 
-Create a staff member (lldap + mailbox)
+Create a staff member (LLDAP + retained mailbox)
 
 ### Synopsis
 
@@ -22,7 +22,6 @@ orbit staff create [flags]
       --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
       --name string              display name
       --no-send                  suppress dispatching onboarding invitation email
-      --totp                     enroll Authelia TOTP
       --uid string               staff uid (required)
 ```
 
@@ -37,3 +36,4 @@ orbit staff create [flags]
 ### SEE ALSO
 
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
+

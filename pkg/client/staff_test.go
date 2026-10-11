@@ -54,7 +54,6 @@ func TestStaffClientCreateSignsHeaders(t *testing.T) {
 				Status:          "active",
 			},
 			LDAPPassword: "ldap-pass",
-			MailPassword: "mail-pass",
 			Idempotent:   false,
 		})
 	}))
@@ -89,7 +88,7 @@ func TestStaffClientCreateSignsHeaders(t *testing.T) {
 	}
 }
 
-func TestStaffClientResetPasswordTOTP(t *testing.T) {
+func TestStaffClientResetPasswordTargets(t *testing.T) {
 	secret := "test-hmac-secret-for-staff-client"
 	var gotBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,12 +101,12 @@ func TestStaffClientResetPasswordTOTP(t *testing.T) {
 			t.Fatalf("read body: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(StaffResetResult{OTPAuth: "otpauth://totp/fake:sara"})
+		_ = json.NewEncoder(w).Encode(StaffResetResult{LDAPPassword: "rotated"})
 	}))
 	defer srv.Close()
 
 	c := NewStaffClient(srv.URL, secret)
-	res, err := c.ResetPassword(context.Background(), "sara", false, false, true)
+	res, err := c.ResetPassword(context.Background(), "sara", true, false)
 	if err != nil {
 		t.Fatalf("ResetPassword: %v", err)
 	}
@@ -115,14 +114,11 @@ func TestStaffClientResetPasswordTOTP(t *testing.T) {
 	if err := json.Unmarshal(gotBody, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if len(payload["targets"]) != 1 || payload["targets"][0] != "totp" {
+	if len(payload["targets"]) != 1 || payload["targets"][0] != "ldap" {
 		t.Fatalf("targets = %v", payload["targets"])
 	}
-	if res.OTPAuth != "otpauth://totp/fake:sara" {
-		t.Fatalf("otpauth = %q", res.OTPAuth)
-	}
-	if res.LDAPPassword != "" || res.MailPassword != "" {
-		t.Fatalf("unexpected passwords: %+v", res)
+	if res.LDAPPassword != "rotated" {
+		t.Fatalf("ldap password = %q", res.LDAPPassword)
 	}
 }
 

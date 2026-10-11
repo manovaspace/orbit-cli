@@ -150,7 +150,6 @@ func TestStaffHMACAuthenticationAndReservedUserGuards(t *testing.T) {
 		DisplayName:     "Alice Developer",
 		PersonalForward: "alice@example.com",
 		Groups:          []string{"core", "dev"},
-		TOTP:            true,
 	})
 
 	// 1. Missing HMAC headers -> 401 Unauthorized
@@ -199,7 +198,7 @@ func TestStaffHMACAuthenticationAndReservedUserGuards(t *testing.T) {
 	}
 
 	// 4. Reserved UID rejection ("admin", "authelia-bind", "verdaccio-bind", "verdaccio-ci") -> 403 Forbidden
-	reservedUIDs := []string{"admin", "authelia-bind", "verdaccio-bind", "verdaccio-ci"}
+	reservedUIDs := []string{"admin", "authelia-bind", "keycloak-bind", "verdaccio-bind", "verdaccio-ci"}
 	for _, reserved := range reservedUIDs {
 		resPayload, _ := json.Marshal(client.StaffCreateInput{
 			UID:             reserved,
@@ -426,7 +425,6 @@ func TestStaffRecreateAndUpdate(t *testing.T) {
 		DisplayName:     "Dave Developer",
 		PersonalForward: "dave@example.com",
 		Groups:          []string{"core"},
-		TOTP:            true,
 	})
 	ts := time.Now().Unix()
 	sig := staffhmac.Sign(testHMACSecret, ts, http.MethodPost, "/api/v1/staff/dave/recreate", recreateBody)
@@ -487,4 +485,3 @@ func TestMockServerStartAndClose(t *testing.T) {
 		t.Fatalf("failed to close mock server: %v", err)
 	}
 }
-

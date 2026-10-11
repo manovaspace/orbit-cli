@@ -170,7 +170,7 @@ assert_contains "${bad_hmac_out}" "bad hmac" "Staff API rejects mismatched HMAC 
 seed_owner_vault
 
 log_step "Testing reserved system UIDs rejection on staff create..."
-reserved_uids=("admin" "authelia-bind" "verdaccio-bind" "verdaccio-ci")
+reserved_uids=("admin" "authelia-bind" "keycloak-bind" "verdaccio-bind" "verdaccio-ci")
 
 for uid in "${reserved_uids[@]}"; do
     set +e

@@ -3,7 +3,7 @@
 
 .SH NAME
 .PP
-orbit-staff-recreate - Delete then create a staff member (fresh SSO + mailbox)
+orbit-staff-recreate - Replace a staff login while retaining mailbox contents
 
 
 .SH SYNOPSIS
@@ -13,7 +13,7 @@ orbit-staff-recreate - Delete then create a staff member (fresh SSO + mailbox)
 
 .SH DESCRIPTION
 .PP
-Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.
+Deletes and recreates only the LLDAP identity. The Stalwart mailbox, messages, and forwarding rule remain. The staff member signs in to Keycloak with the new LLDAP password, links Google, and enrolls a passkey. Reserved directory accounts are rejected.
 
 
 .SH OPTIONS
@@ -52,10 +52,6 @@ Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them
 .PP
 \fB--no-send\fP[=false]
 	suppress dispatching onboarding invitation email
-
-.PP
-\fB--totp\fP[=false]
-	enroll Authelia TOTP after recreate
 
 .PP
 \fB--uid\fP=""

@@ -1,6 +1,6 @@
 ## orbit staff reset-password
 
-Rotate ldap and/or mailbox passwords, optionally Authelia TOTP
+Rotate the LLDAP password used for staff SSO and mailbox sign-in
 
 ```
 orbit staff reset-password <uid> [flags]
@@ -12,7 +12,6 @@ orbit staff reset-password <uid> [flags]
   -h, --help      help for reset-password
       --ldap      reset SSO/ldap password
       --mailbox   reset mailbox password
-      --totp      replace Authelia TOTP and print otpauth
 ```
 
 ### Options inherited from parent commands

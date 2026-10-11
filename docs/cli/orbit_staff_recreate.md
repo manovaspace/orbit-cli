@@ -1,10 +1,10 @@
 ## orbit staff recreate
 
-Delete then create a staff member (fresh SSO + mailbox)
+Replace a staff login while retaining mailbox contents
 
 ### Synopsis
 
-Wipes Authelia TOTP, the Stalwart mailbox, and the lldap user, then creates them again. Reserved directory accounts (admin, authelia-bind, verdaccio-bind, verdaccio-ci) are rejected.
+Deletes and recreates only the LLDAP identity. The Stalwart mailbox, messages, and forwarding rule remain. The staff member signs in to Keycloak with the new LLDAP password, links Google, and enrolls a passkey. Reserved directory accounts are rejected.
 
 ```
 orbit staff recreate [flags]
@@ -22,7 +22,6 @@ orbit staff recreate [flags]
       --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
       --name string              display name
       --no-send                  suppress dispatching onboarding invitation email
-      --totp                     enroll Authelia TOTP after recreate
       --uid string               staff uid (required)
 ```
 
@@ -37,3 +36,4 @@ orbit staff recreate [flags]
 ### SEE ALSO
 
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane
+

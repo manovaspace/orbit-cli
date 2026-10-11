@@ -75,7 +75,7 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 			body, _ := io.ReadAll(r.Body)
 			var in map[string]any
 			_ = json.Unmarshal(body, &in)
-			if in["uid"] != "sara" || in["totp"] != true {
+			if in["uid"] != "sara" || in["totp"] != nil {
 				t.Errorf("create body = %s", body)
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -85,8 +85,6 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 				"mail":             "sara@manova.space",
 				"personal_forward": "sara@gmail.com",
 				"ldap_password":    "sso-pass",
-				"mail_password":    "mail-pass",
-				"otpauth":          "otpauth://totp/fake:sara",
 			})
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
@@ -105,7 +103,6 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 		"--uid", "sara",
 		"--name", "Sara",
 		"--forward", "sara@gmail.com",
-		"--totp",
 		"--owner-store", storePath,
 		"--server", srv.URL,
 	})
@@ -116,7 +113,7 @@ func TestStaffRecreateDeletesThenCreates(t *testing.T) {
 		t.Fatalf("methods = %v", methods)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "sso    sso-pass") || !strings.Contains(out, "otpauth otpauth://totp/fake:sara") {
+	if !strings.Contains(out, "sso    sso-pass") || !strings.Contains(out, "link Google") || !strings.Contains(out, "register a passkey") {
 		t.Fatalf("output = %q", out)
 	}
 }
@@ -135,7 +132,6 @@ func TestStaffRecreateIgnoresDelete404(t *testing.T) {
 			"uid":              "sara",
 			"personal_forward": "sara@gmail.com",
 			"ldap_password":    "sso-pass",
-			"mail_password":    "mail-pass",
 		})
 	}))
 	defer srv.Close()
@@ -160,7 +156,7 @@ func TestStaffRecreateIgnoresDelete404(t *testing.T) {
 	}
 }
 
-func TestStaffResetPasswordTOTP(t *testing.T) {
+func TestStaffResetPasswordLDAP(t *testing.T) {
 	var gotBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/staff/sara/reset-password" {
@@ -169,9 +165,7 @@ func TestStaffResetPasswordTOTP(t *testing.T) {
 		gotBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ldap_password": "",
-			"mail_password": "",
-			"otpauth":       "otpauth://totp/new:sara",
+			"ldap_password": "rotated-password",
 		})
 	}))
 	defer srv.Close()
@@ -183,17 +177,17 @@ func TestStaffResetPasswordTOTP(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{
 		"staff", "reset-password", "sara",
-		"--totp",
+		"--ldap",
 		"--owner-store", storePath,
 		"--server", srv.URL,
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("reset-password: %v\n%s", err, buf.String())
 	}
-	if !strings.Contains(string(gotBody), `"totp"`) {
+	if !strings.Contains(string(gotBody), `"ldap"`) || strings.Contains(string(gotBody), `"totp"`) {
 		t.Fatalf("body = %s", gotBody)
 	}
-	if !strings.Contains(buf.String(), "otpauth otpauth://totp/new:sara") {
+	if !strings.Contains(buf.String(), "sso    rotated-password") {
 		t.Fatalf("output = %q", buf.String())
 	}
 }
@@ -390,8 +384,7 @@ func TestStaffUpdate_MissingReturnsError(t *testing.T) {
 	}
 }
 
-func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
-	const expectedOTPAuth = "otpauth://totp/Orbit:newuser?secret=JBSWY3DPEHPK3PXP&issuer=Orbit"
+func TestStaffCreate_InviteWithWebSetupURL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/staff" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
@@ -404,8 +397,6 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 			"display_name":     "New User",
 			"personal_forward": "newuser@example.com",
 			"ldap_password":    "sso-password",
-			"mail_password":    "mail-password",
-			"otpauth":          expectedOTPAuth,
 		})
 	}))
 	defer srv.Close()
@@ -421,14 +412,13 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 		"--uid", "newuser",
 		"--name", "New User",
 		"--forward", "newuser@example.com",
-		"--totp",
 		"--invite",
 		"--owner-store", storePath,
 		"--server", srv.URL,
 	})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("staff create --invite --totp failed: %v\n%s", err, buf.String())
+		t.Fatalf("staff create --invite failed: %v\n%s", err, buf.String())
 	}
 
 	out := buf.String()
@@ -452,11 +442,8 @@ func TestStaffCreate_InviteWithTOTPAndWebSetupURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateToken failed: %v", err)
 	}
-	if claims.Metadata == nil {
-		t.Fatal("expected claims.Metadata to be non-nil")
-	}
-	if claims.Metadata["otpauth"] != expectedOTPAuth {
-		t.Fatalf("expected metadata['otpauth'] = %q, got %q", expectedOTPAuth, claims.Metadata["otpauth"])
+	if len(claims.Metadata) != 0 {
+		t.Fatalf("expected no legacy MFA metadata, got %v", claims.Metadata)
 	}
 }
 
