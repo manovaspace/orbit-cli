@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -197,8 +198,8 @@ func TestStaffHMACAuthenticationAndReservedUserGuards(t *testing.T) {
 		t.Errorf("unexpected create result: %+v", createRes)
 	}
 
-	// 4. Reserved UID rejection ("admin", "authelia-bind", "verdaccio-bind", "verdaccio-ci") -> 403 Forbidden
-	reservedUIDs := []string{"admin", "authelia-bind", "keycloak-bind", "verdaccio-bind", "verdaccio-ci"}
+	// 4. Reserved UID rejection -> 403 Forbidden
+	reservedUIDs := []string{"admin", "keycloak-bind", "verdaccio-bind", "verdaccio-ci"}
 	for _, reserved := range reservedUIDs {
 		resPayload, _ := json.Marshal(client.StaffCreateInput{
 			UID:             reserved,
@@ -217,6 +218,74 @@ func TestStaffHMACAuthenticationAndReservedUserGuards(t *testing.T) {
 		if rRec.Code != http.StatusForbidden {
 			t.Fatalf("expected 403 Forbidden for reserved UID %q, got %d: %s", reserved, rRec.Code, rRec.Body.String())
 		}
+	}
+}
+
+func TestStaffProfileNamesPersistAcrossCreateUpdateAndGet(t *testing.T) {
+	srv := newTestMockServer()
+	httpSrv := httptest.NewServer(srv.UnifiedHandler())
+	defer httpSrv.Close()
+
+	staff := client.NewStaffClient(httpSrv.URL, testHMACSecret)
+	ctx := context.Background()
+
+	created, err := staff.Create(ctx, client.StaffCreateInput{
+		UID:         "alice",
+		DisplayName: "Alice Smith",
+		FirstName:   "Alice",
+		LastName:    "Smith",
+	})
+	if err != nil {
+		t.Fatalf("create staff with profile names: %v", err)
+	}
+	if created.FirstName != "Alice" || created.LastName != "Smith" {
+		t.Fatalf("create response lost profile names: first=%q last=%q", created.FirstName, created.LastName)
+	}
+
+	stored, err := staff.Get(ctx, "alice")
+	if err != nil {
+		t.Fatalf("get created staff: %v", err)
+	}
+	if stored.FirstName != "Alice" || stored.LastName != "Smith" {
+		t.Fatalf("create did not persist profile names: first=%q last=%q", stored.FirstName, stored.LastName)
+	}
+
+	updated, err := staff.Update(ctx, "alice", client.StaffUpdateInput{
+		FirstName: "Alice J",
+		LastName:  "Jones",
+	})
+	if err != nil {
+		t.Fatalf("update staff profile names: %v", err)
+	}
+	if updated.FirstName != "Alice J" || updated.LastName != "Jones" {
+		t.Fatalf("update response lost profile names: first=%q last=%q", updated.FirstName, updated.LastName)
+	}
+
+	stored, err = staff.Get(ctx, "alice")
+	if err != nil {
+		t.Fatalf("get updated staff: %v", err)
+	}
+	if stored.FirstName != "Alice J" || stored.LastName != "Jones" {
+		t.Fatalf("update did not persist profile names: first=%q last=%q", stored.FirstName, stored.LastName)
+	}
+}
+
+func TestRetiredAutheliaBindUIDCanBeCreated(t *testing.T) {
+	srv := newTestMockServer()
+	httpSrv := httptest.NewServer(srv.UnifiedHandler())
+	defer httpSrv.Close()
+
+	staff := client.NewStaffClient(httpSrv.URL, testHMACSecret)
+	created, err := staff.Create(context.Background(), client.StaffCreateInput{
+		UID:             "authelia-bind",
+		DisplayName:     "Retired Authelia Bind",
+		PersonalForward: "retired@example.com",
+	})
+	if err != nil {
+		t.Fatalf("retired Authelia bind UID should no longer be reserved: %v", err)
+	}
+	if created.UID != "authelia-bind" {
+		t.Fatalf("created UID = %q, want authelia-bind", created.UID)
 	}
 }
 
