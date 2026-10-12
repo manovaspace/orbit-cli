@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,5 +139,40 @@ func TestStaffUpdateInputOmitsEmptyDisplayName(t *testing.T) {
 	}
 	if m["personal_forward"] != "sara@proton.me" {
 		t.Fatalf("personal_forward = %v", m["personal_forward"])
+	}
+}
+
+func TestStaffUpdateInputCarriesProfileNames(t *testing.T) {
+	body, err := json.Marshal(StaffUpdateInput{FirstName: "Alireza", LastName: "J"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["first_name"] != "Alireza" || got["last_name"] != "J" {
+		t.Fatalf("request = %s", body)
+	}
+}
+
+func TestStaffUpdateRejectsServerThatDoesNotApplyProfileNames(t *testing.T) {
+	secret := "test-hmac-secret-for-staff-client"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/api/v1/staff/alirezaopmc" {
+			t.Fatalf("got %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"uid":"alirezaopmc","display_name":"Alireza J"}`)
+	}))
+	defer srv.Close()
+
+	c := NewStaffClient(srv.URL, secret)
+	_, err := c.Update(context.Background(), "alirezaopmc", StaffUpdateInput{
+		FirstName: "Alireza",
+		LastName:  "J",
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not confirm profile-name updates") {
+		t.Fatalf("Update error = %v, want unsupported-server error", err)
 	}
 }

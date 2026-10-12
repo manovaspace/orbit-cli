@@ -4,7 +4,7 @@ Manage Orbit staff via the staff control plane
 
 ### Synopsis
 
-Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
+Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
 
 ### Options
 
@@ -31,5 +31,5 @@ Create, list, update, disable, enable, delete, recreate, and reset passwords for
 * [orbit staff list](orbit_staff_list.md)	 - List staff members
 * [orbit staff recreate](orbit_staff_recreate.md)	 - Deprecated: use the safe Keycloak identity reset procedure
 * [orbit staff reset-password](orbit_staff_reset-password.md)	 - Rotate the LLDAP password used for staff SSO and mailbox sign-in
-* [orbit staff update](orbit_staff_update.md)	 - Update display name, forward, or groups
+* [orbit staff update](orbit_staff_update.md)	 - Update display name, profile names, forward, or groups
 

@@ -1,6 +1,6 @@
 ## orbit staff update
 
-Update display name, forward, or groups
+Update display name, profile names, forward, or groups
 
 ```
 orbit staff update <uid> [flags]
@@ -9,10 +9,12 @@ orbit staff update <uid> [flags]
 ### Options
 
 ```
-      --forward string   personal forward email
-      --groups string    comma-separated groups
-  -h, --help             help for update
-      --name string      display name
+      --first-name string   first name
+      --forward string      personal forward email
+      --groups string       comma-separated groups
+  -h, --help                help for update
+      --last-name string    last name
+      --name string         display name
 ```
 
 ### Options inherited from parent commands

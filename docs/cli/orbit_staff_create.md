@@ -13,6 +13,7 @@ orbit staff create [flags]
 ### Options
 
 ```
+      --first-name string        first name
       --forward string           personal forward email (required)
       --groups string            comma-separated groups (default server-side: dev)
   -h, --help                     help for create
@@ -20,6 +21,7 @@ orbit staff create [flags]
       --invite                   generate and print a signed onboarding invite token after account creation
       --invite-email string      email address for the invite token (defaults to --forward value)
       --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
+      --last-name string         last name
       --name string              display name
       --no-send                  suppress dispatching onboarding invitation email
       --uid string               staff uid (required)

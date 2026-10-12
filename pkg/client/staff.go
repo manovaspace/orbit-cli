@@ -27,6 +27,8 @@ type StaffClient struct {
 type StaffMember struct {
 	UID             string   `json:"uid"`
 	DisplayName     string   `json:"display_name"`
+	FirstName       string   `json:"first_name"`
+	LastName        string   `json:"last_name"`
 	Mail            string   `json:"mail"`
 	PersonalForward string   `json:"personal_forward"`
 	Groups          []string `json:"groups"`
@@ -37,6 +39,8 @@ type StaffMember struct {
 type StaffCreateInput struct {
 	UID             string   `json:"uid"`
 	DisplayName     string   `json:"display_name"`
+	FirstName       string   `json:"first_name,omitempty"`
+	LastName        string   `json:"last_name,omitempty"`
 	PersonalForward string   `json:"personal_forward"`
 	Groups          []string `json:"groups"`
 	IdempotencyKey  string   `json:"-"`
@@ -52,6 +56,8 @@ type StaffCreateResult struct {
 // StaffUpdateInput is the PATCH body.
 type StaffUpdateInput struct {
 	DisplayName     string   `json:"display_name,omitempty"`
+	FirstName       string   `json:"first_name,omitempty"`
+	LastName        string   `json:"last_name,omitempty"`
 	PersonalForward string   `json:"personal_forward,omitempty"`
 	Groups          []string `json:"groups"`
 }
@@ -115,6 +121,9 @@ func (c *StaffClient) Update(ctx context.Context, uid string, in StaffUpdateInpu
 	var out StaffMember
 	if err := c.do(ctx, http.MethodPatch, staffPath(uid), in, &out, nil); err != nil {
 		return nil, err
+	}
+	if (in.FirstName != "" && out.FirstName != in.FirstName) || (in.LastName != "" && out.LastName != in.LastName) {
+		return nil, fmt.Errorf("staff server does not confirm profile-name updates; update orbit-staff before retrying")
 	}
 	return &out, nil
 }
