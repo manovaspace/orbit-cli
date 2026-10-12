@@ -86,8 +86,49 @@ func TestStaffRecreateRefusesWithoutDeleting(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "staff recreate is disabled") {
 		t.Fatalf("expected safe refusal, got err=%v output=%s", err, buf.String())
 	}
-	if !strings.Contains(err.Error(), "remove-keycloak-staff-user.py --uid sara") || called {
-		t.Fatalf("expected cleanup instructions and no HTTP calls, got err=%v called=%v", err, called)
+	for _, step := range []string{
+		"Before deleting any LLDAP identity, deploy /opt/orbit-infra/scripts/remove-keycloak-staff-user.py",
+		"require its --preflight check for this UID to succeed",
+		"stop if it is unavailable or preflight fails",
+		"staff lifecycle guide",
+		"reviewed dry run, confirmed Keycloak cleanup",
+		"staff creation only after cleanup succeeds",
+		"No identity was changed",
+	} {
+		if !strings.Contains(err.Error(), step) {
+			t.Errorf("cleanup prerequisite missing %q: %v", step, err)
+		}
+	}
+	if strings.Contains(err.Error(), "o staff delete sara") || strings.Contains(err.Error(), "--execute --confirm") {
+		t.Fatalf("refusal should not offer commands that could start a half-reset: %v", err)
+	}
+	if called {
+		t.Fatal("disabled recreate called the staff API")
+	}
+}
+
+func TestStaffRecreateRejectsUnsafeUIDInInstructions(t *testing.T) {
+	cmd := newRootCmdForTest(t)
+	cmd.SetArgs([]string{"staff", "recreate", "--uid", "sara;echo unsafe"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "provide a valid --uid") {
+		t.Fatalf("expected invalid UID refusal, got %v", err)
+	}
+	if strings.Contains(err.Error(), "echo unsafe") {
+		t.Fatalf("untrusted UID echoed in command instructions: %v", err)
+	}
+}
+
+func TestStaffRecreateAcceptsStaffUIDSyntaxForGuidance(t *testing.T) {
+	for _, uid := range []string{"a", "a.b", "a_b", "a-" + strings.Repeat("b", 40)} {
+		t.Run(uid, func(t *testing.T) {
+			cmd := newRootCmdForTest(t)
+			cmd.SetArgs([]string{"staff", "recreate", "--uid", uid})
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), "staff recreate is disabled for "+uid) {
+				t.Fatalf("valid staff UID should receive safe reset guidance, got %v", err)
+			}
+		})
 	}
 }
 

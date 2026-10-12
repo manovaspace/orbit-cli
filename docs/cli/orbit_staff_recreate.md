@@ -4,7 +4,7 @@ Deprecated: use the safe Keycloak identity reset procedure
 
 ### Synopsis
 
-This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.
+This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion. Before deleting the LLDAP identity, deploy remove-keycloak-staff-user.py on the identity host and require its --uid <uid> --preflight check to succeed. Stop if it is unavailable or preflight fails. Then follow the staff lifecycle guide: delete the LLDAP identity, review a cleanup dry run, execute with --confirm <uid>, and create only after cleanup succeeds. Mailbox contents remain preserved.
 
 ```
 orbit staff recreate [flags]

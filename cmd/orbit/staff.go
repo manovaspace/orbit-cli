@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ func newStaffCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "staff",
 		Short: "Manage Orbit staff via the staff control plane",
-		Long:  "Create, list, update, disable, enable, delete, recreate, and reset passwords for staff accounts through orbit-staff (HMAC). Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.",
+		Long:  "Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.",
 	}
 	cmd.PersistentFlags().String("server", "", "staff server URL (or ORBIT_STAFF_URL)")
 	cmd.PersistentFlags().String("owner-store", "", "path to owner.json vault")
@@ -48,6 +49,8 @@ func newStaffCreateCmd() *cobra.Command {
 	var (
 		uidFlag         string
 		nameFlag        string
+		firstNameFlag   string
+		lastNameFlag    string
 		forwardFlag     string
 		groupsFlag      string
 		idemFlag        string
@@ -84,6 +87,8 @@ func newStaffCreateCmd() *cobra.Command {
 			res, err := c.Create(context.Background(), client.StaffCreateInput{
 				UID:             uid,
 				DisplayName:     strings.TrimSpace(nameFlag),
+				FirstName:       strings.TrimSpace(firstNameFlag),
+				LastName:        strings.TrimSpace(lastNameFlag),
 				PersonalForward: forward,
 				Groups:          groups,
 				IdempotencyKey:  idem,
@@ -103,6 +108,8 @@ func newStaffCreateCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&uidFlag, "uid", "", "staff uid (required)")
 	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
+	cmd.Flags().StringVar(&firstNameFlag, "first-name", "", "first name")
+	cmd.Flags().StringVar(&lastNameFlag, "last-name", "", "last name")
 	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email (required)")
 	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups (default server-side: dev)")
 	cmd.Flags().StringVar(&idemFlag, "idempotency-key", "", "idempotency key (generated if empty)")
@@ -193,6 +200,8 @@ func newStaffGetCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "uid    %s\n", s.UID)
 			fmt.Fprintf(out, "name   %s\n", s.DisplayName)
+			fmt.Fprintf(out, "first  %s\n", s.FirstName)
+			fmt.Fprintf(out, "last   %s\n", s.LastName)
 			fmt.Fprintf(out, "mail   %s\n", s.Mail)
 			fmt.Fprintf(out, "fwd    %s\n", s.PersonalForward)
 			fmt.Fprintf(out, "status %s\n", s.Status)
@@ -206,13 +215,15 @@ func newStaffGetCmd() *cobra.Command {
 
 func newStaffUpdateCmd() *cobra.Command {
 	var (
-		nameFlag    string
-		forwardFlag string
-		groupsFlag  string
+		nameFlag      string
+		firstNameFlag string
+		lastNameFlag  string
+		forwardFlag   string
+		groupsFlag    string
 	)
 	cmd := &cobra.Command{
 		Use:   "update <uid>",
-		Short: "Update display name, forward, or groups",
+		Short: "Update display name, profile names, forward, or groups",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
@@ -221,6 +232,8 @@ func newStaffUpdateCmd() *cobra.Command {
 			}
 			s, err := c.Update(context.Background(), args[0], client.StaffUpdateInput{
 				DisplayName:     strings.TrimSpace(nameFlag),
+				FirstName:       strings.TrimSpace(firstNameFlag),
+				LastName:        strings.TrimSpace(lastNameFlag),
 				PersonalForward: strings.TrimSpace(forwardFlag),
 				Groups:          splitCSV(groupsFlag),
 			})
@@ -232,6 +245,8 @@ func newStaffUpdateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
+	cmd.Flags().StringVar(&firstNameFlag, "first-name", "", "first name")
+	cmd.Flags().StringVar(&lastNameFlag, "last-name", "", "last name")
 	cmd.Flags().StringVar(&forwardFlag, "forward", "", "personal forward email")
 	cmd.Flags().StringVar(&groupsFlag, "groups", "", "comma-separated groups")
 	return cmd
@@ -279,6 +294,7 @@ func newStaffDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <uid>",
 		Short: "Delete a staff member",
+		Long:  "Delete the staff member's LLDAP identity. The Stalwart mailbox, messages, and forwarding remain, but Keycloak browser sign-in and LLDAP-backed mail authentication stop. This command does not remove the imported Keycloak profile or validate migration backups; use the reviewed identity-reset procedure for a full reset.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := staffClientFromCmd(cmd)
@@ -289,6 +305,7 @@ func newStaffDeleteCmd() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", args[0])
+			fmt.Fprintln(cmd.OutOrStdout(), "warning Keycloak profile remains; mailbox data is preserved but LLDAP-backed mail sign-in is unavailable until the UID is restored")
 			return nil
 		},
 	}
@@ -340,13 +357,13 @@ func newStaffRecreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "recreate",
 		Short: "Deprecated: use the safe Keycloak identity reset procedure",
-		Long:  "This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion, so automatic recreation can leave a stale identity that blocks sign-in. Use the documented sequence: delete the staff identity, run remove-keycloak-staff-user.py for the exact UID, then create the staff identity again. Mailbox contents remain preserved.",
+		Long:  "This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion. Before deleting the LLDAP identity, deploy remove-keycloak-staff-user.py on the identity host and require its --uid <uid> --preflight check to succeed. Stop if it is unavailable or preflight fails. Then follow the staff lifecycle guide: delete the LLDAP identity, review a cleanup dry run, execute with --confirm <uid>, and create only after cleanup succeeds. Mailbox contents remain preserved.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uid := strings.TrimSpace(uidFlag)
-			if uid == "" {
-				uid = "<uid>"
+			if !regexp.MustCompile(`^[a-z][a-z0-9._-]*$`).MatchString(uid) {
+				return errors.New("staff recreate is disabled; provide a valid --uid to display the safe Keycloak cleanup sequence")
 			}
-			return fmt.Errorf("staff recreate is disabled because it can leave a stale Keycloak login; use: o staff delete %s, python3 /opt/orbit-infra/scripts/remove-keycloak-staff-user.py --uid %s, then o staff create --uid %s --forward <email>", uid, uid, uid)
+			return fmt.Errorf("staff recreate is disabled for %s because it can leave a stale Keycloak login. Before deleting any LLDAP identity, deploy /opt/orbit-infra/scripts/remove-keycloak-staff-user.py on the identity host and require its --preflight check for this UID to succeed; stop if it is unavailable or preflight fails. Then follow the staff lifecycle guide for a reviewed dry run, confirmed Keycloak cleanup, and staff creation only after cleanup succeeds. No identity was changed", uid)
 		},
 	}
 	cmd.Flags().StringVar(&uidFlag, "uid", "", "UID to include in the safe reset instructions (legacy flag)")
