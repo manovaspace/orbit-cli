@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 )
 
@@ -47,6 +48,24 @@ func TestStaffCmdRegistered(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("staff command not registered")
+	}
+}
+
+func TestPrintStaffCreateIncludesProfileNames(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := newRootCmdForTest(t)
+	cmd.SetOut(buf)
+
+	printStaffCreate(cmd, &client.StaffCreateResult{StaffMember: client.StaffMember{
+		UID:       "alirezaopmc",
+		FirstName: "Alireza",
+		LastName:  "J",
+	}})
+
+	for _, want := range []string{"uid    alirezaopmc", "first  Alireza", "last   J"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, buf.String())
+		}
 	}
 }
 

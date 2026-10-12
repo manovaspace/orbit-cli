@@ -412,6 +412,12 @@ func staffPersistentString(cmd *cobra.Command, name string) string {
 func printStaffCreate(cmd *cobra.Command, res *client.StaffCreateResult) {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "uid    %s\n", res.UID)
+	if res.FirstName != "" {
+		fmt.Fprintf(out, "first  %s\n", res.FirstName)
+	}
+	if res.LastName != "" {
+		fmt.Fprintf(out, "last   %s\n", res.LastName)
+	}
 	if res.LDAPPassword != "" {
 		fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
 	}
