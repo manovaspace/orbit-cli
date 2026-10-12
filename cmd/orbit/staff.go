@@ -28,7 +28,7 @@ func newStaffCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "staff",
 		Short: "Manage Orbit staff via the staff control plane",
-		Long:  "Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.",
+		Long:  "Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.",
 	}
 	cmd.PersistentFlags().String("server", "", "staff server URL (or ORBIT_STAFF_URL)")
 	cmd.PersistentFlags().String("owner-store", "", "path to owner.json vault")
