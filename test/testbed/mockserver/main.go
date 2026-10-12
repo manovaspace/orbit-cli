@@ -146,7 +146,7 @@ func NewMockServer(cfg Config) *MockServer {
 func isReservedUID(uid string) bool {
 	clean := strings.ToLower(strings.TrimSpace(uid))
 	switch clean {
-	case "admin", "authelia-bind", "keycloak-bind", "verdaccio-bind", "verdaccio-ci":
+	case "admin", "keycloak-bind", "verdaccio-bind", "verdaccio-ci":
 		return true
 	default:
 		return false
@@ -667,6 +667,8 @@ func (s *MockServer) handleStaffCreate(w http.ResponseWriter, r *http.Request) {
 	member := &client.StaffMember{
 		UID:             uid,
 		DisplayName:     strings.TrimSpace(in.DisplayName),
+		FirstName:       strings.TrimSpace(in.FirstName),
+		LastName:        strings.TrimSpace(in.LastName),
 		Mail:            uid + "@dev.manova.space",
 		PersonalForward: strings.TrimSpace(in.PersonalForward),
 		Groups:          groups,
@@ -740,6 +742,12 @@ func (s *MockServer) handleStaffUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if in.DisplayName != "" {
 		member.DisplayName = strings.TrimSpace(in.DisplayName)
+	}
+	if in.FirstName != "" {
+		member.FirstName = strings.TrimSpace(in.FirstName)
+	}
+	if in.LastName != "" {
+		member.LastName = strings.TrimSpace(in.LastName)
 	}
 	if in.PersonalForward != "" {
 		member.PersonalForward = strings.TrimSpace(in.PersonalForward)

@@ -4,7 +4,7 @@ Manage Orbit staff via the staff control plane
 
 ### Synopsis
 
-Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, authelia-bind, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
+Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Create and update can set the Keycloak Account Console first and last name fields. Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
 
 ### Options
 

@@ -321,7 +321,6 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 
 	reservedUIDs := map[string]bool{
 		"admin":          true,
-		"authelia-bind":  true,
 		"verdaccio-bind": true,
 		"verdaccio-ci":   true,
 	}
@@ -347,6 +346,8 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 			member := &client.StaffMember{
 				UID:             in.UID,
 				DisplayName:     in.DisplayName,
+				FirstName:       in.FirstName,
+				LastName:        in.LastName,
 				PersonalForward: in.PersonalForward,
 				Status:          "active",
 				Groups:          in.Groups,
@@ -412,6 +413,12 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 			_ = json.Unmarshal(body, &patch)
 			if patch.DisplayName != "" {
 				member.DisplayName = patch.DisplayName
+			}
+			if patch.FirstName != "" {
+				member.FirstName = patch.FirstName
+			}
+			if patch.LastName != "" {
+				member.LastName = patch.LastName
 			}
 			if patch.PersonalForward != "" {
 				member.PersonalForward = patch.PersonalForward
@@ -737,6 +744,8 @@ func TestScenariosIntegration(t *testing.T) {
 			"--server", srv.URL,
 			"--uid", "alice",
 			"--name", "Alice Smith",
+			"--first-name", "Alice",
+			"--last-name", "Smith",
 			"--forward", "alice@example.com",
 			"--groups", "dev,core",
 			"--invite",
@@ -758,6 +767,9 @@ func TestScenariosIntegration(t *testing.T) {
 		if err != nil || !strings.Contains(getOut, "Alice Smith") {
 			t.Errorf("STF-02 staff get missing Alice Smith: %v\nOutput: %s", err, getOut)
 		}
+		if !strings.Contains(getOut, "first  Alice") || !strings.Contains(getOut, "last   Smith") {
+			t.Errorf("STF-02 staff get missing profile names: %s", getOut)
+		}
 
 		// STF-03: Disable & Enable
 		disOut, err := executeOrbit("staff", "disable", "alice", "--server", srv.URL)
@@ -771,9 +783,14 @@ func TestScenariosIntegration(t *testing.T) {
 		}
 
 		// STF-04: Update, Reset Password, Delete
-		upOut, err := executeOrbit("staff", "update", "alice", "--server", srv.URL, "--name", "Alice Lead")
+		upOut, err := executeOrbit("staff", "update", "alice", "--server", srv.URL,
+			"--name", "Alice Lead", "--first-name", "Alicia", "--last-name", "Lead")
 		if err != nil || !strings.Contains(upOut, "updated") {
 			t.Errorf("STF-04 staff update failed: %v\nOutput: %s", err, upOut)
+		}
+		getUpdatedOut, err := executeOrbit("staff", "get", "alice", "--server", srv.URL)
+		if err != nil || !strings.Contains(getUpdatedOut, "first  Alicia") || !strings.Contains(getUpdatedOut, "last   Lead") {
+			t.Errorf("STF-04 staff get did not confirm updated profile names: %v\nOutput: %s", err, getUpdatedOut)
 		}
 
 		pwOut, err := executeOrbit("staff", "reset-password", "alice", "--server", srv.URL)
@@ -787,11 +804,16 @@ func TestScenariosIntegration(t *testing.T) {
 		}
 
 		// STF-05: Reserved accounts protection
-		for _, reserved := range []string{"admin", "authelia-bind", "verdaccio-bind", "verdaccio-ci"} {
+		for _, reserved := range []string{"admin", "verdaccio-bind", "verdaccio-ci"} {
 			resOut, _ := executeOrbit("staff", "create", "--server", srv.URL, "--uid", reserved, "--forward", "r@ex.com")
 			if !strings.Contains(resOut, "reserved uid") {
 				t.Errorf("STF-05 expected reserved uid error for %s, got: %s", reserved, resOut)
 			}
+		}
+		retiredBindOut, err := executeOrbit("staff", "create", "--server", srv.URL,
+			"--uid", "authelia-bind", "--name", "Retired Authelia Bind", "--forward", "retired@example.com")
+		if err != nil || !strings.Contains(retiredBindOut, "authelia-bind") {
+			t.Errorf("STF-05 retired Authelia bind UID should no longer be reserved: %v\nOutput: %s", err, retiredBindOut)
 		}
 	})
 
