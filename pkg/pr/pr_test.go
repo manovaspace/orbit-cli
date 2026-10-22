@@ -195,6 +195,20 @@ func TestResolveCredentials(t *testing.T) {
 		}
 	})
 
+	t.Run("FORGEJO_ACCESS_TOKEN takes precedence over FORGEJO_TOKEN in process env", func(t *testing.T) {
+		cleanEnv()
+		t.Setenv("FORGEJO_ACCESS_TOKEN", "primary-token")
+		t.Setenv("FORGEJO_TOKEN", "secondary-token")
+
+		cfg, err := ResolveCredentials("")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Token != "primary-token" {
+			t.Errorf("got token %q, want %q", cfg.Token, "primary-token")
+		}
+	})
+
 	t.Run("From .cursor/mcp.env in workspace root", func(t *testing.T) {
 		cleanEnv()
 		mockRoot := t.TempDir()
@@ -343,19 +357,27 @@ func TestClientMethodsWithMockServer(t *testing.T) {
 	// 4. MergePR
 	t.Run("MergePR styles", func(t *testing.T) {
 		// Merge
-		if err := client.MergePR("manova", "handbook", 42, gitea.MergeStyleMerge); err != nil {
+		if err := client.MergePR("manova", "handbook", 42, "merge"); err != nil {
 			t.Errorf("MergePR(merge) failed: %v", err)
 		}
+		// Empty defaults to merge
+		if err := client.MergePR("manova", "handbook", 42, ""); err != nil {
+			t.Errorf("MergePR(\"\") failed: %v", err)
+		}
 		// Squash
-		if err := client.MergePR("manova", "handbook", 42, gitea.MergeStyleSquash); err != nil {
+		if err := client.MergePR("manova", "handbook", 42, "squash"); err != nil {
 			t.Errorf("MergePR(squash) failed: %v", err)
 		}
 		// Rebase
-		if err := client.MergePR("manova", "handbook", 42, gitea.MergeStyleRebase); err != nil {
+		if err := client.MergePR("manova", "handbook", 42, "rebase"); err != nil {
 			t.Errorf("MergePR(rebase) failed: %v", err)
 		}
+		// Rebase-merge
+		if err := client.MergePR("manova", "handbook", 42, "rebase-merge"); err != nil {
+			t.Errorf("MergePR(rebase-merge) failed: %v", err)
+		}
 		// Invalid style
-		if err := client.MergePR("manova", "handbook", 42, gitea.MergeStyle("invalid")); err == nil {
+		if err := client.MergePR("manova", "handbook", 42, "invalid"); err == nil {
 			t.Error("MergePR(invalid) expected error, got nil")
 		}
 	})
@@ -371,7 +393,7 @@ func TestClientMethodsWithMockServer(t *testing.T) {
 		if _, err := client.CreatePR("owner", "repo", "title", "body", "", "base"); err == nil {
 			t.Error("expected error with empty head")
 		}
-		if err := client.MergePR("owner", "repo", 0, gitea.MergeStyleMerge); err == nil {
+		if err := client.MergePR("owner", "repo", 0, "merge"); err == nil {
 			t.Error("expected error with index <= 0")
 		}
 		if _, err := client.GetPR("owner", "repo", -1); err == nil {

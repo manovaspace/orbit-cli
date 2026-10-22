@@ -26,6 +26,12 @@ type Config struct {
 	Token   string
 }
 
+// PR aliases the underlying pull request type to avoid leaking SDK imports.
+type PR = gitea.PullRequest
+
+// MergeStyle aliases the merge style type.
+type MergeStyle = gitea.MergeStyle
+
 // Client wraps the Forgejo/Gitea API client with logging and convenient helpers.
 type Client struct {
 	client     *gitea.Client
@@ -65,7 +71,7 @@ func ResolveCredentials(workspaceRoot string) (*Config, error) {
 	var baseURL string
 
 	// 1. Check process environment variables
-	for _, k := range []string{"FORGEJO_TOKEN", "FORGEJO_ACCESS_TOKEN", "GITEA_TOKEN"} {
+	for _, k := range []string{"FORGEJO_ACCESS_TOKEN", "FORGEJO_TOKEN", "GITEA_TOKEN"} {
 		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
 			token = v
 			break
@@ -346,7 +352,7 @@ func (c *Client) RawClient() *gitea.Client {
 }
 
 // CreatePR creates a new pull request on the repository.
-func (c *Client) CreatePR(owner, repo, title, body, head, base string) (*gitea.PullRequest, error) {
+func (c *Client) CreatePR(owner, repo, title, body, head, base string) (*PR, error) {
 	if owner == "" || repo == "" {
 		return nil, errors.New("owner and repo must not be empty")
 	}
@@ -386,9 +392,9 @@ func (c *Client) CreatePR(owner, repo, title, body, head, base string) (*gitea.P
 	return pr, nil
 }
 
-// MergePR merges a pull request using the specified merge style (merge, rebase, squash, rebase-merge).
+// MergePR merges a pull request using the specified merge method (merge, rebase, squash, rebase-merge).
 // Defaults to "merge" if empty.
-func (c *Client) MergePR(owner, repo string, index int64, style gitea.MergeStyle) error {
+func (c *Client) MergePR(owner, repo string, index int64, method string) error {
 	if owner == "" || repo == "" {
 		return errors.New("owner and repo must not be empty")
 	}
@@ -396,15 +402,19 @@ func (c *Client) MergePR(owner, repo string, index int64, style gitea.MergeStyle
 		return fmt.Errorf("invalid PR index: %d", index)
 	}
 
-	style = gitea.MergeStyle(strings.ToLower(strings.TrimSpace(string(style))))
-	if style == "" {
+	m := strings.ToLower(strings.TrimSpace(method))
+	var style gitea.MergeStyle
+	switch m {
+	case "squash":
+		style = gitea.MergeStyleSquash
+	case "rebase":
+		style = gitea.MergeStyleRebase
+	case "rebase-merge":
+		style = gitea.MergeStyleRebaseMerge
+	case "merge", "":
 		style = gitea.MergeStyleMerge
-	}
-
-	switch style {
-	case gitea.MergeStyleMerge, gitea.MergeStyleRebase, gitea.MergeStyleRebaseMerge, gitea.MergeStyleSquash:
 	default:
-		return fmt.Errorf("invalid merge style %q: expected merge, rebase, rebase-merge, or squash", style)
+		return fmt.Errorf("invalid merge method %q: must be one of 'merge', 'squash', 'rebase', 'rebase-merge'", method)
 	}
 
 	c.logger.Debug("merging pull request",
@@ -432,7 +442,7 @@ func (c *Client) MergePR(owner, repo string, index int64, style gitea.MergeStyle
 }
 
 // GetPR retrieves a pull request by its index.
-func (c *Client) GetPR(owner, repo string, index int64) (*gitea.PullRequest, error) {
+func (c *Client) GetPR(owner, repo string, index int64) (*PR, error) {
 	if owner == "" || repo == "" {
 		return nil, errors.New("owner and repo must not be empty")
 	}
@@ -458,7 +468,7 @@ func (c *Client) GetPR(owner, repo string, index int64) (*gitea.PullRequest, err
 }
 
 // ListOpenPRs lists all open pull requests for a repository.
-func (c *Client) ListOpenPRs(owner, repo string) ([]*gitea.PullRequest, error) {
+func (c *Client) ListOpenPRs(owner, repo string) ([]*PR, error) {
 	if owner == "" || repo == "" {
 		return nil, errors.New("owner and repo must not be empty")
 	}
