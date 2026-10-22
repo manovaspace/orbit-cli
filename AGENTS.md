@@ -20,6 +20,7 @@ Orbit CLI follows a dual-binary architecture:
 - **Workspace Migrations**: `orbit migrate` (applies pending) and `orbit migrate status`.
 - **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
 - **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
+- **Pull Request & Delivery Lifecycle**: `orbit pr create`, `orbit pr merge`, `orbit pr status`, `orbit pr deliver` — automated branch pushing, Forgejo PR creation, PR status listing, merging, and full end-to-end branch delivery with fast-forward trunk re-sync per ADR-026.
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
 
 ## Non-negotiables
@@ -70,6 +71,10 @@ orbit onboard             # interactive onboarding wizard
 orbit staff create --uid … --name … --forward …
 orbit staff recreate --uid … --name … --forward … # blocked; use Keycloak cleanup procedure
 orbit staff reset-password <uid> [--ldap|--mailbox]
+orbit pr create [--title] [--body] [--base main] [--merge] # push branch & open PR
+orbit pr merge [pr-number] [--method merge|squash|rebase]   # merge open PR
+orbit pr status                                            # list open repository PRs
+orbit pr deliver [--title] [--body] [--base main]          # end-to-end push, PR, merge & ff-only delivery
 orbit assets pull         # download gitignored media from R2
 orbit assets push         # upload gitignored media to R2
 orbit assets add <path>   # upload a file, update orbit-assets.yaml + .gitignore
@@ -98,6 +103,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 | `pkg/manifest/` | `workspace.yaml` parsing and multi-repo dependency resolution |
 | `pkg/migrate/` | Workspace schema, config, and structure migration engine |
 | `pkg/ports/` | Dev host port block allocation (ADR-006) and conflict detection |
+| `pkg/pr/` | Forgejo / Gitea API client for PR creation, merging, status, and git remote detection |
 | `pkg/onboard/` | Developer and client onboarding flow and claim verification |
 | `pkg/session/` | Onboarding session state (`~/.config/orbit/session.json`; reads legacy `~/.config/manova/session.json`) |
 | `pkg/invite/` | Cryptographic HMAC invite tokens, token store, and SMTP mailer |
