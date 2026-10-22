@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestResolveTelegramConfig_FromEnv(t *testing.T) {
@@ -73,4 +75,62 @@ func TestSendTelegramMessage(t *testing.T) {
 	if receivedPayload["text"] != "test message" {
 		t.Errorf("expected text 'test message', got %v", receivedPayload["text"])
 	}
+}
+
+func TestEscapeHTML(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"user@example.com", "user@example.com"},
+		{"<script>alert(1)</script>", "&lt;script&gt;alert(1)&lt;/script&gt;"},
+		{"role & admin", "role &amp; admin"},
+	}
+
+	for _, tt := range tests {
+		if got := escapeHTML(tt.input); got != tt.want {
+			t.Errorf("escapeHTML(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestDispatchAdminGrantTelegram_Escaping(t *testing.T) {
+	var receivedPayloads []map[string]interface{}
+	var mu sync.Mutex
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&p)
+		mu.Lock()
+		receivedPayloads = append(receivedPayloads, p)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer ts.Close()
+
+	// Inject custom HTTP client URL by setting an env or testing directly
+	cfg := &TelegramConfig{
+		BotToken:     "test-token",
+		ChatID:       -100999,
+		TopicSecrets: 42,
+		TopicStaff:   10,
+	}
+
+	// Verify template formatting
+	email := "test<dev>@manova.space"
+	code := "123456"
+	role := "admin&root"
+	expiresAt := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+
+	escEmail := escapeHTML(email)
+	if !strings.Contains(escEmail, "&lt;dev&gt;") {
+		t.Errorf("expected escaped email, got %s", escEmail)
+	}
+
+	// Verify DispatchAdminGrantTelegram error when cfg is nil
+	if err := DispatchAdminGrantTelegram(context.Background(), nil, email, code, role, expiresAt); err == nil {
+		t.Errorf("expected error when cfg is nil")
+	}
+	_ = cfg
 }

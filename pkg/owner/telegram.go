@@ -74,6 +74,16 @@ func ResolveTelegramConfig() (*TelegramConfig, error) {
 	}, nil
 }
 
+// escapeHTML escapes special characters for safe Telegram HTML formatting.
+func escapeHTML(s string) string {
+	r := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+	)
+	return r.Replace(s)
+}
+
 // SendTelegramMessage sends a message to a Telegram chat / topic thread via HTTP API.
 func SendTelegramMessage(ctx context.Context, token string, chatID int64, threadID int, htmlText string) error {
 	if strings.TrimSpace(token) == "" {
@@ -124,13 +134,18 @@ func DispatchAdminGrantTelegram(ctx context.Context, cfg *TelegramConfig, email,
 		return errors.New("telegram configuration is nil")
 	}
 
+	escEmail := escapeHTML(email)
+	escCode := escapeHTML(code)
+	escRole := escapeHTML(role)
+	expStr := expiresAt.UTC().Format("15:04:05 UTC")
+
 	secretsMsg := fmt.Sprintf("👤 <b>Admin Grant Issued</b>\n"+
 		"📧 <code>%s</code>\n"+
 		"🔑 OTP <code>%s</code>\n"+
 		"🛡 Role: <b>%s</b>\n"+
 		"⏳ Expires: %s\n\n"+
 		"<i>Usage:</i>\n<code>orbit admin init %s --code %s</code>",
-		email, code, role, expiresAt.UTC().Format("15:04:05 UTC"), email, code,
+		escEmail, escCode, escRole, expStr, escEmail, escCode,
 	)
 
 	targetThread := cfg.TopicSecrets
@@ -145,7 +160,7 @@ func DispatchAdminGrantTelegram(ctx context.Context, cfg *TelegramConfig, email,
 	// Post audit note in Staff topic if distinct from Secrets topic
 	if cfg.TopicStaff > 0 && cfg.TopicStaff != cfg.TopicSecrets {
 		staffMsg := fmt.Sprintf("✅ <b>%s</b> admin grant issued · expires %s",
-			email, expiresAt.UTC().Format("15:04:05 UTC"),
+			escEmail, expStr,
 		)
 		_ = SendTelegramMessage(ctx, cfg.BotToken, cfg.ChatID, cfg.TopicStaff, staffMsg)
 	}
