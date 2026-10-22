@@ -126,6 +126,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStaffCmd())
 	cmd.AddCommand(newConfigCmd())
 	cmd.AddCommand(newAssetsCmd())
+	cmd.AddCommand(newPRCmd())
 	cmd.AddCommand(newCompletionCmd())
 	cmd.AddCommand(versionCmd)
 
@@ -157,6 +158,7 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"help":        true,
 		"completion":  true,
 		"config":      true,
+		"pr":          true,
 	}
 	for _, n := range names {
 		if suppressList[n] {

@@ -43,6 +43,8 @@ var (
 	subtleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8"))
 
+	dimStyle = subtleStyle
+
 	codeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("13"))
 
