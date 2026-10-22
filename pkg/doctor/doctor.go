@@ -512,16 +512,16 @@ func EvaluateGitHubSSH(rawOutput string, execErr error) DiagnosticResult {
 	}
 }
 
-// CheckPorts scans the standard dev port range (10000-10250) for unexpected bindings.
+// CheckPorts scans the standard dev port range (10000-10300) for unexpected bindings.
 func CheckPorts() DiagnosticResult {
-	scanResults := ports.ScanRange(10000, 10250)
+	scanResults := ports.ScanRange(10000, 10300)
 	return EvaluatePortScan(scanResults)
 }
 
-// EvaluatePortScan evaluates port scan results for ports in 10000-10250.
+// EvaluatePortScan evaluates port scan results for ports in 10000-10300.
 func EvaluatePortScan(scanResults map[int]bool) DiagnosticResult {
 	category := "Ports"
-	name := "Dev Port Range (10000-10250)"
+	name := "Dev Port Range (10000-10300)"
 
 	var inUse []int
 	for port, used := range scanResults {
@@ -536,7 +536,7 @@ func EvaluatePortScan(scanResults map[int]bool) DiagnosticResult {
 			Category:      category,
 			Name:          name,
 			Status:        StatusWarning,
-			Message:       fmt.Sprintf("Found %d bound port(s) in range 10000-10250: %v", len(inUse), inUse),
+			Message:       fmt.Sprintf("Found %d bound port(s) in range 10000-10300: %v", len(inUse), inUse),
 			FixSuggestion: "Stop conflicting processes or run 'manova dev down' to free dev ports.",
 		}
 	}
@@ -545,7 +545,7 @@ func EvaluatePortScan(scanResults map[int]bool) DiagnosticResult {
 		Category: category,
 		Name:     name,
 		Status:   StatusOK,
-		Message:  "All dev ports in range 10000-10250 are free",
+		Message:  "All dev ports in range 10000-10300 are free",
 	}
 }
 

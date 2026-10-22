@@ -135,15 +135,16 @@ func TestProbeServiceReadiness(t *testing.T) {
 	ctx := context.Background()
 	statuses := probeServiceReadiness(ctx, 100*time.Millisecond)
 
-	if len(statuses) != 4 {
-		t.Fatalf("expected 4 service statuses, got %d", len(statuses))
+	if len(statuses) != 5 {
+		t.Fatalf("expected 5 service statuses, got %d", len(statuses))
 	}
 
 	expectedServices := map[string]int{
 		"Postgres":      10332,
-		"NATS":          10482,
-		"LLDAP":         10389,
-		"Caddy Ingress": 10000,
+		"NATS":          10422,
+		"LLDAP":         3890,
+		"Caddy Ingress": 80,
+		"Mailpit":       10825,
 	}
 
 	for _, s := range statuses {
@@ -152,7 +153,11 @@ func TestProbeServiceReadiness(t *testing.T) {
 			t.Errorf("unexpected service in probe results: %s", s.Name)
 			continue
 		}
-		if s.Port != expPort {
+		if s.Name == "Caddy Ingress" {
+			if s.Port != 80 && s.Port != 10443 {
+				t.Errorf("service %s expected port 80 or 10443, got %d", s.Name, s.Port)
+			}
+		} else if s.Port != expPort {
 			t.Errorf("service %s expected port %d, got %d", s.Name, expPort, s.Port)
 		}
 		if s.Message == "" {

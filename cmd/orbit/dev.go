@@ -125,15 +125,17 @@ func waitForServiceHealth(ctx context.Context, host string, port int, timeout ti
 // probeServiceReadiness probes core services in parallel and returns their status.
 func probeServiceReadiness(ctx context.Context, timeout time.Duration) []ServiceStatus {
 	coreServices := []struct {
-		Name string
-		Host string
-		Port int
-		URL  string
+		Name         string
+		Host         string
+		Port         int
+		FallbackPort int
+		URL          string
 	}{
 		{Name: "Postgres", Host: "127.0.0.1", Port: 10332, URL: "postgres://orbit@localhost:10332/orbit"},
-		{Name: "NATS", Host: "127.0.0.1", Port: 10482, URL: "nats://localhost:10482"},
-		{Name: "LLDAP", Host: "127.0.0.1", Port: 10389, URL: "ldap://localhost:10389"},
-		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 10000, URL: "http://localhost:10000"},
+		{Name: "NATS", Host: "127.0.0.1", Port: 10422, URL: "nats://localhost:10422"},
+		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
+		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
+		{Name: "Mailpit", Host: "127.0.0.1", Port: 10825, URL: "http://localhost:10825"},
 	}
 
 	results := make([]ServiceStatus, len(coreServices))
@@ -142,13 +144,21 @@ func probeServiceReadiness(ctx context.Context, timeout time.Duration) []Service
 	for i, svc := range coreServices {
 		wg.Add(1)
 		go func(idx int, s struct {
-			Name string
-			Host string
-			Port int
-			URL  string
+			Name         string
+			Host         string
+			Port         int
+			FallbackPort int
+			URL          string
 		}) {
 			defer wg.Done()
 			ready := waitForServiceHealth(ctx, s.Host, s.Port, timeout)
+			effectivePort := s.Port
+			if !ready && s.FallbackPort > 0 {
+				if waitForServiceHealth(ctx, s.Host, s.FallbackPort, timeout) {
+					ready = true
+					effectivePort = s.FallbackPort
+				}
+			}
 			msg := "Ready"
 			if !ready {
 				msg = "Unresponsive / Offline"
@@ -156,7 +166,7 @@ func probeServiceReadiness(ctx context.Context, timeout time.Duration) []Service
 			results[idx] = ServiceStatus{
 				Name:    s.Name,
 				Host:    s.Host,
-				Port:    s.Port,
+				Port:    effectivePort,
 				URL:     s.URL,
 				Ready:   ready,
 				Message: msg,
