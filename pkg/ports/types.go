@@ -54,6 +54,7 @@ var DefaultProjectMapping = ProjectMapping{
 	"orbit-platform": 0,
 	"manova":         1,
 	"fryto":          2,
+	"jouybari":       3,
 	"jtash":          4,
 	"kohan_kherad":   5,
 }

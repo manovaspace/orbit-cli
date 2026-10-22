@@ -249,6 +249,7 @@ func TestResolveProjectID(t *testing.T) {
 		{"manova", 1, true},
 		{"orbit-services", 1, true},
 		{"fryto", 2, true},
+		{"jouybari", 3, true},
 		{"jtash", 4, true},
 		{"kohan_kherad", 5, true},
 		{"unknown-project", 0, false},
