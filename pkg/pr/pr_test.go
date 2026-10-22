@@ -148,6 +148,19 @@ func TestDetectRepoInfo(t *testing.T) {
 	if branch != "feat/test-branch" {
 		t.Errorf("DetectRepoInfo branch = %q, want %q", branch, "feat/test-branch")
 	}
+
+	// Test DetectRepo with GitHub remote
+	_ = exec.Command("git", "-C", tempDir, "remote", "set-url", "origin", "git@github.com:manovaspace/orbit-cli.git").Run()
+	info, err := DetectRepo(tempDir)
+	if err != nil {
+		t.Fatalf("DetectRepo failed: %v", err)
+	}
+	if !info.IsGitHub {
+		t.Errorf("DetectRepo IsGitHub = false, want true")
+	}
+	if info.Owner != "manovaspace" || info.Repo != "orbit-cli" {
+		t.Errorf("DetectRepo = %s/%s, want manovaspace/orbit-cli", info.Owner, info.Repo)
+	}
 }
 
 func TestResolveCredentials(t *testing.T) {
@@ -230,6 +243,36 @@ func TestResolveCredentials(t *testing.T) {
 		}
 		if cfg.Token != "mock-token-789" {
 			t.Errorf("got token %q, want %q", cfg.Token, "mock-token-789")
+		}
+		if cfg.BaseURL != "https://git.internal.test" {
+			t.Errorf("got baseURL %q, want %q", cfg.BaseURL, "https://git.internal.test")
+		}
+	})
+
+	t.Run("From .cursor/mcp.env in ancestor directory of subrepo", func(t *testing.T) {
+		cleanEnv()
+		mockRoot := t.TempDir()
+		subRepo := filepath.Join(mockRoot, "orbit", "orbit-cli")
+		if err := os.MkdirAll(subRepo, 0755); err != nil {
+			t.Fatalf("failed to create subrepo dir: %v", err)
+		}
+		cursorDir := filepath.Join(mockRoot, ".cursor")
+		if err := os.MkdirAll(cursorDir, 0755); err != nil {
+			t.Fatalf("failed to create .cursor dir: %v", err)
+		}
+
+		mcpContent := "FORGEJO_URL=\"https://git.internal.test\"\n" +
+			"FORGEJO_ACCESS_TOKEN=\"ancestor-token-123\"\n"
+		if err := os.WriteFile(filepath.Join(cursorDir, "mcp.env"), []byte(mcpContent), 0600); err != nil {
+			t.Fatalf("failed to write mcp.env: %v", err)
+		}
+
+		cfg, err := ResolveCredentials(subRepo)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Token != "ancestor-token-123" {
+			t.Errorf("got token %q, want %q", cfg.Token, "ancestor-token-123")
 		}
 		if cfg.BaseURL != "https://git.internal.test" {
 			t.Errorf("got baseURL %q, want %q", cfg.BaseURL, "https://git.internal.test")

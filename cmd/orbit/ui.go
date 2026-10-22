@@ -68,12 +68,24 @@ var (
 func findWorkspaceRoot(overridePath string) string {
 	if overridePath != "" {
 		if abs, err := filepath.Abs(overridePath); err == nil {
-			if fi, err := os.Stat(abs); err == nil {
-				if fi.IsDir() {
-					return abs
-				}
-				return filepath.Dir(abs)
+			dir := abs
+			if fi, err := os.Stat(dir); err == nil && !fi.IsDir() {
+				dir = filepath.Dir(dir)
 			}
+			for {
+				if _, err := os.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
+					return dir
+				}
+				if _, err := os.Stat(filepath.Join(dir, ".orbit")); err == nil {
+					return dir
+				}
+				parent := filepath.Dir(dir)
+				if parent == dir {
+					break
+				}
+				dir = parent
+			}
+			return abs
 		}
 		return overridePath
 	}

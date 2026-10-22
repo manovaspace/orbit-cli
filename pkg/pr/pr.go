@@ -86,16 +86,7 @@ func ResolveCredentials(workspaceRoot string) (*Config, error) {
 
 	// 2. Check .cursor/mcp.env if token or baseURL missing
 	if token == "" || baseURL == "" {
-		envPath := ""
-		if workspaceRoot != "" {
-			p := filepath.Join(workspaceRoot, ".cursor", "mcp.env")
-			if _, err := os.Stat(p); err == nil {
-				envPath = p
-			}
-		} else {
-			envPath = findWorkspaceMcpEnv()
-		}
-
+		envPath := findWorkspaceMcpEnv(workspaceRoot)
 		if envPath != "" {
 			envMap, err := parseEnvFile(envPath)
 			if err == nil {
@@ -165,15 +156,25 @@ func ResolveCredentials(workspaceRoot string) (*Config, error) {
 	}, nil
 }
 
-// findWorkspaceMcpEnv scans current working directory and parent directories for .cursor/mcp.env.
-func findWorkspaceMcpEnv() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
+// findWorkspaceMcpEnv scans startDir and parent directories for .cursor/mcp.env.
+// If startDir is empty, it starts from the current working directory.
+func findWorkspaceMcpEnv(startDir string) string {
+	dir := startDir
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return ""
+		}
+	} else {
+		if abs, err := filepath.Abs(dir); err == nil {
+			dir = abs
+		}
 	}
+
 	for {
 		p := filepath.Join(dir, ".cursor", "mcp.env")
-		if _, err := os.Stat(p); err == nil {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
 			return p
 		}
 		parent := filepath.Dir(dir)
@@ -260,8 +261,17 @@ func ParseRemoteURL(rawURL string) (owner, repo string, err error) {
 	return owner, repo, nil
 }
 
-// DetectRepoInfo inspects git configuration in dir to detect remote origin owner/repo and the active branch.
-func DetectRepoInfo(dir string) (owner, repo, currentBranch string, err error) {
+// RepoInfo contains detected repository metadata including hosting forge type.
+type RepoInfo struct {
+	Owner         string
+	Repo          string
+	CurrentBranch string
+	RemoteURL     string
+	IsGitHub      bool
+}
+
+// DetectRepo inspects git configuration in dir to detect remote origin metadata and active branch.
+func DetectRepo(dir string) (*RepoInfo, error) {
 	if dir == "" {
 		dir = "."
 	}
@@ -273,26 +283,26 @@ func DetectRepoInfo(dir string) (owner, repo, currentBranch string, err error) {
 		cmdFallback := exec.Command("git", "-C", dir, "remote", "get-url", "origin")
 		out, err = cmdFallback.Output()
 		if err != nil {
-			return "", "", "", fmt.Errorf("failed to get git remote origin in %s: %w", dir, err)
+			return nil, fmt.Errorf("failed to get git remote origin in %s: %w", dir, err)
 		}
 	}
 	remoteURL := strings.TrimSpace(string(out))
 	if remoteURL == "" {
-		return "", "", "", fmt.Errorf("empty remote origin URL in %s", dir)
+		return nil, fmt.Errorf("empty remote origin URL in %s", dir)
 	}
 
-	owner, repo, err = ParseRemoteURL(remoteURL)
+	owner, repo, err := ParseRemoteURL(remoteURL)
 	if err != nil {
-		return "", "", "", err
+		return nil, err
 	}
 
 	// 2. Get current branch name
 	cmdBranch := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
 	branchOut, err := cmdBranch.Output()
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get current git branch in %s: %w", dir, err)
+		return nil, fmt.Errorf("failed to get current git branch in %s: %w", dir, err)
 	}
-	currentBranch = strings.TrimSpace(string(branchOut))
+	currentBranch := strings.TrimSpace(string(branchOut))
 	if currentBranch == "HEAD" {
 		cmdSym := exec.Command("git", "-C", dir, "symbolic-ref", "--short", "HEAD")
 		if symOut, symErr := cmdSym.Output(); symErr == nil {
@@ -300,7 +310,24 @@ func DetectRepoInfo(dir string) (owner, repo, currentBranch string, err error) {
 		}
 	}
 
-	return owner, repo, currentBranch, nil
+	isGitHub := strings.Contains(strings.ToLower(remoteURL), "github.com")
+
+	return &RepoInfo{
+		Owner:         owner,
+		Repo:          repo,
+		CurrentBranch: currentBranch,
+		RemoteURL:     remoteURL,
+		IsGitHub:      isGitHub,
+	}, nil
+}
+
+// DetectRepoInfo inspects git configuration in dir to detect remote origin owner/repo and the active branch.
+func DetectRepoInfo(dir string) (owner, repo, currentBranch string, err error) {
+	info, err := DetectRepo(dir)
+	if err != nil {
+		return "", "", "", err
+	}
+	return info.Owner, info.Repo, info.CurrentBranch, nil
 }
 
 // NewClient creates a new Forgejo PR Client from Config.

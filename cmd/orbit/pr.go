@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -21,8 +22,8 @@ func newPRCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "pr",
-		Short: "Manage pull requests and automated delivery via Forgejo",
-		Long:  "Create, merge, inspect status, and deliver pull requests on Forgejo directly from your workspace repository.",
+		Short: "Manage pull requests and automated delivery via Forgejo and GitHub",
+		Long:  "Create, merge, inspect status, and deliver pull requests on Forgejo and GitHub directly from your workspace repository.",
 	}
 
 	cmd.PersistentFlags().StringVar(&dirFlag, "dir", ".", "Path to repository directory (default: current directory)")
@@ -37,13 +38,32 @@ func newPRCmd() *cobra.Command {
 	return cmd
 }
 
-func resolvePRContext(dir, customURL, customToken string) (string, string, string, *pr.Client, error) {
+type prContext struct {
+	owner         string
+	repo          string
+	currentBranch string
+	isGitHub      bool
+	client        *pr.Client // non-nil for Forgejo
+}
+
+func resolvePRContext(dir, customURL, customToken string) (*prContext, error) {
 	if strings.TrimSpace(dir) == "" {
 		dir = "."
 	}
-	owner, repo, currentBranch, err := pr.DetectRepoInfo(dir)
+	info, err := pr.DetectRepo(dir)
 	if err != nil {
-		return "", "", "", nil, fmt.Errorf("detecting repository info in %s: %w", dir, err)
+		return nil, fmt.Errorf("detecting repository info in %s: %w", dir, err)
+	}
+
+	ctx := &prContext{
+		owner:         info.Owner,
+		repo:          info.Repo,
+		currentBranch: info.CurrentBranch,
+		isGitHub:      info.IsGitHub,
+	}
+
+	if info.IsGitHub {
+		return ctx, nil
 	}
 
 	workspaceRoot := findWorkspaceRoot(dir)
@@ -59,7 +79,7 @@ func resolvePRContext(dir, customURL, customToken string) (string, string, strin
 				Token:   customToken,
 			}
 		} else {
-			return "", "", "", nil, err
+			return nil, err
 		}
 	} else {
 		if customURL != "" {
@@ -72,10 +92,11 @@ func resolvePRContext(dir, customURL, customToken string) (string, string, strin
 
 	client, err := pr.NewClient(cfg)
 	if err != nil {
-		return "", "", "", nil, fmt.Errorf("initializing PR client: %w", err)
+		return nil, fmt.Errorf("initializing PR client: %w", err)
 	}
+	ctx.client = client
 
-	return owner, repo, currentBranch, client, nil
+	return ctx, nil
 }
 
 func runGit(dir string, args ...string) (string, error) {
@@ -85,6 +106,23 @@ func runGit(dir string, args ...string) (string, error) {
 	trimmed := strings.TrimSpace(string(out))
 	if err != nil {
 		return trimmed, fmt.Errorf("git %s failed: %s (%w)", strings.Join(args, " "), trimmed, err)
+	}
+	return trimmed, nil
+}
+
+func runGH(dir string, args ...string) (string, error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return "", errors.New("GitHub CLI ('gh') is required for repositories hosted on GitHub: please install 'gh' and run 'gh auth login'")
+	}
+	cmdArgs := args
+	cmd := exec.Command("gh", cmdArgs...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.CombinedOutput()
+	trimmed := strings.TrimSpace(string(out))
+	if err != nil {
+		return trimmed, fmt.Errorf("gh %s failed: %s (%w)", strings.Join(args, " "), trimmed, err)
 	}
 	return trimmed, nil
 }
@@ -101,8 +139,8 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new pull request on Forgejo",
-		Long:  "Pushes the head branch to origin, creates a pull request on Forgejo, and optionally merges it.",
+		Short: "Create a new pull request on Forgejo or GitHub",
+		Long:  "Pushes the head branch to origin, creates a pull request on Forgejo or GitHub, and optionally merges it.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			dir := *dirFlag
@@ -110,14 +148,14 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				dir = "."
 			}
 
-			owner, repo, currentBranch, client, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
+			ctx, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
 			if err != nil {
 				return err
 			}
 
 			head := headFlag
 			if strings.TrimSpace(head) == "" {
-				head = currentBranch
+				head = ctx.currentBranch
 			}
 			if head == "" || head == "HEAD" {
 				return errors.New("cannot determine head branch; specify --head or checkout a branch")
@@ -156,15 +194,46 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 			if _, err := runGit(dir, "push", "-u", "origin", head); err != nil {
 				return fmt.Errorf("failed to push branch %q to origin: %w", head, err)
 			}
+			fmt.Fprintf(out, "  %s Pushed branch %s to origin\n", iconOK, boldStyle.Render(head))
 
-			// 2. Create pull request
-			fmt.Fprintf(out, "%s Creating pull request %s -> %s in %s/%s...\n", iconArrow, boldStyle.Render(head), boldStyle.Render(base), owner, repo)
-			pullReq, err := client.CreatePR(owner, repo, title, body, head, base)
-			if err != nil {
-				return fmt.Errorf("failed to create pull request: %w", err)
+			var prIndex int64
+			var prHTMLURL string
+
+			forgeName := "Forgejo"
+			if ctx.isGitHub {
+				forgeName = "GitHub"
 			}
 
-			fmt.Fprintf(out, "%s Pull request created: %s\n", iconOK, boldStyle.Render(pullReq.HTMLURL))
+			// 2. Create pull request
+			fmt.Fprintf(out, "%s Creating pull request on %s (%s -> %s) in %s/%s...\n", iconArrow, forgeName, boldStyle.Render(head), boldStyle.Render(base), ctx.owner, ctx.repo)
+			if ctx.isGitHub {
+				ghArgs := []string{"pr", "create", "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), "--title", title, "--base", base, "--head", head}
+				if body != "" {
+					ghArgs = append(ghArgs, "--body", body)
+				} else {
+					ghArgs = append(ghArgs, "--body", "")
+				}
+				createOut, err := runGH(dir, ghArgs...)
+				if err != nil {
+					return fmt.Errorf("failed to create GitHub PR: %w", err)
+				}
+				prHTMLURL = strings.TrimSpace(createOut)
+				parts := strings.Split(prHTMLURL, "/")
+				if len(parts) > 0 {
+					if idx, err := strconv.ParseInt(parts[len(parts)-1], 10, 64); err == nil {
+						prIndex = idx
+					}
+				}
+			} else {
+				pullReq, err := ctx.client.CreatePR(ctx.owner, ctx.repo, title, body, head, base)
+				if err != nil {
+					return fmt.Errorf("failed to create pull request: %w", err)
+				}
+				prIndex = pullReq.Index
+				prHTMLURL = pullReq.HTMLURL
+			}
+
+			fmt.Fprintf(out, "%s Pull request created: %s\n", iconOK, boldStyle.Render(prHTMLURL))
 
 			// 3. Optional merge
 			if mergeFlag {
@@ -172,11 +241,26 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				if strings.TrimSpace(method) == "" {
 					method = "merge"
 				}
-				fmt.Fprintf(out, "%s Merging pull request #%d (%s)...\n", iconArrow, pullReq.Index, method)
-				if err := client.MergePR(owner, repo, pullReq.Index, method); err != nil {
-					return fmt.Errorf("failed to merge pull request #%d: %w", pullReq.Index, err)
+				fmt.Fprintf(out, "%s Merging pull request #%d (%s)...\n", iconArrow, prIndex, method)
+				if ctx.isGitHub {
+					mergeArgs := []string{"pr", "merge", fmt.Sprintf("%d", prIndex), "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo)}
+					switch method {
+					case "squash":
+						mergeArgs = append(mergeArgs, "--squash")
+					case "rebase":
+						mergeArgs = append(mergeArgs, "--rebase")
+					default:
+						mergeArgs = append(mergeArgs, "--merge")
+					}
+					if _, err := runGH(dir, mergeArgs...); err != nil {
+						return fmt.Errorf("failed to merge pull request #%d on GitHub: %w", prIndex, err)
+					}
+				} else {
+					if err := ctx.client.MergePR(ctx.owner, ctx.repo, prIndex, method); err != nil {
+						return fmt.Errorf("failed to merge pull request #%d: %w", prIndex, err)
+					}
 				}
-				fmt.Fprintf(out, "%s Pull request #%d merged into %s (%s)\n", iconOK, pullReq.Index, boldStyle.Render(base), method)
+				fmt.Fprintf(out, "%s Pull request #%d merged into %s (%s)\n", iconOK, prIndex, boldStyle.Render(base), method)
 			}
 
 			return nil
@@ -198,7 +282,7 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "merge [number]",
-		Short: "Merge a pull request on Forgejo",
+		Short: "Merge a pull request on Forgejo or GitHub",
 		Long:  "Merges an open pull request by number. If number is omitted, attempts to find and merge the open PR for the current branch.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -208,7 +292,7 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				dir = "."
 			}
 
-			owner, repo, currentBranch, client, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
+			ctx, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
 			if err != nil {
 				return err
 			}
@@ -216,6 +300,33 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 			method := methodFlag
 			if strings.TrimSpace(method) == "" {
 				method = "merge"
+			}
+
+			if ctx.isGitHub {
+				prRef := ""
+				if len(args) > 0 {
+					prRef = args[0]
+				} else {
+					if ctx.currentBranch == "" || ctx.currentBranch == "HEAD" {
+						return errors.New("cannot determine current branch; provide PR number explicitly: orbit pr merge <number>")
+					}
+					prRef = ctx.currentBranch
+				}
+				fmt.Fprintf(out, "%s Merging pull request %s in %s/%s on GitHub (%s)...\n", iconArrow, prRef, ctx.owner, ctx.repo, method)
+				mergeArgs := []string{"pr", "merge", prRef, "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo)}
+				switch method {
+				case "squash":
+					mergeArgs = append(mergeArgs, "--squash")
+				case "rebase":
+					mergeArgs = append(mergeArgs, "--rebase")
+				default:
+					mergeArgs = append(mergeArgs, "--merge")
+				}
+				if _, err := runGH(dir, mergeArgs...); err != nil {
+					return fmt.Errorf("failed to merge pull request %s on GitHub: %w", prRef, err)
+				}
+				fmt.Fprintf(out, "%s Pull request %s merged using method %q\n", iconOK, prRef, method)
+				return nil
 			}
 
 			var prIndex int64
@@ -226,28 +337,28 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				}
 				prIndex = parsed
 			} else {
-				if currentBranch == "" || currentBranch == "HEAD" {
+				if ctx.currentBranch == "" || ctx.currentBranch == "HEAD" {
 					return errors.New("cannot determine current branch; provide PR number explicitly: orbit pr merge <number>")
 				}
-				prs, err := client.ListOpenPRs(owner, repo)
+				prs, err := ctx.client.ListOpenPRs(ctx.owner, ctx.repo)
 				if err != nil {
 					return fmt.Errorf("failed to list open pull requests: %w", err)
 				}
 				var matched *pr.PR
 				for _, p := range prs {
-					if p.Head != nil && p.Head.Name == currentBranch {
+					if p.Head != nil && p.Head.Name == ctx.currentBranch {
 						matched = p
 						break
 					}
 				}
 				if matched == nil {
-					return fmt.Errorf("no open pull request found for branch %q in %s/%s", currentBranch, owner, repo)
+					return fmt.Errorf("no open pull request found for branch %q in %s/%s", ctx.currentBranch, ctx.owner, ctx.repo)
 				}
 				prIndex = matched.Index
 			}
 
-			fmt.Fprintf(out, "%s Merging pull request #%d in %s/%s (%s)...\n", iconArrow, prIndex, owner, repo, method)
-			if err := client.MergePR(owner, repo, prIndex, method); err != nil {
+			fmt.Fprintf(out, "%s Merging pull request #%d in %s/%s (%s)...\n", iconArrow, prIndex, ctx.owner, ctx.repo, method)
+			if err := ctx.client.MergePR(ctx.owner, ctx.repo, prIndex, method); err != nil {
 				return fmt.Errorf("failed to merge pull request #%d: %w", prIndex, err)
 			}
 
@@ -265,7 +376,7 @@ func newPRStatusCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "List open pull requests for the repository",
-		Long:  "Displays all open pull requests for the current repository on Forgejo.",
+		Long:  "Displays all open pull requests for the current repository on Forgejo or GitHub.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			dir := *dirFlag
@@ -273,20 +384,82 @@ func newPRStatusCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				dir = "."
 			}
 
-			owner, repo, _, client, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
+			ctx, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
 			if err != nil {
 				return err
 			}
 
-			prs, err := client.ListOpenPRs(owner, repo)
-			if err != nil {
-				return fmt.Errorf("failed to list open pull requests: %w", err)
+			type statusPR struct {
+				Index  string
+				Title  string
+				Branch string
+				Author string
+				URL    string
 			}
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Open Pull Requests — %s/%s", owner, repo)))
+			var prList []statusPR
 
-			if len(prs) == 0 {
-				fmt.Fprintf(out, "No open pull requests in %s/%s.\n", owner, repo)
+			if ctx.isGitHub {
+				ghOut, err := runGH(dir, "pr", "list", "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), "--state", "open", "--json", "number,title,author,headRefName,baseRefName,url")
+				if err != nil {
+					return fmt.Errorf("listing open GitHub PRs: %w", err)
+				}
+				var ghPRs []struct {
+					Number int64  `json:"number"`
+					Title  string `json:"title"`
+					Author struct {
+						Login string `json:"login"`
+					} `json:"author"`
+					HeadRefName string `json:"headRefName"`
+					BaseRefName string `json:"baseRefName"`
+					URL         string `json:"url"`
+				}
+				if err := json.Unmarshal([]byte(ghOut), &ghPRs); err != nil {
+					return fmt.Errorf("parsing GitHub PR list: %w", err)
+				}
+				for _, g := range ghPRs {
+					prList = append(prList, statusPR{
+						Index:  fmt.Sprintf("#%d", g.Number),
+						Title:  g.Title,
+						Branch: fmt.Sprintf("%s -> %s", g.HeadRefName, g.BaseRefName),
+						Author: g.Author.Login,
+						URL:    g.URL,
+					})
+				}
+			} else {
+				prs, err := ctx.client.ListOpenPRs(ctx.owner, ctx.repo)
+				if err != nil {
+					return fmt.Errorf("failed to list open pull requests: %w", err)
+				}
+				for _, p := range prs {
+					author := ""
+					if p.Poster != nil {
+						author = p.Poster.UserName
+					}
+					branch := ""
+					if p.Head != nil && p.Base != nil {
+						branch = fmt.Sprintf("%s -> %s", p.Head.Name, p.Base.Name)
+					} else if p.Head != nil {
+						branch = p.Head.Name
+					}
+					prList = append(prList, statusPR{
+						Index:  fmt.Sprintf("#%d", p.Index),
+						Title:  p.Title,
+						Branch: branch,
+						Author: author,
+						URL:    p.HTMLURL,
+					})
+				}
+			}
+
+			forgeName := "Forgejo"
+			if ctx.isGitHub {
+				forgeName = "GitHub"
+			}
+			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Open Pull Requests (%s) — %s/%s", forgeName, ctx.owner, ctx.repo)))
+
+			if len(prList) == 0 {
+				fmt.Fprintf(out, "No open pull requests in %s/%s.\n", ctx.owner, ctx.repo)
 				return nil
 			}
 
@@ -298,30 +471,14 @@ func newPRStatusCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				table.Column{Title: "URL", HeaderStyle: headerStyle, CellStyle: dimStyle, MinWidth: 30, Flexible: true},
 			)
 
-			for _, p := range prs {
-				author := ""
-				if p.Poster != nil {
-					author = p.Poster.UserName
-				}
-				branch := ""
-				if p.Head != nil && p.Base != nil {
-					branch = fmt.Sprintf("%s -> %s", p.Head.Name, p.Base.Name)
-				} else if p.Head != nil {
-					branch = p.Head.Name
-				}
-				tbl.AddRow(
-					fmt.Sprintf("#%d", p.Index),
-					p.Title,
-					branch,
-					author,
-					p.HTMLURL,
-				)
+			for _, p := range prList {
+				tbl.AddRow(p.Index, p.Title, p.Branch, p.Author, p.URL)
 			}
 
 			if err := tbl.Render(out); err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(prs))))
+			fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(prList))))
 			return nil
 		},
 	}
@@ -340,7 +497,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deliver",
 		Short: "Deliver branch end-to-end: push, PR, merge, checkout base, fast-forward, and prune",
-		Long:  "Executes the full Tier 1 delivery lifecycle for the active branch: pushes branch to origin, creates a Forgejo PR, merges the PR, checks out base branch, pulls --ff-only, and prunes the local feature branch.",
+		Long:  "Executes the full Tier 1 delivery lifecycle for the active branch: pushes branch to origin, creates a PR on Forgejo or GitHub, merges the PR, checks out base branch, pulls --ff-only, and prunes the local feature branch.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			dir := *dirFlag
@@ -348,7 +505,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				dir = "."
 			}
 
-			owner, repo, currentBranch, client, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
+			ctx, err := resolvePRContext(dir, *urlFlag, *tokenFlag)
 			if err != nil {
 				return err
 			}
@@ -358,10 +515,10 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				base = "main"
 			}
 
-			if currentBranch == base {
+			if ctx.currentBranch == base {
 				return fmt.Errorf("cannot deliver from %q branch: deliver must be run from a feature branch", base)
 			}
-			if currentBranch == "" || currentBranch == "HEAD" {
+			if ctx.currentBranch == "" || ctx.currentBranch == "HEAD" {
 				return errors.New("cannot deliver from detached HEAD state; checkout a feature branch first")
 			}
 
@@ -376,7 +533,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 
 			title := titleFlag
 			if strings.TrimSpace(title) == "" {
-				commitSubject, err := runGit(dir, "log", "-1", "--pretty=%s", currentBranch)
+				commitSubject, err := runGit(dir, "log", "-1", "--pretty=%s", ctx.currentBranch)
 				if err == nil && strings.TrimSpace(commitSubject) != "" {
 					title = strings.TrimSpace(commitSubject)
 				}
@@ -387,7 +544,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 
 			body := bodyFlag
 			if strings.TrimSpace(body) == "" {
-				commitBody, err := runGit(dir, "log", "-1", "--pretty=%b", currentBranch)
+				commitBody, err := runGit(dir, "log", "-1", "--pretty=%b", ctx.currentBranch)
 				if err == nil {
 					body = strings.TrimSpace(commitBody)
 				}
@@ -398,29 +555,73 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				method = "merge"
 			}
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Deliver — %s/%s (%s -> %s)", owner, repo, currentBranch, base)))
+			forgeName := "Forgejo"
+			if ctx.isGitHub {
+				forgeName = "GitHub"
+			}
+			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Deliver (%s) — %s/%s (%s -> %s)", forgeName, ctx.owner, ctx.repo, ctx.currentBranch, base)))
 
 			// 1. Push branch to origin
-			fmt.Fprintf(out, "%s Pushing branch %s to origin...\n", iconArrow, boldStyle.Render(currentBranch))
-			if _, err := runGit(dir, "push", "-u", "origin", currentBranch); err != nil {
-				return fmt.Errorf("failed to push branch %q to origin: %w", currentBranch, err)
+			fmt.Fprintf(out, "%s Pushing branch %s to origin...\n", iconArrow, boldStyle.Render(ctx.currentBranch))
+			if _, err := runGit(dir, "push", "-u", "origin", ctx.currentBranch); err != nil {
+				return fmt.Errorf("failed to push branch %q to origin: %w", ctx.currentBranch, err)
 			}
-			fmt.Fprintf(out, "  %s Pushed branch %s to origin\n", iconOK, boldStyle.Render(currentBranch))
+			fmt.Fprintf(out, "  %s Pushed branch %s to origin\n", iconOK, boldStyle.Render(ctx.currentBranch))
+
+			var prIndex int64
+			var prHTMLURL string
 
 			// 2. Create PR
-			fmt.Fprintf(out, "%s Creating pull request %s -> %s...\n", iconArrow, boldStyle.Render(currentBranch), boldStyle.Render(base))
-			pullReq, err := client.CreatePR(owner, repo, title, body, currentBranch, base)
-			if err != nil {
-				return fmt.Errorf("failed to create pull request: %w", err)
+			fmt.Fprintf(out, "%s Creating pull request %s -> %s...\n", iconArrow, boldStyle.Render(ctx.currentBranch), boldStyle.Render(base))
+			if ctx.isGitHub {
+				ghArgs := []string{"pr", "create", "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), "--title", title, "--base", base, "--head", ctx.currentBranch}
+				if body != "" {
+					ghArgs = append(ghArgs, "--body", body)
+				} else {
+					ghArgs = append(ghArgs, "--body", "")
+				}
+				createOut, err := runGH(dir, ghArgs...)
+				if err != nil {
+					return fmt.Errorf("failed to create GitHub PR: %w", err)
+				}
+				prHTMLURL = strings.TrimSpace(createOut)
+				parts := strings.Split(prHTMLURL, "/")
+				if len(parts) > 0 {
+					if idx, err := strconv.ParseInt(parts[len(parts)-1], 10, 64); err == nil {
+						prIndex = idx
+					}
+				}
+			} else {
+				pullReq, err := ctx.client.CreatePR(ctx.owner, ctx.repo, title, body, ctx.currentBranch, base)
+				if err != nil {
+					return fmt.Errorf("failed to create pull request: %w", err)
+				}
+				prIndex = pullReq.Index
+				prHTMLURL = pullReq.HTMLURL
 			}
-			fmt.Fprintf(out, "  %s Created PR #%d: %s\n", iconOK, pullReq.Index, boldStyle.Render(pullReq.HTMLURL))
+			fmt.Fprintf(out, "  %s Created PR #%d: %s\n", iconOK, prIndex, boldStyle.Render(prHTMLURL))
 
 			// 3. Merge PR
-			fmt.Fprintf(out, "%s Merging pull request #%d (%s)...\n", iconArrow, pullReq.Index, method)
-			if err := client.MergePR(owner, repo, pullReq.Index, method); err != nil {
-				return fmt.Errorf("failed to merge pull request #%d: %w", pullReq.Index, err)
+			fmt.Fprintf(out, "%s Merging pull request #%d (%s)...\n", iconArrow, prIndex, method)
+			if ctx.isGitHub {
+				mergeArgs := []string{"pr", "merge", fmt.Sprintf("%d", prIndex), "-R", fmt.Sprintf("%s/%s", ctx.owner, ctx.repo)}
+				switch method {
+				case "squash":
+					mergeArgs = append(mergeArgs, "--squash")
+				case "rebase":
+					mergeArgs = append(mergeArgs, "--rebase")
+				default:
+					mergeArgs = append(mergeArgs, "--merge")
+				}
+				if _, err := runGH(dir, mergeArgs...); err != nil {
+					return fmt.Errorf("failed to merge pull request #%d on GitHub: %w", prIndex, err)
+				}
+			} else {
+				if err := ctx.client.MergePR(ctx.owner, ctx.repo, prIndex, method); err != nil {
+					return fmt.Errorf("failed to merge pull request #%d: %w", prIndex, err)
+				}
 			}
-			fmt.Fprintf(out, "  %s Merged PR #%d into %s\n", iconOK, pullReq.Index, boldStyle.Render(base))
+			fmt.Fprintf(out, "  %s Merged PR #%d into %s\n", iconOK, prIndex, boldStyle.Render(base))
 
 			// 4. Switch back to base
 			fmt.Fprintf(out, "%s Checking out %s...\n", iconArrow, boldStyle.Render(base))
@@ -437,21 +638,21 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 			fmt.Fprintf(out, "  %s Fast-forwarded %s to origin/%s\n", iconOK, boldStyle.Render(base), base)
 
 			// 6. Prune local branch
-			fmt.Fprintf(out, "%s Pruning local branch %s...\n", iconArrow, boldStyle.Render(currentBranch))
-			delOut, err := runGit(dir, "branch", "-d", currentBranch)
+			fmt.Fprintf(out, "%s Pruning local branch %s...\n", iconArrow, boldStyle.Render(ctx.currentBranch))
+			delOut, err := runGit(dir, "branch", "-d", ctx.currentBranch)
 			if err != nil {
 				if strings.Contains(delOut, "not fully merged") {
-					if _, errForce := runGit(dir, "branch", "-D", currentBranch); errForce != nil {
-						return fmt.Errorf("failed to force-prune local branch %q: %w", currentBranch, errForce)
+					if _, errForce := runGit(dir, "branch", "-D", ctx.currentBranch); errForce != nil {
+						return fmt.Errorf("failed to force-prune local branch %q: %w", ctx.currentBranch, errForce)
 					}
 				} else {
-					return fmt.Errorf("failed to prune local branch %q: %w", currentBranch, err)
+					return fmt.Errorf("failed to prune local branch %q: %w", ctx.currentBranch, err)
 				}
 			}
-			fmt.Fprintf(out, "  %s Pruned local branch %s\n", iconOK, boldStyle.Render(currentBranch))
+			fmt.Fprintf(out, "  %s Pruned local branch %s\n", iconOK, boldStyle.Render(ctx.currentBranch))
 
 			// 7. Success message
-			fmt.Fprintf(out, "\n%s Successfully delivered %s into %s!\n", iconOK, boldStyle.Render(currentBranch), boldStyle.Render(base))
+			fmt.Fprintf(out, "\n%s Successfully delivered %s into %s!\n", iconOK, boldStyle.Render(ctx.currentBranch), boldStyle.Render(base))
 			return nil
 		},
 	}
