@@ -52,40 +52,12 @@ go test ./...
 
 ### CLI Invocations
 
-```bash
-orbit doctor              # run system and workspace diagnostics
-orbit doctor --fix        # auto-heal detected issues
-orbit init                # initialize workspace from workspace.yaml
-orbit sync                # synchronize repositories and dependencies
-orbit status              # multi-repo git status (missing vs gitless vs dirty)
-orbit repair              # attach .git to gitless trees (no checkout -f)
-orbit env check           # validate environment variables against .env.example
-orbit env setup           # generate missing .env files from schemas
-orbit port list           # display dev port allocations (ADR-006)
-orbit port allocate <project> <service>
-orbit migrate             # apply pending workspace migrations
-orbit migrate status      # inspect applied migrations
-orbit dev up              # start local dev stack services
-orbit invite create <email> # issue HMAC-signed onboarding invite
-orbit onboard             # interactive onboarding wizard
-orbit staff create --uid … --name … --forward …
-orbit staff recreate --uid … --name … --forward … # blocked; use Keycloak cleanup procedure
-orbit staff reset-password <uid> [--ldap|--mailbox]
-orbit pr create [--title] [--body] [--base main] [--merge] # push branch & open PR
-orbit pr merge [pr-number] [--method merge|squash|rebase]   # merge open PR
-orbit pr status                                            # list open repository PRs
-orbit pr deliver [--title] [--body] [--base main]          # end-to-end push, PR, merge & ff-only delivery
-orbit assets pull         # download gitignored media from R2
-orbit assets push         # upload gitignored media to R2
-orbit assets add <path>   # upload a file, update orbit-assets.yaml + .gitignore
-orbit assets status       # compare local assets vs R2
-orbit admin init          # initiate platform ownership verification
-orbit doc -f markdown -o docs/cli
-orbit doc -f man -o docs/cli/man
-orbit config show         # local CLI config
-orbit self-update
-orbit uninstall
-```
+Run `orbit --help` / `orbit <cmd> --help`; generated reference lives in `docs/cli/` (`orbit doc -f markdown -o docs/cli`). Non-obvious:
+
+- `orbit doctor --fix` and `orbit repair` modify the workspace; run read-only `orbit doctor --local` first.
+- `orbit staff recreate` is blocked; use the Keycloak cleanup procedure.
+- `orbit pr deliver` pushes, opens the PR, merges and fast-forwards in one step.
+- `orbit assets add <path>` updates `orbit-assets.yaml` and `.gitignore`.
 
 ### Edge Daemon
 
@@ -95,28 +67,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 
 ## Structure & Packages
 
-| Package / Path | Role |
-| --- | --- |
-| `cmd/orbit/` | Main CLI entrypoint and Cobra subcommand tree (`init`, `doctor`, `dev`, `invite`, etc.) |
-| `cmd/orbit-server/` | Standalone infrastructure daemon HTTP listener and mail gateway |
-| `pkg/doctor/` | Workspace diagnostics, runtime health checks, and auto-healing engine |
-| `pkg/manifest/` | `workspace.yaml` parsing and multi-repo dependency resolution |
-| `pkg/migrate/` | Workspace schema, config, and structure migration engine |
-| `pkg/ports/` | Dev host port block allocation (ADR-006) and conflict detection |
-| `pkg/pr/` | Forgejo / Gitea API client for PR creation, merging, status, and git remote detection |
-| `pkg/onboard/` | Developer and client onboarding flow and claim verification |
-| `pkg/session/` | Onboarding session state (`~/.config/orbit/session.json`; reads legacy `~/.config/manova/session.json`) |
-| `pkg/invite/` | Cryptographic HMAC invite tokens, token store, and SMTP mailer |
-| `pkg/owner/` | Root cryptographic trust vault (`owner.json`) and challenge verification |
-| `pkg/updater/` | Binary self-update mechanisms and background version checks |
-| `pkg/client/` | HTTP clients: Orbit server plus HMAC `StaffClient` for orbit-staff |
-| `pkg/staffhmac/` | HMAC-SHA256 signing for `orbit staff` (`X-Orbit-Timestamp` / `X-Orbit-Signature`) |
-| `pkg/config/` | Workstation YAML config (`orbit config`) |
-| `pkg/env/` | `.env` schema validation (`orbit env check|setup`) |
-| `pkg/provisioner/` | Onboarding claim / SSH provisioning helpers |
-| `pkg/orchestrator/` | Local process and container runner for `orbit dev` |
-| `pkg/assets/` | `orbit-assets.yaml` index, gitignore helper, R2 S3 client, pull/push/add/status |
-| `pkg/tui/` | Lipgloss styles, icons, and terminal UI formatting |
+`cmd/orbit/` (Cobra tree), `cmd/orbit-server/` (edge daemon, mail gateway), `pkg/<name>/` one package per command area (`doctor`, `manifest`, `migrate`, `ports`, `pr`, `onboard`, `invite`, `owner`, `updater`, `client`, `staffhmac`, `config`, `env`, `provisioner`, `orchestrator`, `assets`, `tui`). `ls pkg/` and each package doc comment give the role.
 
 ## Documentation
 
@@ -137,7 +88,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 1. `go build -o bin/orbit ./cmd/orbit` — confirm clean build before any changes
 2. `rtk proxy bash scripts/check-agent-cli.sh` — check the installed diagnostic interface using version/help only; if it fails, validate the source build before installing an update
 3. `rtk o doctor --local` — inspect local toolchain without remote probes or repairs, after the compatibility check passes
-4. `rtk o status all` — confirm workspace-wide branch state
+4. Optional: `rtk o status orbit` — branch state for this scope
 
 ## Definition of done
 
