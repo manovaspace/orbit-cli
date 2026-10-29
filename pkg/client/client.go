@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	defaultTimeout     = 15 * time.Second
-	defaultMaxRetries  = 2
-	defaultBackoff     = 100 * time.Millisecond
-	defaultUserAgent   = "orbit-cli/1.0"
-	defaultServerBase  = "http://localhost:8080"
+	defaultTimeout    = 15 * time.Second
+	defaultMaxRetries = 2
+	defaultBackoff    = 100 * time.Millisecond
+	defaultUserAgent  = "orbit-cli/1.0"
+	defaultServerBase = "http://localhost:8080"
 )
 
 // Option configures a Client instance.

@@ -33,10 +33,10 @@ type GroupConfig struct {
 
 // ClientConfig defines a specific client cluster containing repositories.
 type ClientConfig struct {
-	Path          string        `yaml:"path" json:"path"`
-	Description   string        `yaml:"description" json:"description"`
-	Defaults      GroupDefaults `yaml:"defaults" json:"defaults"`
-	Repositories  []RepoConfig  `yaml:"repositories" json:"repositories"`
+	Path         string        `yaml:"path" json:"path"`
+	Description  string        `yaml:"description" json:"description"`
+	Defaults     GroupDefaults `yaml:"defaults" json:"defaults"`
+	Repositories []RepoConfig  `yaml:"repositories" json:"repositories"`
 }
 
 // RepoConfig defines a single repository within a group or client.

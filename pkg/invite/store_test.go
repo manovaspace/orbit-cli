@@ -224,4 +224,3 @@ func TestInviteStoreRevokeAll(t *testing.T) {
 		t.Fatalf("expected 0 newly revoked on second call, got %d", len(revokedSecond))
 	}
 }
-

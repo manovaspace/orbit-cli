@@ -77,5 +77,3 @@ type ResolvedConfig struct {
 func (r *ResolvedConfig) ListEntries() []ConfigEntry {
 	return r.Entries
 }
-
-

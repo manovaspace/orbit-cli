@@ -715,5 +715,3 @@ func TestResolveSMTPConfig(t *testing.T) {
 		}
 	})
 }
-
-

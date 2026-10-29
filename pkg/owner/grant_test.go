@@ -238,4 +238,3 @@ func TestPersistentGrantManager(t *testing.T) {
 		t.Fatalf("expected ErrGrantAlreadyUsed or ErrGrantNotFound on replay, got %v", err)
 	}
 }
-

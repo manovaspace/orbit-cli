@@ -16,12 +16,12 @@ import (
 
 // DefaultTrustedCIDRs contains the standard loopback and private RFC 1918 / ULA ranges.
 var DefaultTrustedCIDRs = []string{
-	"127.0.0.1/32",  // IPv4 loopback
-	"::1/128",       // IPv6 loopback
-	"10.0.0.0/8",    // RFC 1918 Class A
-	"172.16.0.0/12", // RFC 1918 Class B
-	"192.168.0.0/16",// RFC 1918 Class C
-	"fc00::/7",      // IPv6 Unique Local Address (ULA)
+	"127.0.0.1/32",   // IPv4 loopback
+	"::1/128",        // IPv6 loopback
+	"10.0.0.0/8",     // RFC 1918 Class A
+	"172.16.0.0/12",  // RFC 1918 Class B
+	"192.168.0.0/16", // RFC 1918 Class C
+	"fc00::/7",       // IPv6 Unique Local Address (ULA)
 }
 
 // LimiterOptions configures trusted proxy subnets and default rate limit behavior.

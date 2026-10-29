@@ -6,17 +6,18 @@ on:
       - "v*"
 
 concurrency:
-  group: release-${{ forgejo.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   build:
     name: Build Multi-Platform Binaries
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -37,9 +38,7 @@ jobs:
             output: orbit-darwin-arm64
             server_output: orbit-server-darwin-arm64
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          token: ${{ secrets.CHECKOUT_TOKEN }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
@@ -51,14 +50,16 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: "0"
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          OUTPUT: ${{ matrix.output }}
+          SERVER_OUTPUT: ${{ matrix.server_output }}
         run: |
           mkdir -p dist/
-          VERSION="${{ forgejo.ref_name }}"
-          COMMIT="${{ forgejo.sha }}"
           BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}"
-          go build -trimpath -ldflags="${LDFLAGS}" -o "dist/${{ matrix.output }}" ./cmd/orbit
-          go build -trimpath -ldflags="${LDFLAGS}" -o "dist/${{ matrix.server_output }}" ./cmd/orbit-server
+          go build -trimpath -ldflags="${LDFLAGS}" -o "dist/${OUTPUT}" ./cmd/orbit
+          go build -trimpath -ldflags="${LDFLAGS}" -o "dist/${SERVER_OUTPUT}" ./cmd/orbit-server
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
@@ -71,8 +72,10 @@ jobs:
     name: Publish Releases & Checksums
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Download all artifacts
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
@@ -87,23 +90,27 @@ jobs:
           cat checksums.txt
 
       - name: Create Release Notes
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          echo "## Orbit Release ${{ forgejo.ref_name }}" > RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          echo "### Artifacts & SHA-256 Checksums" >> RELEASE_NOTES.md
-          echo '```' >> RELEASE_NOTES.md
-          cat dist-merged/checksums.txt >> RELEASE_NOTES.md
-          echo '```' >> RELEASE_NOTES.md
+          {
+            echo "## Orbit Release ${TAG}"
+            echo ""
+            echo "### Artifacts & SHA-256 Checksums"
+            echo '```'
+            cat dist-merged/checksums.txt
+            echo '```'
+          } > RELEASE_NOTES.md
 
       - name: Publish GitHub Release
-        if: env.GITHUB_TOKEN != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           if command -v gh >/dev/null 2>&1; then
-            gh release create "${{ forgejo.ref_name }}" dist-merged/* \
+            gh release create "${TAG}" dist-merged/* \
               --repo "manovaspace/orbit-cli" \
-              --title "Orbit ${{ forgejo.ref_name }}" \
+              --title "Orbit ${TAG}" \
               --notes-file RELEASE_NOTES.md
           fi
 
@@ -111,8 +118,13 @@ jobs:
     name: Build & Push orbit-server Container
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
@@ -124,8 +136,6 @@ jobs:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
@@ -146,5 +156,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}

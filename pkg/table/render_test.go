@@ -257,4 +257,3 @@ func TestTablePagination(t *testing.T) {
 		t.Errorf("expected out of bounds footer, got:\n%s", out4)
 	}
 }
-

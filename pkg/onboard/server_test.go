@@ -1307,5 +1307,3 @@ func TestLandingHTML_DynamicOnboardingAndTOTPFeatures(t *testing.T) {
 		})
 	}
 }
-
-

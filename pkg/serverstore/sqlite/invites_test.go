@@ -366,4 +366,3 @@ func TestInvites_RevokeAll(t *testing.T) {
 		}
 	}
 }
-

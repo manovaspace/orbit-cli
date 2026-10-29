@@ -1297,10 +1297,10 @@ defaults:
 
 		entries := res.ListEntries()
 		expectedFlagSources := map[string]string{
-			"server.url":      "--server",
-			"staff.url":       "--staff-url",
-			"assets.bucket":   "--bucket",
-			"defaults.scope":  "--scope",
+			"server.url":     "--server",
+			"staff.url":      "--staff-url",
+			"assets.bucket":  "--bucket",
+			"defaults.scope": "--scope",
 		}
 
 		for key, expectedRef := range expectedFlagSources {
@@ -1385,5 +1385,3 @@ func TestResolveValidation(t *testing.T) {
 		}
 	})
 }
-
-

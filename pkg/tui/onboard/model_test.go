@@ -260,4 +260,3 @@ func TestWizardModelZeroOptions(t *testing.T) {
 		t.Errorf("expected default active stage to be StageWelcome, got: %s", model.ActiveStage())
 	}
 }
-
