@@ -187,7 +187,7 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 	}
 
 	// Case 2: Owner vault exists and is verified -> notice is suppressed
-	ownerData := `{"email":"admin@example.com","root_signing_secret":"0123456789abcdef0123456789abcdef","verified_at":"2026-09-01T00:00:00Z"}`
+	ownerData := `{"email":"admin@example.com","root_signing_secret":"0123456789abcdef0123456789abcdef","verified_at":"2026-09-01T00:00:00Z"}` // gitleaks:allow
 	if err := os.WriteFile(ownerPath, []byte(ownerData), 0600); err != nil {
 		t.Fatalf("failed to write owner file: %v", err)
 	}

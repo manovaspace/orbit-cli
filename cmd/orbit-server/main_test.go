@@ -199,7 +199,7 @@ func TestServerCmd_HealthAndGracefulShutdown(t *testing.T) {
 	cmd.SetArgs([]string{
 		"--addr", addr,
 		"--db", dbPath,
-		"--signing-secret", "testsecret123456789012345678901234",
+		"--signing-secret", "testsecret123456789012345678901234", // gitleaks:allow
 	})
 
 	errChan := make(chan error, 1)
@@ -269,7 +269,7 @@ func TestResolveSigningSecret(t *testing.T) {
 	// Case 2: Env var (ORBIT_SIGNING_SECRET)
 	for _, envKey := range []string{"ORBIT_SIGNING_SECRET"} {
 		t.Run(envKey, func(t *testing.T) {
-			t.Setenv(envKey, "env-secret-123456789012345678901234")
+			t.Setenv(envKey, "env-secret-123456789012345678901234") // gitleaks:allow
 			s, srcInfo := resolveSigningSecret("", "")
 			if s != "env-secret-123456789012345678901234" || !strings.Contains(srcInfo, envKey) {
 				t.Errorf("expected %s secret, got %s (%s)", envKey, s, srcInfo)
@@ -294,7 +294,7 @@ func TestResolveSigningSecret(t *testing.T) {
 	store := owner.NewStore(ownerPath)
 	err := store.SaveOwner(&owner.OwnerRecord{
 		Email:             "admin@manova.space",
-		RootSigningSecret: "owner-secret-12345678901234567890",
+		RootSigningSecret: "owner-secret-12345678901234567890", // gitleaks:allow
 		VerifiedAt:        time.Now(),
 	})
 	if err != nil {
@@ -317,7 +317,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "orbit.db")
 
-	secret := "test-secret-key-32bytes-long-12345"
+	secret := "test-secret-key-32bytes-long-12345" // gitleaks:allow
 	secretBytes := []byte(secret)
 
 	// 1. Generate an invite token

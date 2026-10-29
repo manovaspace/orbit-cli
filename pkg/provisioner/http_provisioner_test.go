@@ -34,7 +34,7 @@ func TestHTTPProvisioner_Provision_Success(t *testing.T) {
 			},
 			Credentials: client.Credentials{
 				ForgejoUsername: req.DesiredUID,
-				ForgejoMCPToken: "fjo_tok_987654321",
+				ForgejoMCPToken: "fjo_tok_987654321", // gitleaks:allow
 				WireGuardConfig: "[Interface]\nAddress = 10.8.0.5/24",
 			},
 			Workspace: client.WorkspaceInfo{

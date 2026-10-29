@@ -188,7 +188,7 @@ func TestClaim_IdempotentReplay(t *testing.T) {
 		MachineFingerprint: "fingerprint-xyz",
 	}
 
-	idempotencyKey := "idemp-dana-unique-key-12345"
+	idempotencyKey := "idemp-dana-unique-key-12345" // gitleaks:allow
 	reqBody, _ := json.Marshal(claimReq)
 
 	// First attempt
