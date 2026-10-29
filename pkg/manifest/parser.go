@@ -188,6 +188,7 @@ func (m *WorkspaceManifest) buildRepoTarget(repo RepoConfig, basePath string, de
 		DefaultBranch: branch,
 		Required:      repo.Required,
 		Scope:         scope,
+		CISecrets:     repo.CISecrets,
 	}
 }
 

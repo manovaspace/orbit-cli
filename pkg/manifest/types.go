@@ -41,21 +41,23 @@ type ClientConfig struct {
 
 // RepoConfig defines a single repository within a group or client.
 type RepoConfig struct {
-	Name          string `yaml:"name" json:"name"`
-	Path          string `yaml:"path" json:"path"`
-	Repo          string `yaml:"repo" json:"repo"`
-	Remote        string `yaml:"remote" json:"remote"`
-	RemoteURL     string `yaml:"remote_url" json:"remote_url"`
-	DefaultBranch string `yaml:"default_branch" json:"default_branch"`
-	Required      bool   `yaml:"required" json:"required"`
+	Name          string   `yaml:"name" json:"name"`
+	Path          string   `yaml:"path" json:"path"`
+	Repo          string   `yaml:"repo" json:"repo"`
+	Remote        string   `yaml:"remote" json:"remote"`
+	RemoteURL     string   `yaml:"remote_url" json:"remote_url"`
+	DefaultBranch string   `yaml:"default_branch" json:"default_branch"`
+	Required      bool     `yaml:"required" json:"required"`
+	CISecrets     []string `yaml:"ci_secrets" json:"ci_secrets"`
 }
 
 // RepoTarget represents a fully resolved repository target ready for cloning or syncing.
 type RepoTarget struct {
-	Name          string `json:"name" yaml:"name"`
-	Path          string `json:"path" yaml:"path"`
-	RemoteURL     string `json:"remote_url" yaml:"remote_url"`
-	DefaultBranch string `json:"default_branch" yaml:"default_branch"`
-	Required      bool   `json:"required" yaml:"required"`
-	Scope         string `json:"scope" yaml:"scope"`
+	Name          string   `json:"name" yaml:"name"`
+	Path          string   `json:"path" yaml:"path"`
+	RemoteURL     string   `json:"remote_url" yaml:"remote_url"`
+	DefaultBranch string   `json:"default_branch" yaml:"default_branch"`
+	Required      bool     `json:"required" yaml:"required"`
+	Scope         string   `json:"scope" yaml:"scope"`
+	CISecrets     []string `json:"ci_secrets" yaml:"ci_secrets"`
 }
