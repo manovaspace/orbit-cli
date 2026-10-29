@@ -140,7 +140,7 @@ func TestProbeServiceReadiness(t *testing.T) {
 	}
 
 	expectedServices := map[string]int{
-		"Postgres":      10332,
+		"Postgres":      10333,
 		"NATS":          10422,
 		"LLDAP":         3890,
 		"Caddy Ingress": 80,
