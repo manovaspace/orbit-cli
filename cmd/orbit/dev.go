@@ -131,7 +131,7 @@ func probeServiceReadiness(ctx context.Context, timeout time.Duration) []Service
 		FallbackPort int
 		URL          string
 	}{
-		{Name: "Postgres", Host: "127.0.0.1", Port: 10332, URL: "postgres://orbit@localhost:10332/orbit"},
+		{Name: "Postgres", Host: "127.0.0.1", Port: 10333, URL: "postgres://orbit@localhost:10333/orbit"},
 		{Name: "NATS", Host: "127.0.0.1", Port: 10422, URL: "nats://localhost:10422"},
 		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
 		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
