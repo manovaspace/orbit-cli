@@ -8,7 +8,7 @@ import (
 )
 
 func TestSignVerifyRoundTrip(t *testing.T) {
-	secret := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	secret := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899" // gitleaks:allow
 	body := []byte(`{"uid":"sara"}`)
 	ts := int64(1700000000)
 	sig := Sign(secret, ts, "POST", "/api/v1/staff", body)
@@ -18,7 +18,7 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 }
 
 func TestVerifyRejectsOldTimestamp(t *testing.T) {
-	secret := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	secret := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899" // gitleaks:allow
 	ts := int64(1000)
 	sig := Sign(secret, ts, "GET", "/api/v1/staff", nil)
 	err := Verify(secret, ts, "GET", "/api/v1/staff", nil, sig, time.Unix(ts+400, 0))

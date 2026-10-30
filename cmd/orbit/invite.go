@@ -20,6 +20,7 @@ import (
 const (
 	DefaultSecretEnv      = "ORBIT_INVITE_SECRET"
 	DefaultFallbackSecret = "orbit-dev-insecure-invitation-signing-secret-key-32bytes"
+	inviteOwnerUnverified = "platform ownership is unverified; run 'orbit admin init --owner <email>' to verify ownership before issuing invitations"
 )
 
 func newInviteCmd() *cobra.Command {
@@ -109,7 +110,7 @@ func newInviteCreateCmd() *cobra.Command {
 
 			isBypassed := insecureFlag || os.Getenv("ORBIT_INSECURE_SKIP_OWNER_CHECK") == "true"
 			if !isOwnerVerified && !isBypassed {
-				return errors.New("platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before issuing invitations.")
+				return errors.New(inviteOwnerUnverified)
 			}
 
 			var verifiedSecret string
@@ -199,11 +200,6 @@ func newInviteCreateCmd() *cobra.Command {
 
 			if err := store.SaveInvite(rec); err != nil {
 				return fmt.Errorf("failed to save invitation record: %w", err)
-			}
-
-			shortCode := claims.ID
-			if len(shortCode) >= 6 {
-				shortCode = strings.ToUpper(shortCode[:3] + "-" + shortCode[3:6])
 			}
 
 			out := cmd.OutOrStdout()

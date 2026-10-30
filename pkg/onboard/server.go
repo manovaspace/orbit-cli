@@ -707,17 +707,6 @@ func (s *Server) handleAdminGrantList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) getClientIP(r *http.Request) string {
-	if s.limiter != nil {
-		return s.limiter.ExtractClientIP(r)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return r.RemoteAddr
-}
-
 // Start runs the HTTP server on the configured address.
 func (s *Server) Start() error {
 	addr := s.config.Addr

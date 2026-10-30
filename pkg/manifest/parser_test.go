@@ -400,4 +400,3 @@ groups:
 		t.Errorf("expected git@github.com:inherited-repo.git, got %s", clientRepos[1].RemoteURL)
 	}
 }
-

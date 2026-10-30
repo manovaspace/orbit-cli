@@ -195,7 +195,7 @@ func CheckUpdate(currentVersion, apiURL, repoSlug string) (*UpdateCheckResult, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to query release API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("release API returned status %d: %s", resp.StatusCode, resp.Status)

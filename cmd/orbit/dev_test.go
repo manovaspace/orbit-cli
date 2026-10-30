@@ -323,7 +323,7 @@ func TestDevTier2Cmd_Execution(t *testing.T) {
 }
 
 func TestDevTier2Cmd_MissingScript(t *testing.T) {
-	_ , _ = setupMockInfra(t)
+	_, _ = setupMockInfra(t)
 	// Don't create start-tier2.sh
 
 	buf := new(bytes.Buffer)

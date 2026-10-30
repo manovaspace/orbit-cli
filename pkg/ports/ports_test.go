@@ -241,9 +241,9 @@ func TestScanRangeAndProjectPorts(t *testing.T) {
 func TestResolveProjectID(t *testing.T) {
 	// Test default mappings
 	tests := []struct {
-		name        string
-		expectedID  int
-		expectedOK  bool
+		name       string
+		expectedID int
+		expectedOK bool
 	}{
 		{"orbit-platform", 0, true},
 		{"manova", 1, true},

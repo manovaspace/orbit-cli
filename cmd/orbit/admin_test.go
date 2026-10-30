@@ -314,7 +314,7 @@ func TestAdminInit_AlreadyVerified(t *testing.T) {
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Now().UTC(),
-		RootSigningSecret: "existingsecret12345678901234567890123456789012345678901234567890",
+		RootSigningSecret: "existingsecret12345678901234567890123456789012345678901234567890", // gitleaks:allow
 		KeyFingerprint:    "fingerprint123",
 	}
 	if err := store.SaveOwner(rec); err != nil {
@@ -360,7 +360,7 @@ func TestAdminInit_ForceReInit(t *testing.T) {
 	oldRec := &owner.OwnerRecord{
 		Email:             "old@example.com",
 		VerifiedAt:        time.Now().UTC(),
-		RootSigningSecret: "oldsecret12345678901234567890123456789012345678901234567890",
+		RootSigningSecret: "oldsecret12345678901234567890123456789012345678901234567890", // gitleaks:allow
 	}
 	if err := store.SaveOwner(oldRec); err != nil {
 		t.Fatalf("SaveOwner failed: %v", err)
@@ -514,8 +514,8 @@ func TestAdminStatus_VerifiedTable(t *testing.T) {
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
-		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		KeyFingerprint:    "a1b2c3d4e5f60718",
+		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", // gitleaks:allow
+		KeyFingerprint:    "a1b2c3d4e5f60718",                                                 // gitleaks:allow
 	}
 	if err := store.SaveOwner(rec); err != nil {
 		t.Fatalf("SaveOwner failed: %v", err)
@@ -561,8 +561,8 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
-		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		KeyFingerprint:    "a1b2c3d4e5f60718",
+		RootSigningSecret: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", // gitleaks:allow
+		KeyFingerprint:    "a1b2c3d4e5f60718",                                                 // gitleaks:allow
 	}
 	if err := store.SaveOwner(rec); err != nil {
 		t.Fatalf("SaveOwner failed: %v", err)

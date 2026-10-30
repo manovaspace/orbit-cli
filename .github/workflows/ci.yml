@@ -1,27 +1,30 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
+
 jobs:
-  standalone:
-    runs-on: ubuntu-latest
+  check:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          go-version: "1.26.x"
-          cache: true
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+          persist-credentials: false
+
+      - uses: manovaspace/ci@v1
         with:
-          node-version: "24"
-      - run: go test -race -count=1 -timeout=120s ./...
+          stack: go
         env:
-          GOWORK: "off"
-      - run: go vet ./...
-        env:
-          GOWORK: "off"
-      - run: bash scripts/test-standalone-build.sh
+          GH_READ_TOKEN: ${{ secrets.GH_READ_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

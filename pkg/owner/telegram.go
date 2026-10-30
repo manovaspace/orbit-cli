@@ -119,7 +119,7 @@ func SendTelegramMessage(ctx context.Context, token string, chatID int64, thread
 	if err != nil {
 		return fmt.Errorf("failed to send telegram message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("telegram API returned error status %d", resp.StatusCode)

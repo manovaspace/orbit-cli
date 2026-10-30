@@ -392,4 +392,3 @@ func TestSMTPMailer_SendOwnerChallenge_EmptyRecipient(t *testing.T) {
 		t.Fatal("expected error for empty recipient email, got nil")
 	}
 }
-

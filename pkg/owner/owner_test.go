@@ -431,5 +431,3 @@ func TestPersistentChallengeManager(t *testing.T) {
 		t.Fatalf("expected ErrChallengeNotFound on replay, got: %v", err)
 	}
 }
-
-

@@ -36,7 +36,7 @@ func LoadR2Env(path string) (R2Config, error) {
 	if err != nil {
 		return R2Config{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	vals := map[string]string{}
 	sc := bufio.NewScanner(f)

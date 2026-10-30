@@ -192,7 +192,6 @@ func (s *Store) RevokeAllInvites() ([]*InviteRecord, error) {
 	return revoked, nil
 }
 
-
 func (s *Store) loadRecordsLocked() ([]*InviteRecord, error) {
 	if _, err := os.Stat(s.filePath); os.IsNotExist(err) {
 		return []*InviteRecord{}, nil

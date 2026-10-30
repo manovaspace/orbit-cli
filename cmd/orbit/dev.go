@@ -51,8 +51,6 @@ func findOrbitInfraDir(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, "orbit", "orbit-infra")
 }
 
-type infraRunnerFunc func(dir string, stdout, stderr io.Writer, cmdName string, args ...string) error
-
 var defaultInfraRunner = func(dir string, stdout, stderr io.Writer, cmdName string, args ...string) error {
 	cmd := exec.Command(cmdName, args...)
 	cmd.Dir = dir
@@ -196,7 +194,7 @@ func renderEndpointsBanner(out io.Writer, statuses []ServiceStatus) {
 	}
 
 	for _, ep := range endpoints {
-		sb.WriteString(fmt.Sprintf("  %s %-18s %s\n", iconArrow, boldStyle.Render(ep.Name+":"), subtleStyle.Render(ep.URL)))
+		fmt.Fprintf(&sb, "  %s %-18s %s\n", iconArrow, boldStyle.Render(ep.Name+":"), subtleStyle.Render(ep.URL))
 	}
 
 	if len(statuses) > 0 {
@@ -208,7 +206,7 @@ func renderEndpointsBanner(out io.Writer, statuses []ServiceStatus) {
 				icon = iconWarn
 				statusText = warningStyle.Render("NOT READY")
 			}
-			sb.WriteString(fmt.Sprintf("  %s  %-16s %-12s (:%d)\n", icon, s.Name, statusText, s.Port))
+			fmt.Fprintf(&sb, "  %s  %-16s %-12s (:%d)\n", icon, s.Name, statusText, s.Port)
 		}
 	}
 

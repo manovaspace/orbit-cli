@@ -290,7 +290,7 @@ Validates the provided 6-digit OTP code against the active challenge for the ema
   "status": "verified",
   "email": "admin@manova.space",
   "display_name": "Alireza",
-  "key_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "key_fingerprint": "<key-fingerprint>",
   "verified_at": "2026-08-27T14:00:00Z",
   "message": "platform ownership successfully verified for admin@manova.space"
 }
@@ -435,7 +435,7 @@ Orbit Platform Ownership Verified
   Owner Email:       admin@manova.space
   Display Name:      Alireza
   Verified At:       2026-08-27 14:00:00 UTC
-  Key Fingerprint:   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  Key Fingerprint:   <key-fingerprint>
   Vault File:        ~/.config/orbit/owner.json (0600 sealed)
 
 ┌─ OWNERSHIP SECURITY SUMMARY ──────────────────────────────────────────────────┐
@@ -475,7 +475,7 @@ Orbit Server Ownership Status
   Owner Email:       admin@manova.space
   Display Name:      Alireza
   Verified At:       2026-08-27 14:00:00 UTC
-  Key Fingerprint:   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  Key Fingerprint:   <key-fingerprint>
   Vault Location:    ~/.config/orbit/owner.json
   Permissions:       0600 (secure)
   Mail Gateway:      mail.manova.space:587
@@ -494,7 +494,7 @@ Output:
   "email": "admin@manova.space",
   "display_name": "Alireza",
   "verified_at": "2026-08-27T14:00:00Z",
-  "key_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "key_fingerprint": "<key-fingerprint>",
   "vault_location": "/home/opmc/.config/orbit/owner.json",
   "vault_permissions": "0600 (secure)",
   "permissions_valid": true,

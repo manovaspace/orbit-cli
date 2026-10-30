@@ -33,7 +33,7 @@ func Evaluate(in Input) Report {
 	} else {
 		id := strings.ToLower(strings.TrimSpace(in.OSRelease["ID"]))
 		ver := strings.TrimSpace(in.OSRelease["VERSION_ID"])
-		if id != "ubuntu" || !(strings.HasPrefix(ver, "24.04") || strings.HasPrefix(ver, "26.04")) {
+		if id != "ubuntu" || (!strings.HasPrefix(ver, "24.04") && !strings.HasPrefix(ver, "26.04")) {
 			label := ver
 			if id != "" && id != "ubuntu" {
 				label = id + " " + ver

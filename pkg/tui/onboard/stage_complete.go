@@ -105,7 +105,7 @@ type completeSessionMsg struct{}
 
 // Update handles messages for the completion stage.
 func (m *CompleteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case completeSessionMsg:
 		if m.parent != nil {
 			if m.parent.Session != nil {
@@ -120,7 +120,7 @@ func (m *CompleteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Allow q/Ctrl-C to quit from the done screen
-		switch msg.(tea.KeyMsg).String() {
+		switch msg.String() {
 		case "q", "Q", "ctrl+c":
 			return m, tea.Quit
 		}

@@ -315,4 +315,3 @@ func TestDoctorStageWizardIntegration(t *testing.T) {
 		t.Errorf("expected Doctor stage view in WizardModel, got: %s", view)
 	}
 }
-

@@ -18,7 +18,7 @@ import (
 type EnvStepItem struct {
 	Name        string
 	Description string
-	Status      string  // "pending", "running", "done", "failed", "skipped"
+	Status      string // "pending", "running", "done", "failed", "skipped"
 	Error       string
 	Progress    float64
 	Required    bool

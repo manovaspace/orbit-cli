@@ -76,4 +76,3 @@ func (t *Table) WithPagination(page, limit int) *Table {
 	t.limit = limit
 	return t
 }
-

@@ -7,13 +7,13 @@ import (
 
 func okInput() Input {
 	return Input{
-		GOOS:        "linux",
-		GOARCH:      "amd64",
-		OSRelease:   map[string]string{"ID": "ubuntu", "VERSION_ID": "24.04"},
-		Virt:        "native",
-		LoginShell:  "/usr/bin/zsh",
-		Home:        "/home/dev",
-		Path:        "/usr/bin:/home/dev/.local/bin",
+		GOOS:       "linux",
+		GOARCH:     "amd64",
+		OSRelease:  map[string]string{"ID": "ubuntu", "VERSION_ID": "24.04"},
+		Virt:       "native",
+		LoginShell: "/usr/bin/zsh",
+		Home:       "/home/dev",
+		Path:       "/usr/bin:/home/dev/.local/bin",
 	}
 }
 

@@ -1,0 +1,8 @@
+# Reachable advisories with no fixed version, reviewed and accepted.
+# ci/go.sh prints "allowing <ID>" for each line and still fails on anything unlisted.
+#
+# GO-2026-5932 golang.org/x/crypto/openpgp: the package is deprecated and has no
+# fixed version. It is reached only through github.com/creativeprojects/go-selfupdate,
+# which uses it for optional release-signature verification; orbit-cli never calls
+# openpgp itself. Drop this line when go-selfupdate no longer imports openpgp.
+GO-2026-5932

@@ -21,7 +21,7 @@ import (
 const (
 	defaultStaffServerURL     = "https://staff.internal.manova.space"
 	defaultKeycloakAccountURL = "https://identity.internal.manova.space/realms/staff/account"
-	staffOwnerUnverified      = "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before managing staff."
+	staffOwnerUnverified      = "platform ownership is unverified; run 'orbit admin init --owner <email>' to verify ownership before managing staff"
 )
 
 func newStaffCmd() *cobra.Command {

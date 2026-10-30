@@ -177,4 +177,3 @@ func cleanManPagesWithHome(home string, out io.Writer) int {
 	}
 	return removedCount
 }
-

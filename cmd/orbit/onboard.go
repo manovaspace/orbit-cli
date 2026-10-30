@@ -838,7 +838,7 @@ func sendClaimRequest(ctx context.Context, edgeURL, idempKey string, req provisi
 	if err != nil {
 		return nil, fmt.Errorf("failed to reach onboarding edge at %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -1004,13 +1004,13 @@ func generateDiagnosticBundle(workspaceRoot string, sm *session.SessionManager, 
 	if err != nil {
 		return "", fmt.Errorf("failed to create diagnostic bundle file %s: %w", outPath, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gw := gzip.NewWriter(f)
-	defer gw.Close()
+	defer func() { _ = gw.Close() }()
 
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	// 1. Doctor report
 	report := doctor.RunDiagnostics()
@@ -1081,10 +1081,10 @@ func generateDiagnosticBundle(workspaceRoot string, sm *session.SessionManager, 
 	// 5. Summary
 	var summary strings.Builder
 	summary.WriteString("=== MANOVA ONBOARDING DIAGNOSTIC BUNDLE ===\n")
-	summary.WriteString(fmt.Sprintf("Generated: %s\n", time.Now().UTC().Format(time.RFC3339)))
-	summary.WriteString(fmt.Sprintf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH))
-	summary.WriteString(fmt.Sprintf("Go Version: %s\n", runtime.Version()))
-	summary.WriteString(fmt.Sprintf("Doctor Checks: %d, Errors: %v, Warnings: %v\n", len(report.Results), report.HasErrors(), report.HasWarnings()))
+	fmt.Fprintf(&summary, "Generated: %s\n", time.Now().UTC().Format(time.RFC3339))
+	fmt.Fprintf(&summary, "OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&summary, "Go Version: %s\n", runtime.Version())
+	fmt.Fprintf(&summary, "Doctor Checks: %d, Errors: %v, Warnings: %v\n", len(report.Results), report.HasErrors(), report.HasWarnings())
 	if err := addTarFile(tw, "summary.txt", []byte(summary.String())); err != nil {
 		return "", err
 	}
