@@ -206,3 +206,12 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", buf.String())
 	}
 }
+
+// TestMain marks the binary as running under the testbed. Command-level tests
+// exercise the real root command, so without this every gated subcommand fails
+// on hosts the gate does not recognise (CI runners, for example). Tests that
+// cover the gate itself unset ORBIT_TESTBED for their own scope.
+func TestMain(m *testing.M) {
+	os.Setenv("ORBIT_TESTBED", "1")
+	os.Exit(m.Run())
+}
