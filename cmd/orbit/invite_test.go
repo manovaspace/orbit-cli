@@ -56,9 +56,8 @@ func TestInviteOwnerGuard_Unverified(t *testing.T) {
 		t.Fatal("expected error creating invite when owner is unverified, got nil")
 	}
 
-	expectedErr := "platform ownership is unverified. Run 'orbit admin init --owner <email>' to verify ownership before issuing invitations."
-	if !strings.Contains(err.Error(), expectedErr) {
-		t.Fatalf("expected error %q, got %q", expectedErr, err.Error())
+	if !strings.Contains(err.Error(), inviteOwnerUnverified) {
+		t.Fatalf("expected error %q, got %q", inviteOwnerUnverified, err.Error())
 	}
 }
 
