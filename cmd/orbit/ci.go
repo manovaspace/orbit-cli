@@ -165,13 +165,19 @@ func expandHome(path string) (string, error) {
 }
 
 func execCI(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).Output()
-	return string(out), err
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
 }
 
 func execCIStdin(stdin, name string, args ...string) (string, error) {
 	command := exec.Command(name, args...)
 	command.Stdin = strings.NewReader(stdin)
-	out, err := command.Output()
-	return string(out), err
+	out, err := command.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
 }
