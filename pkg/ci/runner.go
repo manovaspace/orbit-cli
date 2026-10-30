@@ -60,9 +60,12 @@ func SetRunner(mode string, repos []string, run Exec) error {
 		return nil
 	case "github":
 		for _, repo := range repos {
-			if _, err := run("gh", "variable", "delete", "CI_RUNNER", "-R", repo); err != nil &&
-				!strings.Contains(strings.ToLower(err.Error()), "not found") {
-				return fmt.Errorf("delete CI_RUNNER for %s: %w", repo, err)
+			if _, err := run("gh", "variable", "delete", "CI_RUNNER", "-R", repo); err != nil {
+				// gh reports an absent variable as "HTTP 404" or, in older versions, "not found".
+				message := strings.ToLower(err.Error())
+				if !strings.Contains(message, "not found") && !strings.Contains(message, "http 404") {
+					return fmt.Errorf("delete CI_RUNNER for %s: %w", repo, err)
+				}
 			}
 		}
 		if _, err := run("sudo", "systemctl", "stop", "gh-ci"); err != nil {
