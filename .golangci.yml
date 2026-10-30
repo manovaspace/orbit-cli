@@ -8,3 +8,18 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+  exclusions:
+    rules:
+      # Test helpers write to buffers and fake servers whose errors cannot be
+      # acted on; production code keeps errcheck.
+      - path: _test\.go
+        linters:
+          - errcheck
+  settings:
+    errcheck:
+      # A failed write to a command's UI writer is not actionable: the same
+      # stream is already worse off. Close/Remove/DB errors stay checked.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln

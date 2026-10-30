@@ -201,7 +201,7 @@ func (c *StaffClient) do(ctx context.Context, method, path string, reqBody, resp
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

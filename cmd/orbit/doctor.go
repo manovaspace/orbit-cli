@@ -33,7 +33,7 @@ func newDoctorCmd() *cobra.Command {
 			if local && (remote || fix || acceptHostKeys) {
 				return fmt.Errorf("--local cannot be combined with remote probes or mutation flags")
 			}
-			if acceptHostKeys && !(remote && fix) {
+			if acceptHostKeys && (!remote || !fix) {
 				return fmt.Errorf("--accept-host-keys requires --remote --fix")
 			}
 			opts := doctor.DiagnosticOptions{Remote: remote, AcceptHostKeys: acceptHostKeys}

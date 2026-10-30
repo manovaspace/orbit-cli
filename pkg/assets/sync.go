@@ -85,7 +85,7 @@ func pullOne(ctx context.Context, repoRoot string, store Store, obj Object, forc
 	if err != nil {
 		return fmt.Errorf("%s: %w", obj.Path, err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	data, err := io.ReadAll(rc)
 	if err != nil {
 		return err

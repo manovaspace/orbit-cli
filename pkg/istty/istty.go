@@ -4,11 +4,11 @@ package istty
 import (
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 // IsInteractiveSession reports whether stdin is connected to a terminal.
 func IsInteractiveSession() bool {
 	fd := int(os.Stdin.Fd())
-	return terminal.IsTerminal(fd)
+	return term.IsTerminal(fd)
 }

@@ -60,7 +60,7 @@ func TestRequestID(t *testing.T) {
 	})
 
 	t.Run("GetRequestID_Nil_Context", func(t *testing.T) {
-		if id := middleware.GetRequestID(nil); id != "" {
+		if id := middleware.GetRequestID(nil); id != "" { //nolint:staticcheck // nil context is the case under test
 			t.Errorf("expected empty string for nil context, got %q", id)
 		}
 		if id := middleware.GetRequestID(context.Background()); id != "" {
@@ -119,7 +119,7 @@ func TestTraceContext(t *testing.T) {
 	})
 
 	t.Run("GetTraceID_Nil_Context", func(t *testing.T) {
-		if id := middleware.GetTraceID(nil); id != "" {
+		if id := middleware.GetTraceID(nil); id != "" { //nolint:staticcheck // nil context is the case under test
 			t.Errorf("expected empty string for nil context, got %q", id)
 		}
 	})

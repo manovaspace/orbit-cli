@@ -103,7 +103,7 @@ func (h *GoHealer) Heal(ctx context.Context, progress func(step string)) error {
 		goos = runtime.GOOS
 	}
 	if goos != "linux" {
-		return fmt.Errorf("Go auto-healing is supported on Linux only (detected: %s)", goos)
+		return fmt.Errorf("go auto-healing is supported on Linux only (detected: %s)", goos)
 	}
 
 	goarch := h.GOARCH

@@ -20,6 +20,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
@@ -489,7 +492,7 @@ func (s *MockServer) handleOnboardClaim(w http.ResponseWriter, r *http.Request) 
 
 	name := strings.TrimSpace(req.DisplayName)
 	if name == "" {
-		name = strings.Title(uid)
+		name = cases.Title(language.Und).String(uid)
 	}
 
 	s.mu.Lock()

@@ -55,7 +55,7 @@ func RepairTarget(workspaceRoot string, target manifest.RepoTarget) RepairResult
 	if err != nil {
 		return RepairResult{Name: target.Name, Path: target.Path, Success: false, Error: err.Error()}
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 
 	cloneDir := filepath.Join(tmp, "clone")
 	cmd := exec.Command("git", "clone", "--", target.RemoteURL, cloneDir)

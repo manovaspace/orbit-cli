@@ -176,30 +176,30 @@ func (m *SMTPMailer) sendMultipartEmail(ctx context.Context, to, subject, textBo
 	var msg strings.Builder
 
 	// MIME Headers
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", m.cfg.From))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	fmt.Fprintf(&msg, "From: %s\r\n", m.cfg.From)
+	fmt.Fprintf(&msg, "To: %s\r\n", to)
+	fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
-	msg.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().UTC().Format(time.RFC1123Z)))
-	msg.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary))
+	fmt.Fprintf(&msg, "Date: %s\r\n", time.Now().UTC().Format(time.RFC1123Z))
+	fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary)
 	msg.WriteString("\r\n")
 
 	// Plaintext Part
-	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	fmt.Fprintf(&msg, "--%s\r\n", boundary)
 	msg.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	msg.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
 	msg.WriteString(textBody)
 	msg.WriteString("\r\n\r\n")
 
 	// HTML Part
-	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	fmt.Fprintf(&msg, "--%s\r\n", boundary)
 	msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	msg.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
 	msg.WriteString(htmlBody)
 	msg.WriteString("\r\n\r\n")
 
 	// Closing Boundary
-	msg.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+	fmt.Fprintf(&msg, "--%s--\r\n", boundary)
 
 	addr := net.JoinHostPort(m.cfg.Host, m.cfg.Port)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}

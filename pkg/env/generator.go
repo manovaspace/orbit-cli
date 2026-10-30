@@ -31,14 +31,14 @@ func GenerateEnvFile(targetPath string, values map[string]string, comments map[s
 			if comment, ok := comments[k]; ok && strings.TrimSpace(comment) != "" {
 				lines := strings.Split(comment, "\n")
 				for _, line := range lines {
-					buf.WriteString(fmt.Sprintf("# %s\n", strings.TrimSpace(line)))
+					fmt.Fprintf(&buf, "# %s\n", strings.TrimSpace(line))
 				}
 			}
 		}
 
 		val := values[k]
 		formattedVal := formatEnvValue(val)
-		buf.WriteString(fmt.Sprintf("%s=%s\n", k, formattedVal))
+		fmt.Fprintf(&buf, "%s=%s\n", k, formattedVal)
 	}
 
 	if err := os.WriteFile(targetPath, buf.Bytes(), 0600); err != nil {
@@ -95,7 +95,7 @@ func GenerateMCPEnv(targetPath string, tokens map[string]string) error {
 	for _, k := range keys {
 		val := tokens[k]
 		formattedVal := formatEnvValue(val)
-		buf.WriteString(fmt.Sprintf("%s=%s\n", k, formattedVal))
+		fmt.Fprintf(&buf, "%s=%s\n", k, formattedVal)
 	}
 
 	if err := os.WriteFile(targetPath, buf.Bytes(), 0600); err != nil {

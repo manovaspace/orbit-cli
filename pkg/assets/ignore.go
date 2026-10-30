@@ -28,7 +28,7 @@ func EnsureGitignore(repoRoot, relPath string) error {
 		if err != nil {
 			return fmt.Errorf("open .gitignore: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		if !strings.HasSuffix(string(data), "\n") && len(data) > 0 {
 			if _, err := f.WriteString("\n"); err != nil {
 				return err

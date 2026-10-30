@@ -320,7 +320,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	actualAddr := lis.Addr().String()
 

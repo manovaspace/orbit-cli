@@ -132,7 +132,7 @@ LIMIT 2;`
 	if err != nil {
 		return nil, fmt.Errorf("failed to query invite by prefix: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var matches []*invite.InviteRecord
 	for rows.Next() {
@@ -167,7 +167,7 @@ ORDER BY created_at DESC;`
 	if err != nil {
 		return nil, fmt.Errorf("failed to list invites: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	records := make([]*invite.InviteRecord, 0)
 	for rows.Next() {
@@ -219,7 +219,7 @@ WHERE revoked = 0;`
 	if err != nil {
 		return nil, fmt.Errorf("failed to query unrevoked invites: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []*invite.InviteRecord
 	for rows.Next() {

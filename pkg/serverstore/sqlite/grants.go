@@ -192,7 +192,7 @@ ORDER BY created_at DESC;`
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active grants: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	grants := make([]*owner.AdminGrant, 0)
 	for rows.Next() {
