@@ -55,9 +55,10 @@ func TestSetRunnerVPSOrder(t *testing.T) {
 func TestSetRunnerGithubIgnoresMissingVar(t *testing.T) {
 	calls, run, _ := recorder(nil, map[string]error{
 		"gh variable delete CI_RUNNER -R manovaspace/b": errors.New("variable not found"),
+		"gh variable delete CI_RUNNER -R manovaspace/c": errors.New("failed to delete variable CI_RUNNER: HTTP 404"),
 	})
 
-	if err := SetRunner("github", []string{"manovaspace/a", "manovaspace/b"}, run); err != nil {
+	if err := SetRunner("github", []string{"manovaspace/a", "manovaspace/b", "manovaspace/c"}, run); err != nil {
 		t.Fatalf("SetRunner: %v", err)
 	}
 	if last := (*calls)[len(*calls)-1].argv; last != "sudo systemctl stop gh-ci" {
