@@ -1,16 +1,47 @@
 package main
 
 import (
-	"fmt"
-	"io/fs"
-	"os"
+	"io"
 	"path/filepath"
-	"sort"
 
-	"github.com/manovaspace/orbit-cli/pkg/env"
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
+	envapp "github.com/manovaspace/orbit-cli/pkg/env/application"
+	"github.com/manovaspace/orbit-cli/pkg/env/infrastructure/mcpenv"
+	envosfs "github.com/manovaspace/orbit-cli/pkg/env/infrastructure/osfs"
+	"github.com/manovaspace/orbit-cli/pkg/env/infrastructure/schemafile"
+	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/spf13/cobra"
 )
+
+// The env commands reach the filesystem, schema loader and MCP setup through
+// these seams so tests can swap the adapters.
+var (
+	envFS      envapp.FS           = envosfs.New()
+	envSchemas envapp.SchemaFinder = envosfs.New()
+	envLoader  envapp.SchemaLoader = schemafile.New()
+	envMCP     envapp.MCPEnv       = mcpenv.New()
+)
+
+func newEnvService(out io.Writer) *envapp.Service {
+	return &envapp.Service{
+		FS:      envFS,
+		Schemas: envSchemas,
+		Loader:  envLoader,
+		MCP:     envMCP,
+		Out:     out,
+		UI: envapp.UI{
+			Title:     func(text string) string { return titleStyle.Render(text) },
+			Bold:      func(text string) string { return boldStyle.Render(text) },
+			OK:        iconOK,
+			Warn:      iconWarn,
+			Error:     iconError,
+			Success:   func(text string) string { return successStyle.Render(text) },
+			Warning:   func(text string) string { return warningStyle.Render(text) },
+			ErrorText: func(text string) string { return errorStyle.Render(text) },
+			Subtle:    func(text string) string { return subtleStyle.Render(text) },
+			Info:      func(text string) string { return infoStyle.Render(text) },
+		},
+	}
+}
 
 func newEnvCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -25,159 +56,56 @@ func newEnvCmd() *cobra.Command {
 	return cmd
 }
 
-func findSchemaFiles(searchRoot string) ([]string, error) {
-	var schemas []string
-
-	walkErr := filepath.WalkDir(searchRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+func envTargetPath(args []string, workspaceRoot string) string {
+	targetPath := workspaceRoot
+	if len(args) > 0 && args[0] != "" {
+		targetPath = args[0]
+		if !filepath.IsAbs(targetPath) {
+			targetPath = filepath.Join(workspaceRoot, targetPath)
 		}
-
-		if d.IsDir() {
-			name := d.Name()
-			if name == ".git" || name == "node_modules" || name == "vendor" || name == "temp" || name == ".trash" || name == "dist" || name == "build" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if d.Name() == ".env.schema.yaml" || d.Name() == ".env.schema.yml" {
-			schemas = append(schemas, path)
-		}
-
-		return nil
-	})
-
-	sort.Strings(schemas)
-	return schemas, walkErr
+	}
+	return targetPath
 }
 
 func newEnvCheckCmd() *cobra.Command {
+	var jsonFlag bool
+
 	cmd := &cobra.Command{
 		Use:   "check [path]",
 		Short: "Validate project .env files against their .env.schema.yaml contracts",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
+
 			workspaceRoot := findWorkspaceRoot("")
-
-			targetPath := workspaceRoot
-			if len(args) > 0 && args[0] != "" {
-				targetPath = args[0]
-				if !filepath.IsAbs(targetPath) {
-					targetPath = filepath.Join(workspaceRoot, targetPath)
-				}
-			}
-
-			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Validator"))
-			fmt.Fprintf(out, "  Search Path: %s\n\n", subtleStyle.Render(targetPath))
-
-			schemas, err := findSchemaFiles(targetPath)
+			result, err := newEnvService(uiOut).Check(cmd.Context(), envapp.CheckInput{
+				SearchPath:    envTargetPath(args, workspaceRoot),
+				WorkspaceRoot: workspaceRoot,
+			})
 			if err != nil {
-				return fmt.Errorf("schema discovery failed: %w", err)
-			}
-
-			if len(schemas) == 0 {
-				fmt.Fprintln(out, "Environment unverified: no .env.schema.yaml contracts found.")
-			}
-			totalErrors := 0
-			validCount := 0
-
-			for _, schemaPath := range schemas {
-				dir := filepath.Dir(schemaPath)
-				relDir, _ := filepath.Rel(workspaceRoot, dir)
-				if relDir == "" || relDir == "." {
-					relDir = filepath.Base(dir)
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
 				}
-
-				schema, err := env.LoadSchema(schemaPath)
-				if err != nil {
-					fmt.Fprintf(out, "  %s  %s: failed to load schema: %v\n", iconError, boldStyle.Render(relDir), err)
-					totalErrors++
-					continue
-				}
-
-				envPath := filepath.Join(dir, ".env")
-				valErrors := env.Validate(envPath, schema)
-
-				if len(valErrors) == 0 {
-					validCount++
-					fmt.Fprintf(out, "  %s  %s: %s (%d variables verified)\n",
-						iconOK,
-						boldStyle.Render(relDir),
-						successStyle.Render(".env valid"),
-						len(schema.Variables),
-					)
-				} else {
-					totalErrors += len(valErrors)
-					fmt.Fprintf(out, "  %s  %s: %s\n",
-						iconError,
-						boldStyle.Render(relDir),
-						errorStyle.Render(fmt.Sprintf("%d validation issue(s)", len(valErrors))),
-					)
-					for _, ve := range valErrors {
-						var badge string
-						if ve.Type == "missing_required" || ve.Type == "file_not_found" {
-							badge = errorStyle.Render("[MISSING]")
-						} else {
-							badge = warningStyle.Render("[INVALID]")
-						}
-						if ve.Variable != "" {
-							fmt.Fprintf(out, "       %s %s: %s\n", badge, boldStyle.Render(ve.Variable), ve.Message)
-						} else {
-							fmt.Fprintf(out, "       %s %s\n", badge, ve.Message)
-						}
-					}
-				}
+				return err
 			}
-
-			// Check .cursor/mcp.env if in workspaceRoot
-			mcpEnvPath := filepath.Join(workspaceRoot, ".cursor", "mcp.env")
-			if fi, err := os.Stat(mcpEnvPath); err == nil {
-				perm := fi.Mode().Perm()
-				if perm != 0600 {
-					fmt.Fprintf(out, "\n  %s  %s: permissions are %04o (recommended: 0600)\n",
-						iconWarn,
-						boldStyle.Render(".cursor/mcp.env"),
-						perm,
-					)
-					totalErrors++
-				} else {
-					fmt.Fprintf(out, "\n  %s  %s: permissions 0600 secure\n",
-						iconOK,
-						boldStyle.Render(".cursor/mcp.env"),
-					)
-				}
-			} else if !os.IsNotExist(err) {
-				totalErrors++
-				fmt.Fprintf(out, "MCP permission inspection failed: %v\n", err)
-			}
-
-			// No contract cannot produce a successful validation summary.
-			if len(schemas) > 0 {
-				fmt.Fprintf(out, "\n%s  %s\n",
-					successStyle.Render(fmt.Sprintf("✔ %d schemas valid", validCount)),
-					errorStyle.Render(fmt.Sprintf("✖ %d errors across all env files", totalErrors)),
-				)
-			} else {
-				fmt.Fprintf(out, "\nEnvironment unverified; %d permission or inspection error(s).\n", totalErrors)
-			}
-
-			if totalErrors > 0 {
-				return fmt.Errorf("environment validation failed with %d error(s)", totalErrors)
-			}
-
-			if len(schemas) == 0 {
-				return fmt.Errorf("environment unverified: no .env.schema.yaml contracts found")
+			if jsonFlag {
+				return output.Write(out, output.Success(result))
 			}
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newEnvSetupCmd() *cobra.Command {
 	var force bool
+	var jsonFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "setup [path]",
@@ -186,80 +114,31 @@ func newEnvSetupCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
+
 			workspaceRoot := findWorkspaceRoot("")
-
-			targetPath := workspaceRoot
-			if len(args) > 0 && args[0] != "" {
-				targetPath = args[0]
-				if !filepath.IsAbs(targetPath) {
-					targetPath = filepath.Join(workspaceRoot, targetPath)
-				}
-			}
-
-			fmt.Fprintln(out, titleStyle.Render("Orbit Environment Setup"))
-
-			schemas, err := findSchemaFiles(targetPath)
+			result, err := newEnvService(uiOut).Setup(cmd.Context(), envapp.SetupInput{
+				SearchPath:    envTargetPath(args, workspaceRoot),
+				WorkspaceRoot: workspaceRoot,
+				Force:         force,
+			})
 			if err != nil {
-				return fmt.Errorf("schema discovery failed: %w", err)
-			}
-			if len(schemas) == 0 {
-				return fmt.Errorf("environment setup unverified: no .env.schema.yaml contracts found")
-			}
-			setupErrors := 0
-			createdCount := 0
-			skippedCount := 0
-
-			for _, schemaPath := range schemas {
-				dir := filepath.Dir(schemaPath)
-				relDir, _ := filepath.Rel(workspaceRoot, dir)
-				if relDir == "" || relDir == "." {
-					relDir = filepath.Base(dir)
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
 				}
-
-				envPath := filepath.Join(dir, ".env")
-				if _, err := os.Stat(envPath); err == nil && !force {
-					skippedCount++
-					fmt.Fprintf(out, "  %s  %s: %s\n", iconOK, boldStyle.Render(relDir), subtleStyle.Render(".env already exists (use --force to overwrite)"))
-					continue
-				}
-
-				schema, err := env.LoadSchema(schemaPath)
-				if err != nil {
-					setupErrors++
-					fmt.Fprintf(out, "  %s  %s: error reading schema: %v\n", iconError, boldStyle.Render(relDir), err)
-					continue
-				}
-
-				if err := env.GenerateFromSchema(envPath, schema, nil); err != nil {
-					setupErrors++
-					fmt.Fprintf(out, "  %s  %s: generation failed: %v\n", iconError, boldStyle.Render(relDir), err)
-				} else {
-					createdCount++
-					fmt.Fprintf(out, "  %s  %s: %s\n", iconOK, boldStyle.Render(relDir), successStyle.Render("generated .env (chmod 0600)"))
-				}
+				return err
 			}
-
-			// Ensure .cursor/mcp.env
-			if err := migrate.SetupMCPEnvironment(workspaceRoot); err != nil {
-				setupErrors++
-				fmt.Fprintf(out, "  %s  .cursor/mcp.env setup warning: %v\n", iconWarn, err)
-			} else {
-				fmt.Fprintf(out, "  %s  %s: %s\n", iconOK, boldStyle.Render(".cursor/mcp.env"), successStyle.Render("ready (chmod 0600)"))
-			}
-
-			fmt.Fprintf(out, "\n%s  %s\n",
-				successStyle.Render(fmt.Sprintf("✔ %d .env files generated", createdCount)),
-				infoStyle.Render(fmt.Sprintf("ℹ %d already existed", skippedCount)),
-			)
-
-			if setupErrors > 0 {
-				return fmt.Errorf("environment setup failed with %d error(s)", setupErrors)
+			if jsonFlag {
+				return output.Write(out, output.Success(result))
 			}
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing .env files with schema defaults")
-
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }

@@ -224,7 +224,7 @@ func newUpdateCmd() *cobra.Command {
 				if !jsonFlag {
 					fmt.Fprintln(out, headerStyle.Render("── 4/4 Environment Validation ───────────────────────────────"))
 				}
-				schemas, err := findSchemaFiles(workspaceRoot)
+				schemas, err := env.FindSchemas(workspaceRoot)
 				if err != nil {
 					envErr := clierr.Wrap(err, clierr.Failed("schema discovery failed"))
 					data.EnvironmentError = envErr.Error()

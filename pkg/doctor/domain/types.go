@@ -1,4 +1,7 @@
-package doctor
+// Package domain holds the pure diagnostics types and rules: statuses, report
+// aggregation, version evaluation and the check and healer registries. It
+// performs no I/O and runs no external programs.
+package domain
 
 // CheckStatus represents the status outcome of a diagnostic check.
 type CheckStatus string
@@ -56,9 +59,7 @@ type Report = DoctorReport
 
 // NewReport creates and initializes an empty DoctorReport.
 func NewReport() *DoctorReport {
-	return &DoctorReport{
-		Results: make([]DiagnosticResult, 0),
-	}
+	return &DoctorReport{Results: make([]DiagnosticResult, 0)}
 }
 
 // HasErrors returns true if any diagnostic result has StatusError.

@@ -6,6 +6,7 @@ Usage:
 Flags:
       --force   Overwrite existing .env files with schema defaults
   -h, --help    help for setup
+      --json    Print the result as a JSON envelope
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
