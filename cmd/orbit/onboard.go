@@ -25,7 +25,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
 	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
@@ -448,7 +448,7 @@ Actions that will be executed during onboarding:
 		}
 
 		fingerprint := getMachineFingerprint()
-		idempKey := invite.ComputeIdempotencyKey(token, fingerprint)
+		idempKey := invitedomain.ComputeIdempotencyKey(token, fingerprint)
 
 		claimReq := provisioner.ClaimRequest{
 			InviteToken:        token,

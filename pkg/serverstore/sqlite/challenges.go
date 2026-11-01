@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 )
 
@@ -27,11 +27,11 @@ func NewChallengeStore(db *sql.DB) *ChallengeStore {
 // Ensure ChallengeStore implements serverstore.ChallengeStore and owner.ChallengeStore.
 var (
 	_ serverstore.ChallengeStore = (*ChallengeStore)(nil)
-	_ owner.ChallengeStore       = (*ChallengeStore)(nil)
+	_ ownerdomain.ChallengeStore = (*ChallengeStore)(nil)
 )
 
 // SaveChallenge inserts or updates a challenge record in SQLite.
-func (s *ChallengeStore) SaveChallenge(ctx context.Context, ch *owner.Challenge) error {
+func (s *ChallengeStore) SaveChallenge(ctx context.Context, ch *ownerdomain.Challenge) error {
 	if ch == nil {
 		return errors.New("cannot save nil challenge")
 	}
@@ -62,7 +62,7 @@ func (s *ChallengeStore) SaveChallenge(ctx context.Context, ch *owner.Challenge)
 
 	maxAttempts := ch.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = owner.DefaultMaxAttempts
+		maxAttempts = ownerdomain.DefaultMaxAttempts
 		ch.MaxAttempts = maxAttempts
 	}
 
@@ -112,10 +112,10 @@ ON CONFLICT(id) DO UPDATE SET
 }
 
 // GetActiveChallenge retrieves the most recent active unverified challenge for an email.
-func (s *ChallengeStore) GetActiveChallenge(ctx context.Context, email string) (*owner.Challenge, error) {
+func (s *ChallengeStore) GetActiveChallenge(ctx context.Context, email string) (*ownerdomain.Challenge, error) {
 	normEmail := strings.ToLower(strings.TrimSpace(email))
 	if normEmail == "" {
-		return nil, owner.ErrChallengeNotFound
+		return nil, ownerdomain.ErrChallengeNotFound
 	}
 
 	now := time.Now().UTC()
@@ -130,7 +130,7 @@ LIMIT 1;`
 	ch, err := scanChallengeRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, owner.ErrChallengeNotFound
+			return nil, ownerdomain.ErrChallengeNotFound
 		}
 		return nil, fmt.Errorf("failed to get active challenge: %w", err)
 	}
@@ -142,7 +142,7 @@ LIMIT 1;`
 func (s *ChallengeStore) IncrementAttempts(ctx context.Context, id string) (int, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return 0, owner.ErrChallengeNotFound
+		return 0, ownerdomain.ErrChallengeNotFound
 	}
 
 	query := `UPDATE challenges SET attempts_count = attempts_count + 1 WHERE id = ? RETURNING attempts_count;`
@@ -150,7 +150,7 @@ func (s *ChallengeStore) IncrementAttempts(ctx context.Context, id string) (int,
 	err := s.db.QueryRowContext(ctx, query, id).Scan(&newAttempts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, owner.ErrChallengeNotFound
+			return 0, ownerdomain.ErrChallengeNotFound
 		}
 		return 0, fmt.Errorf("failed to increment challenge attempts: %w", err)
 	}
@@ -162,7 +162,7 @@ func (s *ChallengeStore) IncrementAttempts(ctx context.Context, id string) (int,
 func (s *ChallengeStore) MarkVerified(ctx context.Context, id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return owner.ErrChallengeNotFound
+		return ownerdomain.ErrChallengeNotFound
 	}
 
 	now := time.Now().UTC()
@@ -177,7 +177,7 @@ func (s *ChallengeStore) MarkVerified(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to check rows affected: %w", err)
 	}
 	if rows == 0 {
-		return owner.ErrChallengeNotFound
+		return ownerdomain.ErrChallengeNotFound
 	}
 
 	return nil
@@ -193,13 +193,13 @@ func (s *ChallengeStore) PruneExpired(ctx context.Context) error {
 	return nil
 }
 
-func scanChallengeRow(row *sql.Row) (*owner.Challenge, error) {
+func scanChallengeRow(row *sql.Row) (*ownerdomain.Challenge, error) {
 	return scanChallenge(row)
 }
 
-func scanChallenge(s rowScanner) (*owner.Challenge, error) {
+func scanChallenge(s rowScanner) (*ownerdomain.Challenge, error) {
 	var (
-		ch         owner.Challenge
+		ch         ownerdomain.Challenge
 		verifiedAt sql.NullTime
 		createdAt  time.Time
 		expiresAt  time.Time

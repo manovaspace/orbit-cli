@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
@@ -631,7 +631,7 @@ func setupIntegrationSandbox(t *testing.T, serverURL string) (string, func()) {
 }
 
 func seedOwnerVault(path, email, secret string) error {
-	rec := owner.OwnerRecord{
+	rec := ownerdomain.OwnerRecord{
 		Email:             email,
 		VerifiedAt:        time.Now().UTC(),
 		KeyFingerprint:    fmt.Sprintf("%x", sha256.Sum256([]byte(email))),
@@ -687,8 +687,9 @@ func TestScenariosIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ADM-01 admin status failed: %v\nOutput: %s", err, statusOut)
 		}
+		statusEnv := decodeEnvelope(t, statusOut)
 		var stat map[string]interface{}
-		if err := json.Unmarshal([]byte(statusOut), &stat); err != nil || stat["verified"] != true {
+		if err := json.Unmarshal(statusEnv.Data, &stat); err != nil || stat["verified"] != true {
 			t.Errorf("ADM-01 status JSON invalid or not verified: %v, body: %s", err, statusOut)
 		}
 
@@ -839,8 +840,9 @@ func TestScenariosIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("INV-01 invite list failed: %v\nOutput: %s", err, listJSON)
 		}
+		listEnv := decodeEnvelope(t, listJSON)
 		var invites []map[string]interface{}
-		if err := json.Unmarshal([]byte(listJSON), &invites); err != nil || len(invites) == 0 {
+		if err := json.Unmarshal(listEnv.Data, &invites); err != nil || len(invites) == 0 {
 			t.Fatalf("INV-01 invite list parse failed: %v, body: %s", err, listJSON)
 		}
 		inviteID := invites[0]["id"].(string)

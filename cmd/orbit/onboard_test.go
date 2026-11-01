@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
@@ -90,13 +90,13 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 	defer server.Close()
 
 	// 2. Generate valid invite token
-	req := invite.InviteRequest{
+	req := invitedomain.InviteRequest{
 		Email:       "test-dev@manova.space",
 		DisplayName: "Test Developer",
 		Scope:       "core",
 		TTL:         24 * time.Hour,
 	}
-	tokenStr, _, err := invite.GenerateToken(req, secret)
+	tokenStr, _, err := invitedomain.GenerateToken(req, secret)
 	if err != nil {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}
@@ -188,13 +188,13 @@ func TestOnboardSessionCheckpointAndResume(t *testing.T) {
 	}
 
 	// 3. Generate invite token
-	req := invite.InviteRequest{
+	req := invitedomain.InviteRequest{
 		Email:       "resumed-dev@manova.space",
 		DisplayName: "Resumed Dev",
 		Scope:       "core",
 		TTL:         24 * time.Hour,
 	}
-	tokenStr, _, _ := invite.GenerateToken(req, secret)
+	tokenStr, _, _ := invitedomain.GenerateToken(req, secret)
 
 	// 4. Run with --resume flag
 	buf := new(bytes.Buffer)
@@ -551,13 +551,13 @@ func TestOnboardAutoFixFullProgression(t *testing.T) {
 	defer server.Close()
 
 	// Generate valid invite token
-	req := invite.InviteRequest{
+	req := invitedomain.InviteRequest{
 		Email:       "autofix-dev@manova.space",
 		DisplayName: "Autofix Developer",
 		Scope:       "core",
 		TTL:         24 * time.Hour,
 	}
-	tokenStr, _, err := invite.GenerateToken(req, secret)
+	tokenStr, _, err := invitedomain.GenerateToken(req, secret)
 	if err != nil {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}

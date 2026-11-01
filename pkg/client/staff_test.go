@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -156,7 +155,7 @@ func TestStaffUpdateInputCarriesProfileNames(t *testing.T) {
 	}
 }
 
-func TestStaffUpdateRejectsServerThatDoesNotApplyProfileNames(t *testing.T) {
+func TestStaffUpdateReturnsServerRecordUnchanged(t *testing.T) {
 	secret := "test-hmac-secret-for-staff-client"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch || r.URL.Path != "/api/v1/staff/alirezaopmc" {
@@ -168,11 +167,14 @@ func TestStaffUpdateRejectsServerThatDoesNotApplyProfileNames(t *testing.T) {
 	defer srv.Close()
 
 	c := NewStaffClient(srv.URL, secret)
-	_, err := c.Update(context.Background(), "alirezaopmc", StaffUpdateInput{
+	member, err := c.Update(context.Background(), "alirezaopmc", StaffUpdateInput{
 		FirstName: "Alireza",
 		LastName:  "J",
 	})
-	if err == nil || !strings.Contains(err.Error(), "does not confirm profile-name updates") {
-		t.Fatalf("Update error = %v, want unsupported-server error", err)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if member.UID != "alirezaopmc" {
+		t.Fatalf("member = %+v", member)
 	}
 }

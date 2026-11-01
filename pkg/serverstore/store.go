@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 )
 
 // Store is the unified storage interface for orbit-server persistence.
@@ -19,17 +19,17 @@ type Store interface {
 
 // InviteStore defines persistence operations for onboarding invitations.
 type InviteStore interface {
-	SaveInvite(ctx context.Context, rec *invite.InviteRecord) error
-	GetInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error)
-	ListInvites(ctx context.Context) ([]*invite.InviteRecord, error)
-	RevokeInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error)
-	RevokeAll(ctx context.Context) ([]*invite.InviteRecord, error)
+	SaveInvite(ctx context.Context, rec *invitedomain.InviteRecord) error
+	GetInvite(ctx context.Context, tokenOrID string) (*invitedomain.InviteRecord, error)
+	ListInvites(ctx context.Context) ([]*invitedomain.InviteRecord, error)
+	RevokeInvite(ctx context.Context, tokenOrID string) (*invitedomain.InviteRecord, error)
+	RevokeAll(ctx context.Context) ([]*invitedomain.InviteRecord, error)
 }
 
 // ChallengeStore defines persistence operations for out-of-band OTP verification challenges.
 type ChallengeStore interface {
-	SaveChallenge(ctx context.Context, ch *owner.Challenge) error
-	GetActiveChallenge(ctx context.Context, email string) (*owner.Challenge, error)
+	SaveChallenge(ctx context.Context, ch *ownerdomain.Challenge) error
+	GetActiveChallenge(ctx context.Context, email string) (*ownerdomain.Challenge, error)
 	IncrementAttempts(ctx context.Context, id string) (int, error)
 	MarkVerified(ctx context.Context, id string) error
 	PruneExpired(ctx context.Context) error
@@ -37,10 +37,10 @@ type ChallengeStore interface {
 
 // GrantStore defines persistence operations for owner-issued 8-digit admin grants.
 type GrantStore interface {
-	SaveGrant(ctx context.Context, g *owner.AdminGrant) error
-	GetGrant(ctx context.Context, email, codeHash string) (*owner.AdminGrant, error)
+	SaveGrant(ctx context.Context, g *ownerdomain.AdminGrant) error
+	GetGrant(ctx context.Context, email, codeHash string) (*ownerdomain.AdminGrant, error)
 	MarkUsed(ctx context.Context, id string) error
-	ListActiveGrants(ctx context.Context) ([]*owner.AdminGrant, error)
+	ListActiveGrants(ctx context.Context) ([]*ownerdomain.AdminGrant, error)
 }
 
 // RateLimitStore defines persistence operations for sliding-window rate limit tracking.

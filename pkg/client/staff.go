@@ -122,9 +122,6 @@ func (c *StaffClient) Update(ctx context.Context, uid string, in StaffUpdateInpu
 	if err := c.do(ctx, http.MethodPatch, staffPath(uid), in, &out, nil); err != nil {
 		return nil, err
 	}
-	if (in.FirstName != "" && out.FirstName != in.FirstName) || (in.LastName != "" && out.LastName != in.LastName) {
-		return nil, fmt.Errorf("staff server does not confirm profile-name updates; update orbit-staff before retrying")
-	}
 	return &out, nil
 }
 

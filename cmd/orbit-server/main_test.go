@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
@@ -71,7 +72,7 @@ func TestServerCmd_FlagParsing(t *testing.T) {
 		"--signing-secret", "supersecret123456789012345678901234",
 		"--config", "/etc/orbit/server.yaml",
 		"--store", "/var/lib/orbit/invites.json",
-		"--owner-store", "/var/lib/orbit/owner.json",
+		"--owner-store", "/var/lib/orbit/ownerdomain.json",
 		"--db", "/var/lib/orbit/orbit.db",
 		"--trusted-proxies", "127.0.0.1/32,10.0.0.0/8",
 	}
@@ -106,8 +107,8 @@ func TestServerCmd_FlagParsing(t *testing.T) {
 	if store, _ := cmd.Flags().GetString("store"); store != "/var/lib/orbit/invites.json" {
 		t.Errorf("expected store '/var/lib/orbit/invites.json', got %q", store)
 	}
-	if ownerStore, _ := cmd.Flags().GetString("owner-store"); ownerStore != "/var/lib/orbit/owner.json" {
-		t.Errorf("expected owner-store '/var/lib/orbit/owner.json', got %q", ownerStore)
+	if ownerStore, _ := cmd.Flags().GetString("owner-store"); ownerStore != "/var/lib/orbit/ownerdomain.json" {
+		t.Errorf("expected owner-store '/var/lib/orbit/ownerdomain.json', got %q", ownerStore)
 	}
 	if db, _ := cmd.Flags().GetString("db"); db != "/var/lib/orbit/orbit.db" {
 		t.Errorf("expected db '/var/lib/orbit/orbit.db', got %q", db)
@@ -290,9 +291,9 @@ func TestResolveSigningSecret(t *testing.T) {
 
 	// Case 4: Owner store
 	tmpDir := t.TempDir()
-	ownerPath := filepath.Join(tmpDir, "owner.json")
-	store := owner.NewStore(ownerPath)
-	err := store.SaveOwner(&owner.OwnerRecord{
+	ownerPath := filepath.Join(tmpDir, "ownerdomain.json")
+	store := ownerfilestore.NewStore(ownerPath)
+	err := store.SaveOwner(&ownerdomain.OwnerRecord{
 		Email:             "admin@manova.space",
 		RootSigningSecret: "owner-secret-12345678901234567890", // gitleaks:allow
 		VerifiedAt:        time.Now(),
@@ -321,7 +322,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	secretBytes := []byte(secret)
 
 	// 1. Generate an invite token
-	tok1, claims1, err := invite.GenerateToken(invite.InviteRequest{
+	tok1, claims1, err := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email:       "alice@manova.space",
 		DisplayName: "Alice",
 		Scope:       "orbit",
@@ -384,7 +385,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	defer db.Close()
 
 	// Save active invite to SQLite
-	err = db.Invites().SaveInvite(context.Background(), &invite.InviteRecord{
+	err = db.Invites().SaveInvite(context.Background(), &invitedomain.InviteRecord{
 		ID:        claims1.ID,
 		Email:     claims1.Email,
 		Token:     tok1,
@@ -444,14 +445,14 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 
 	// 5. Test Revocation Enforcement via SQLite Store
-	revokedToken, revokedClaims, err := invite.GenerateToken(invite.InviteRequest{
+	revokedToken, revokedClaims, err := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "revoked@manova.space",
 		TTL:   24 * time.Hour,
 	}, secretBytes)
 	if err != nil {
 		t.Fatalf("failed to generate revoked token: %v", err)
 	}
-	err = db.Invites().SaveInvite(context.Background(), &invite.InviteRecord{
+	err = db.Invites().SaveInvite(context.Background(), &invitedomain.InviteRecord{
 		ID:        revokedClaims.ID,
 		Email:     "revoked@manova.space",
 		Token:     revokedToken,
@@ -533,7 +534,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 
 	// 7. Test Challenge creation and verification via SQLite
-	chMgr := owner.NewPersistentChallengeManager(db.Challenges())
+	chMgr := ownerdomain.NewPersistentChallengeManager(db.Challenges())
 	ch, otp, err := chMgr.CreateChallenge("operator@manova.space", 10*time.Minute)
 	if err != nil {
 		t.Fatalf("failed to create challenge: %v", err)

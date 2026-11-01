@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
 
@@ -18,10 +18,10 @@ func TestGrants_SaveAndGet(t *testing.T) {
 	email := "Sara@Manova.Space"
 	code := "8492-0194"
 	salt := "test-grant-salt-456"
-	codeHash := owner.HashGrantCode(code, salt)
+	codeHash := ownerdomain.HashGrantCode(code, salt)
 	now := time.Now().UTC()
 
-	g := &owner.AdminGrant{
+	g := &ownerdomain.AdminGrant{
 		Email:       email,
 		CodeHash:    codeHash,
 		Salt:        salt,
@@ -73,19 +73,19 @@ func TestGrants_SaveAndGet(t *testing.T) {
 
 	// 3. Non-matching codeHash
 	_, err = store.GetGrant(ctx, "sara@manova.space", "wrong-hash")
-	if !errors.Is(err, owner.ErrGrantNotFound) {
+	if !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 		t.Fatalf("expected ErrGrantNotFound for non-matching hash, got %v", err)
 	}
 
 	// 4. Non-existent email
 	_, err = store.GetGrant(ctx, "nonexistent@manova.space", "")
-	if !errors.Is(err, owner.ErrGrantNotFound) {
+	if !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 		t.Fatalf("expected ErrGrantNotFound for non-existent email, got %v", err)
 	}
 
 	// 5. Empty email
 	_, err = store.GetGrant(ctx, "", "")
-	if !errors.Is(err, owner.ErrGrantNotFound) {
+	if !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 		t.Fatalf("expected ErrGrantNotFound for empty email, got %v", err)
 	}
 }
@@ -96,7 +96,7 @@ func TestGrants_MarkUsed(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC()
-	g := &owner.AdminGrant{
+	g := &ownerdomain.AdminGrant{
 		Email:     "burned@manova.space",
 		CodeHash:  "hash-123",
 		Salt:      "salt-123",
@@ -116,13 +116,13 @@ func TestGrants_MarkUsed(t *testing.T) {
 
 	// Active lookup should return not found because used == 1
 	_, err := store.GetGrant(ctx, "burned@manova.space", "")
-	if !errors.Is(err, owner.ErrGrantNotFound) {
+	if !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 		t.Fatalf("expected ErrGrantNotFound after MarkUsed, got %v", err)
 	}
 
 	// MarkUsed on non-existent ID
 	err = store.MarkUsed(ctx, "non-existent-grant-id")
-	if !errors.Is(err, owner.ErrGrantNotFound) {
+	if !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 		t.Fatalf("expected ErrGrantNotFound for non-existent ID, got %v", err)
 	}
 }
@@ -136,7 +136,7 @@ func TestGrants_ListActiveGrants(t *testing.T) {
 	now := time.Now().UTC()
 
 	// 1. Expired grant
-	expired := &owner.AdminGrant{
+	expired := &ownerdomain.AdminGrant{
 		ID:        "grant-expired",
 		Email:     "expired@manova.space",
 		CodeHash:  "hash-exp",
@@ -152,7 +152,7 @@ func TestGrants_ListActiveGrants(t *testing.T) {
 
 	// 2. Used grant
 	usedTime := now.Add(-1 * time.Minute)
-	used := &owner.AdminGrant{
+	used := &ownerdomain.AdminGrant{
 		ID:        "grant-used",
 		Email:     "used@manova.space",
 		CodeHash:  "hash-used",
@@ -169,7 +169,7 @@ func TestGrants_ListActiveGrants(t *testing.T) {
 	}
 
 	// 3. Active grant 1 (older)
-	active1 := &owner.AdminGrant{
+	active1 := &ownerdomain.AdminGrant{
 		ID:        "grant-active-1",
 		Email:     "active1@manova.space",
 		CodeHash:  "hash-act1",
@@ -184,7 +184,7 @@ func TestGrants_ListActiveGrants(t *testing.T) {
 	}
 
 	// 4. Active grant 2 (newer)
-	active2 := &owner.AdminGrant{
+	active2 := &ownerdomain.AdminGrant{
 		ID:        "grant-active-2",
 		Email:     "active2@manova.space",
 		CodeHash:  "hash-act2",
@@ -226,7 +226,7 @@ func TestGrants_Validation(t *testing.T) {
 		t.Errorf("expected error saving nil grant, got nil")
 	}
 
-	if err := store.SaveGrant(ctx, &owner.AdminGrant{Email: ""}); err == nil {
+	if err := store.SaveGrant(ctx, &ownerdomain.AdminGrant{Email: ""}); err == nil {
 		t.Errorf("expected error saving grant with empty email, got nil")
 	}
 }

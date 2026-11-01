@@ -24,7 +24,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
@@ -280,7 +280,7 @@ func (s *MockServer) handleAdminGrantCreate(w http.ResponseWriter, r *http.Reque
 	if role == "" {
 		role = "admin"
 	}
-	code := owner.CleanCode(req.Code)
+	code := ownerdomain.CleanCode(req.Code)
 	if code == "" {
 		code = "12345678"
 	}
@@ -315,7 +315,7 @@ func (s *MockServer) handleAdminGrantCreate(w http.ResponseWriter, r *http.Reque
 		ID:        gID,
 		Email:     normEmail,
 		Role:      role,
-		Code:      owner.Format8DigitCode(code),
+		Code:      ownerdomain.Format8DigitCode(code),
 		ExpiresAt: expiresAt,
 	})
 }
@@ -333,7 +333,7 @@ func (s *MockServer) handleAdminGrantList(w http.ResponseWriter, r *http.Request
 				ID:        g.ID,
 				Email:     g.Email,
 				Role:      g.Role,
-				Code:      owner.Format8DigitCode(g.Code),
+				Code:      ownerdomain.Format8DigitCode(g.Code),
 				ExpiresAt: g.ExpiresAt,
 			})
 		}
@@ -349,7 +349,7 @@ func (s *MockServer) handleOwnerVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	normEmail := strings.ToLower(strings.TrimSpace(req.Email))
-	cleanCode := owner.CleanCode(req.Code)
+	cleanCode := ownerdomain.CleanCode(req.Code)
 
 	if normEmail == "" || cleanCode == "" {
 		writeError(w, http.StatusBadRequest, "email and code are required")

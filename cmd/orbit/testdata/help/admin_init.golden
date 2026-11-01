@@ -10,6 +10,7 @@ Flags:
   -c, --code string     6-digit verification code (for non-interactive execution)
   -f, --force           Force re-initialization even if already verified
   -h, --help            help for init
+      --json            Print the result as a JSON envelope
   -n, --name string     Owner display name (e.g. 'Alex Smith')
       --no-send         Suppress dispatching challenge email
   -o, --owner string    Owner email address (e.g. admin@example.com)
