@@ -5,6 +5,7 @@ Usage:
 
 Flags:
   -h, --help   help for delete
+      --json   Print the result as a JSON envelope
 
 Global Flags:
       --config string        Custom path to Orbit CLI configuration file

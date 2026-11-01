@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 )
 
@@ -27,7 +27,7 @@ func NewInviteStore(db *sql.DB) *InviteStore {
 var _ serverstore.InviteStore = (*InviteStore)(nil)
 
 // SaveInvite inserts or updates an invitation record in SQLite.
-func (s *InviteStore) SaveInvite(ctx context.Context, rec *invite.InviteRecord) error {
+func (s *InviteStore) SaveInvite(ctx context.Context, rec *invitedomain.InviteRecord) error {
 	if rec == nil {
 		return errors.New("cannot save nil invite record")
 	}
@@ -99,10 +99,10 @@ ON CONFLICT(id) DO UPDATE SET
 }
 
 // GetInvite finds an invitation by exact token, exact ID, or unique ID prefix.
-func (s *InviteStore) GetInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error) {
+func (s *InviteStore) GetInvite(ctx context.Context, tokenOrID string) (*invitedomain.InviteRecord, error) {
 	tokenOrID = strings.TrimSpace(tokenOrID)
 	if tokenOrID == "" {
-		return nil, invite.ErrInviteNotFound
+		return nil, invitedomain.ErrInviteNotFound
 	}
 
 	// 1. Exact match on Token or ID
@@ -134,7 +134,7 @@ LIMIT 2;`
 	}
 	defer func() { _ = rows.Close() }()
 
-	var matches []*invite.InviteRecord
+	var matches []*invitedomain.InviteRecord
 	for rows.Next() {
 		r, err := scanInviteRows(rows)
 		if err != nil {
@@ -153,11 +153,11 @@ LIMIT 2;`
 		return nil, fmt.Errorf("ambiguous invite ID prefix %q matches multiple invitations", tokenOrID)
 	}
 
-	return nil, invite.ErrInviteNotFound
+	return nil, invitedomain.ErrInviteNotFound
 }
 
 // ListInvites returns all invitations ordered by created_at DESC.
-func (s *InviteStore) ListInvites(ctx context.Context) ([]*invite.InviteRecord, error) {
+func (s *InviteStore) ListInvites(ctx context.Context) ([]*invitedomain.InviteRecord, error) {
 	query := `
 SELECT id, token, email, display_name, scope, created_by, revoked, revoked_at, created_at, expires_at, metadata_json
 FROM invites
@@ -169,7 +169,7 @@ ORDER BY created_at DESC;`
 	}
 	defer func() { _ = rows.Close() }()
 
-	records := make([]*invite.InviteRecord, 0)
+	records := make([]*invitedomain.InviteRecord, 0)
 	for rows.Next() {
 		rec, err := scanInviteRows(rows)
 		if err != nil {
@@ -185,7 +185,7 @@ ORDER BY created_at DESC;`
 }
 
 // RevokeInvite marks an invitation as revoked and updates revoked_at.
-func (s *InviteStore) RevokeInvite(ctx context.Context, tokenOrID string) (*invite.InviteRecord, error) {
+func (s *InviteStore) RevokeInvite(ctx context.Context, tokenOrID string) (*invitedomain.InviteRecord, error) {
 	rec, err := s.GetInvite(ctx, tokenOrID)
 	if err != nil {
 		return nil, err
@@ -208,7 +208,7 @@ func (s *InviteStore) RevokeInvite(ctx context.Context, tokenOrID string) (*invi
 }
 
 // RevokeAll marks all unrevoked invitations as revoked and returns them.
-func (s *InviteStore) RevokeAll(ctx context.Context) ([]*invite.InviteRecord, error) {
+func (s *InviteStore) RevokeAll(ctx context.Context) ([]*invitedomain.InviteRecord, error) {
 	now := time.Now().UTC()
 	querySelect := `
 SELECT id, token, email, display_name, scope, created_by, revoked, revoked_at, created_at, expires_at, metadata_json
@@ -221,7 +221,7 @@ WHERE revoked = 0;`
 	}
 	defer func() { _ = rows.Close() }()
 
-	var records []*invite.InviteRecord
+	var records []*invitedomain.InviteRecord
 	for rows.Next() {
 		rec, err := scanInviteRows(rows)
 		if err != nil {
@@ -236,7 +236,7 @@ WHERE revoked = 0;`
 	}
 
 	if len(records) == 0 {
-		return []*invite.InviteRecord{}, nil
+		return []*invitedomain.InviteRecord{}, nil
 	}
 
 	updateQuery := `UPDATE invites SET revoked = 1, revoked_at = ? WHERE revoked = 0;`
@@ -251,17 +251,17 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanInviteRow(row *sql.Row) (*invite.InviteRecord, error) {
+func scanInviteRow(row *sql.Row) (*invitedomain.InviteRecord, error) {
 	return scanInvite(row)
 }
 
-func scanInviteRows(rows *sql.Rows) (*invite.InviteRecord, error) {
+func scanInviteRows(rows *sql.Rows) (*invitedomain.InviteRecord, error) {
 	return scanInvite(rows)
 }
 
-func scanInvite(s rowScanner) (*invite.InviteRecord, error) {
+func scanInvite(s rowScanner) (*invitedomain.InviteRecord, error) {
 	var (
-		rec          invite.InviteRecord
+		rec          invitedomain.InviteRecord
 		displayName  sql.NullString
 		createdBy    sql.NullString
 		revokedAt    sql.NullTime

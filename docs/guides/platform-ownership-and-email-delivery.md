@@ -487,20 +487,26 @@ Orbit Server Ownership Status
 orbit admin status --format json
 ```
 
-Output:
+Output (standard envelope, schema version 1):
 ```json
 {
-  "verified": true,
-  "email": "admin@manova.space",
-  "display_name": "Alireza",
-  "verified_at": "2026-08-27T14:00:00Z",
-  "key_fingerprint": "<key-fingerprint>",
-  "vault_location": "/home/opmc/.config/orbit/owner.json",
-  "vault_permissions": "0600 (secure)",
-  "permissions_valid": true,
-  "mail_host": "mail.manova.space:587"
+  "schemaVersion": 1,
+  "ok": true,
+  "data": {
+    "verified": true,
+    "email": "admin@manova.space",
+    "display_name": "Alireza",
+    "verified_at": "2026-08-27T14:00:00Z",
+    "key_fingerprint": "<key-fingerprint>",
+    "vault_location": "/home/opmc/.config/orbit/owner.json",
+    "vault_permissions": "0600 (secure)",
+    "permissions_valid": true,
+    "mail_host": "mail.manova.space:587"
+  }
 }
 ```
+
+`orbit admin status --json` emits the same envelope.
 
 ---
 

@@ -1,26 +1,28 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	inviteapp "github.com/manovaspace/orbit-cli/pkg/invite/application"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	invitefilestore "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/filestore"
+	"github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/ownerstore"
+	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
 	"github.com/manovaspace/orbit-cli/pkg/istty"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/manovaspace/orbit-cli/pkg/tui/forms"
 	"github.com/spf13/cobra"
 )
 
 const (
-	DefaultSecretEnv      = "ORBIT_INVITE_SECRET"
-	DefaultFallbackSecret = "orbit-dev-insecure-invitation-signing-secret-key-32bytes"
-	inviteOwnerUnverified = "platform ownership is unverified; run 'orbit admin init --owner <email>' to verify ownership before issuing invitations"
+	DefaultSecretEnv      = invitedomain.DefaultSecretEnv
+	DefaultFallbackSecret = invitedomain.DefaultFallbackSecret
 )
 
 func newInviteCmd() *cobra.Command {
@@ -37,6 +39,26 @@ and claims for automated developer onboarding.`,
 	cmd.AddCommand(newInviteRevokeCmd())
 
 	return cmd
+}
+
+// inviteService builds the invitation use-case layer from the command flags.
+func inviteService(cmd *cobra.Command, storeFile, ownerStore string) (*inviteapp.Service, error) {
+	store, err := invitefilestore.NewStore(storeFile)
+	if err != nil {
+		return nil, err
+	}
+	return &inviteapp.Service{
+		Store:     store,
+		Owner:     ownerstore.New(ownerfilestore.NewStore(ownerStore)),
+		LookupEnv: lookupEnv,
+		Now:       func() time.Time { return time.Now().UTC() },
+		Out:       cmd.OutOrStdout(),
+		Err:       cmd.ErrOrStderr(),
+		UI: inviteapp.UI{
+			Warn:    iconWarn,
+			Warning: func(text string) string { return warningStyle.Render(text) },
+		},
+	}, nil
 }
 
 func newInviteCreateCmd() *cobra.Command {
@@ -57,6 +79,7 @@ func newInviteCreateCmd() *cobra.Command {
 		smtpHostFlag    string
 		smtpPortFlag    string
 		smtpFromFlag    string
+		jsonFlag        bool
 	)
 
 	cmd := &cobra.Command{
@@ -76,195 +99,80 @@ func newInviteCreateCmd() *cobra.Command {
 
 			if interactiveFlag {
 				if !istty.IsInteractiveSession() {
-					return errors.New("interactive mode requires an active terminal session")
+					err := errors.New("interactive mode requires an active terminal session")
+					identityWriteFailure(cmd.OutOrStdout(), jsonFlag, err)
+					return err
 				}
 				initialRole := scopeFlag
 				initialTTL := expiresFlag
 				formData, err := forms.RunInviteForm(email, initialRole, initialTTL)
 				if err != nil {
+					identityWriteFailure(cmd.OutOrStdout(), jsonFlag, err)
 					return err
 				}
 				email = formData.Email
 				scopeFlag = formData.Role
 				expiresFlag = formData.TTL
 				createAlias = formData.CreateAlias
-			} else {
-				if email == "" {
-					return errors.New("required flag(s) \"email\" not set (use -i for interactive mode)")
-				}
 			}
 
-			if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-				return fmt.Errorf("invalid email address %q", email)
-			}
-
-			ttl, err := parseDuration(expiresFlag)
+			svc, err := inviteService(cmd, storeFileFlag, ownerStoreFlag)
 			if err != nil {
+				err = fmt.Errorf("failed to initialize invite store: %w", err)
+				identityWriteFailure(cmd.OutOrStdout(), jsonFlag, err)
 				return err
 			}
 
-			// Check platform ownership verification
-			ownerStore := owner.NewStore(ownerStoreFlag)
-			ownerRecord, ownerErr := ownerStore.LoadOwner()
-			isOwnerVerified := (ownerErr == nil && ownerRecord != nil && ownerRecord.IsVerified())
-
-			isBypassed := insecureFlag || os.Getenv("ORBIT_INSECURE_SKIP_OWNER_CHECK") == "true"
-			if !isOwnerVerified && !isBypassed {
-				return errors.New(inviteOwnerUnverified)
+			var mailer inviteapp.Mailer
+			mailerCfg := inviteMailerConfig(smtpHostFlag, smtpPortFlag, smtpFromFlag, insecureFlag)
+			send := sendFlag && !noSendFlag
+			if send {
+				mailer = invitesmtp.NewSMTPMailer(mailerCfg)
+			}
+			if jsonFlag {
+				svc.Out = nil
+				svc.Err = nil
 			}
 
-			var verifiedSecret string
-			if isOwnerVerified && ownerRecord != nil {
-				verifiedSecret = ownerRecord.RootSigningSecret
-			}
-
-			secret, isFallback := resolveSecret(secretFlag, secretEnvFlag, verifiedSecret)
-			if len(secret) == 0 {
-				return errors.New("signing secret cannot be empty")
-			}
-			if isFallback {
-				fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n\n",
-					iconWarn,
-					warningStyle.Render("Using default dev signing secret. For production tokens, set $MANOVA_INVITE_SECRET or pass --secret."),
-				)
-			}
-
-			var metadata map[string]string
-			if createAlias {
-				if metadata == nil {
-					metadata = make(map[string]string)
-				}
-				metadata["create_alias"] = "true"
-			}
-
-			var totpSecret string
-			if totpFlag {
-				secretVal, uriVal, err := invite.GenerateTOTP("Orbit", email)
-				if err != nil {
-					return fmt.Errorf("failed to generate TOTP secret: %w", err)
-				}
-				totpSecret = secretVal
-				if metadata == nil {
-					metadata = make(map[string]string)
-				}
-				metadata["otpauth"] = uriVal
-			}
-
-			createdBy := ""
-			if isOwnerVerified && ownerRecord != nil {
-				createdBy = ownerRecord.Email
-			}
-
-			req := invite.InviteRequest{
+			res, err := svc.Create(cmd.Context(), inviteapp.CreateInput{
 				Email:       email,
-				DisplayName: strings.TrimSpace(nameFlag),
-				Scope:       strings.TrimSpace(scopeFlag),
-				TTL:         ttl,
-				CreatedBy:   createdBy,
-				Metadata:    metadata,
-			}
-			if req.Scope == "" {
-				req.Scope = "core"
-			}
-
-			tokenStr, claims, err := invite.GenerateToken(req, secret)
+				DisplayName: nameFlag,
+				Scope:       scopeFlag,
+				Expires:     expiresFlag,
+				SecretFlag:  secretFlag,
+				SecretEnv:   secretEnvFlag,
+				Insecure:    insecureFlag,
+				Alias:       createAlias,
+				TOTP:        totpFlag,
+				Send:        send,
+				Mailer:      mailer,
+				MailHost:    mailerCfg.Host,
+				MailPort:    mailerCfg.Port,
+			})
 			if err != nil {
-				return fmt.Errorf("failed to generate invite token: %w", err)
+				identityWriteFailure(cmd.OutOrStdout(), jsonFlag, err)
+				return err
 			}
 
-			if createAlias {
-				if claims.Metadata == nil {
-					claims.Metadata = make(map[string]string)
-				}
-				claims.Metadata["create_alias"] = "true"
-			}
-
-			// Save invite to store
-			store, err := invite.NewStore(storeFileFlag)
-			if err != nil {
-				return fmt.Errorf("failed to initialize invite store: %w", err)
-			}
-
-			rec := &invite.InviteRecord{
-				ID:          claims.ID,
-				Email:       claims.Email,
-				DisplayName: claims.DisplayName,
-				Scope:       claims.Scope,
-				Token:       tokenStr,
-				Revoked:     false,
-				IssuedAt:    claims.IssuedAt,
-				ExpiresAt:   claims.ExpiresAt,
-				CreatedBy:   claims.CreatedBy,
-				Metadata:    claims.Metadata,
-			}
-
-			if err := store.SaveInvite(rec); err != nil {
-				return fmt.Errorf("failed to save invitation record: %w", err)
+			if jsonFlag {
+				return output.Write(cmd.OutOrStdout(), output.Success(res))
 			}
 
 			out := cmd.OutOrStdout()
 			fmt.Fprintln(out, titleStyle.Render("Orbit Developer Invitation Generated"))
 			fmt.Fprintf(out, "  %s  Signed invitation token created for %s\n",
 				iconOK,
-				boldStyle.Render(email),
+				boldStyle.Render(res.Email),
 			)
-			fmt.Fprintf(out, "  %s  Web Setup: %s\n", iconOK, infoStyle.Render(fmt.Sprintf("https://orbit.manova.space/setup?token=%s", tokenStr)))
+			fmt.Fprintf(out, "  %s  Web Setup: %s\n", iconOK, infoStyle.Render(fmt.Sprintf("https://orbit.manova.space/setup?token=%s", res.Token)))
 
-			// Dispatch email by default unless suppressed
-			if sendFlag && !noSendFlag {
-				mailerCfg := invite.MailerConfig{
-					Host: smtpHostFlag,
-					Port: smtpPortFlag,
-					From: smtpFromFlag,
-				}
-				if mailerCfg.Host == "" {
-					mailerCfg.Host = os.Getenv("ORBIT_SMTP_HOST")
-					if mailerCfg.Host == "" {
-						if insecureFlag {
-							mailerCfg.Host = "localhost"
-						} else {
-							mailerCfg.Host = "mail.manova.space"
-						}
-					}
-				}
-				if mailerCfg.Port == "" {
-					mailerCfg.Port = os.Getenv("ORBIT_SMTP_PORT")
-					if mailerCfg.Port == "" {
-						if insecureFlag {
-							mailerCfg.Port = "10725"
-						} else {
-							mailerCfg.Port = "587"
-						}
-					}
-				}
-				if mailerCfg.From == "" {
-					mailerCfg.From = os.Getenv("ORBIT_SMTP_FROM")
-					if mailerCfg.From == "" {
-						mailerCfg.From = "Orbit Platform <noreply@manova.space>"
-					}
-				}
-				mailerCfg.User = os.Getenv("ORBIT_SMTP_USER")
-				mailerCfg.Pass = os.Getenv("ORBIT_SMTP_PASS")
-
-				mailer := invite.NewSMTPMailer(mailerCfg)
-				emailData := invite.EmailData{
-					RecipientName:  claims.DisplayName,
-					RecipientEmail: claims.Email,
-					Token:          tokenStr,
-					ShortCode:      tokenStr,
-					Scope:          claims.Scope,
-					ExpiresAt:      claims.ExpiresAt,
-					ExpiresInHuman: invite.FormatRemaining(time.Until(claims.ExpiresAt)),
-					CLICommand:     fmt.Sprintf("orbit onboard --token %s", tokenStr),
-					CurlCommand:    fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", tokenStr),
-				}
-
-				if sendErr := mailer.SendInvite(cmd.Context(), claims.Email, emailData); sendErr != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %v\n", iconWarn, warningStyle.Render("Failed to dispatch invitation email"), sendErr)
+			if send {
+				if res.MailError != "" {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %s\n", iconWarn, warningStyle.Render("Failed to dispatch invitation email"), res.MailError)
 				} else {
 					fmt.Fprintf(out, "  %s  Invitation email dispatched to %s via %s:%s\n",
 						iconOK,
-						boldStyle.Render(claims.Email),
+						boldStyle.Render(res.Email),
 						codeStyle.Render(mailerCfg.Host),
 						codeStyle.Render(mailerCfg.Port),
 					)
@@ -272,23 +180,23 @@ func newInviteCreateCmd() *cobra.Command {
 			}
 			fmt.Fprintln(out)
 
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Token:"), boldStyle.Render(tokenStr))
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Email:"), boldStyle.Render(claims.Email))
-			if claims.DisplayName != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Name:"), claims.DisplayName)
+			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Token:"), boldStyle.Render(res.Token))
+			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Email:"), boldStyle.Render(res.Email))
+			if res.DisplayName != "" {
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Name:"), res.DisplayName)
 			}
-			if claims.CreatedBy != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Created By:"), boldStyle.Render(claims.CreatedBy))
+			if res.CreatedBy != "" {
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Created By:"), boldStyle.Render(res.CreatedBy))
 			}
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Scope:"), infoStyle.Render(claims.Scope))
-			if totpSecret != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP Secret:"), codeStyle.Render(totpSecret))
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP URI:"), subtleStyle.Render(claims.Metadata["otpauth"]))
+			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Scope:"), infoStyle.Render(res.Scope))
+			if res.TOTPSecret != "" {
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP Secret:"), codeStyle.Render(res.TOTPSecret))
+				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP URI:"), subtleStyle.Render(res.TOTPURI))
 			}
 			fmt.Fprintf(out, "  %-14s %s (%s)\n\n",
 				headerStyle.Render("Expires:"),
-				claims.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
-				warningStyle.Render(formatRemaining(time.Until(claims.ExpiresAt))),
+				res.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
+				warningStyle.Render(invitedomain.FormatRemainingLabel(time.Until(res.ExpiresAt))),
 			)
 
 			instructions := fmt.Sprintf(
@@ -296,8 +204,8 @@ func newInviteCreateCmd() *cobra.Command {
 					"  %s\n\n"+
 					"Or using shortcut:\n\n"+
 					"  %s",
-				codeStyle.Render("orbit onboard --token "+tokenStr),
-				codeStyle.Render("o onboard --token "+tokenStr),
+				codeStyle.Render("orbit onboard --token "+res.Token),
+				codeStyle.Render("o onboard --token "+res.Token),
 			)
 			fmt.Fprintln(out, renderCard("ONBOARDING INSTRUCTIONS", instructions))
 
@@ -321,8 +229,43 @@ func newInviteCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&smtpHostFlag, "smtp-host", "", "SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)")
 	cmd.Flags().StringVar(&smtpPortFlag, "smtp-port", "", "SMTP server port (default: $ORBIT_SMTP_PORT or 587)")
 	cmd.Flags().StringVar(&smtpFromFlag, "smtp-from", "", "Sender email address (default: $ORBIT_SMTP_FROM)")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+// inviteMailerConfig resolves the SMTP settings from flags, environment and defaults.
+func inviteMailerConfig(hostFlag, portFlag, fromFlag string, insecure bool) invitesmtp.MailerConfig {
+	cfg := invitesmtp.MailerConfig{Host: hostFlag, Port: portFlag, From: fromFlag}
+	if cfg.Host == "" {
+		cfg.Host = os.Getenv("ORBIT_SMTP_HOST")
+		if cfg.Host == "" {
+			if insecure {
+				cfg.Host = "localhost"
+			} else {
+				cfg.Host = "mail.manova.space"
+			}
+		}
+	}
+	if cfg.Port == "" {
+		cfg.Port = os.Getenv("ORBIT_SMTP_PORT")
+		if cfg.Port == "" {
+			if insecure {
+				cfg.Port = "10725"
+			} else {
+				cfg.Port = "587"
+			}
+		}
+	}
+	if cfg.From == "" {
+		cfg.From = os.Getenv("ORBIT_SMTP_FROM")
+		if cfg.From == "" {
+			cfg.From = "Orbit Platform <noreply@manova.space>"
+		}
+	}
+	cfg.User = os.Getenv("ORBIT_SMTP_USER")
+	cfg.Pass = os.Getenv("ORBIT_SMTP_PASS")
+	return cfg
 }
 
 func newInviteListCmd() *cobra.Command {
@@ -332,6 +275,7 @@ func newInviteListCmd() *cobra.Command {
 		allFlag       bool
 		pageFlag      int
 		limitFlag     int
+		jsonFlag      bool
 	)
 
 	cmd := &cobra.Command{
@@ -341,60 +285,39 @@ func newInviteListCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			asJSON := jsonFlag || strings.ToLower(formatFlag) == "json"
 
-			store, err := invite.NewStore(storeFileFlag)
+			svc, err := inviteService(cmd, storeFileFlag, "")
 			if err != nil {
-				return fmt.Errorf("failed to initialize invite store: %w", err)
+				err = fmt.Errorf("failed to initialize invite store: %w", err)
+				identityWriteFailure(out, asJSON, err)
+				return err
+			}
+			if asJSON {
+				svc.Out = nil
+				svc.Err = nil
 			}
 
-			allRecords, err := store.ListInvites()
+			res, err := svc.List(allFlag)
 			if err != nil {
-				return fmt.Errorf("failed to list invitations: %w", err)
+				identityWriteFailure(out, asJSON, err)
+				return err
 			}
 
-			if len(allRecords) == 0 {
-				if strings.ToLower(formatFlag) == "json" {
-					fmt.Fprintln(out, "[]")
-					return nil
+			if asJSON {
+				displayed := res.Displayed
+				if displayed == nil {
+					displayed = []*invitedomain.InviteRecord{}
 				}
+				return output.Write(out, output.Success(displayed))
+			}
+
+			if res.Total == 0 {
 				fmt.Fprintln(out, infoStyle.Render("No invitations found. Run 'orbit invite create <email>' to generate one."))
 				return nil
 			}
 
-			var displayRecords []*invite.InviteRecord
-			activeCount := 0
-			revokedCount := 0
-			expiredCount := 0
-
-			for _, r := range allRecords {
-				status := r.Status()
-				switch status {
-				case "active":
-					activeCount++
-				case "revoked":
-					revokedCount++
-				case "expired":
-					expiredCount++
-				}
-
-				if allFlag || status == "active" {
-					displayRecords = append(displayRecords, r)
-				}
-			}
-
-			if strings.ToLower(formatFlag) == "json" {
-				if displayRecords == nil {
-					displayRecords = []*invite.InviteRecord{}
-				}
-				data, err := json.MarshalIndent(displayRecords, "", "  ")
-				if err != nil {
-					return fmt.Errorf("failed to marshal JSON output: %w", err)
-				}
-				fmt.Fprintln(out, string(data))
-				return nil
-			}
-
-			if len(displayRecords) == 0 {
+			if len(res.Displayed) == 0 {
 				fmt.Fprintln(out, infoStyle.Render("No active invitations found. Use --all (-a) to view expired or revoked invitations, or 'orbit invite create <email>' to generate one."))
 				return nil
 			}
@@ -411,7 +334,7 @@ func newInviteListCmd() *cobra.Command {
 				table.Column{Title: "CREATED", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 18},
 			)
 
-			for _, r := range displayRecords {
+			for _, r := range res.Displayed {
 				status := r.Status()
 				var statusCell table.Cell
 				switch status {
@@ -454,10 +377,10 @@ func newInviteListCmd() *cobra.Command {
 			_ = tbl.Render(out)
 
 			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
-				infoStyle.Render(fmt.Sprintf("Total: %d", len(allRecords))),
-				successStyle.Render(fmt.Sprintf("✔ %d active", activeCount)),
-				errorStyle.Render(fmt.Sprintf("✖ %d revoked", revokedCount)),
-				warningStyle.Render(fmt.Sprintf("⚠ %d expired", expiredCount)),
+				infoStyle.Render(fmt.Sprintf("Total: %d", res.Total)),
+				successStyle.Render(fmt.Sprintf("✔ %d active", res.Active)),
+				errorStyle.Render(fmt.Sprintf("✖ %d revoked", res.Revoked)),
+				warningStyle.Render(fmt.Sprintf("⚠ %d expired", res.Expired)),
 			)
 
 			return nil
@@ -469,6 +392,7 @@ func newInviteListCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Include revoked and expired invitations")
 	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
 	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
 }
@@ -477,6 +401,7 @@ func newInviteRevokeCmd() *cobra.Command {
 	var (
 		storeFileFlag string
 		allFlag       bool
+		jsonFlag      bool
 	)
 
 	cmd := &cobra.Command{
@@ -487,32 +412,48 @@ func newInviteRevokeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
-			store, err := invite.NewStore(storeFileFlag)
+			if len(args) > 1 {
+				err := errors.New("accepts at most 1 arg(s), received multiple")
+				identityWriteFailure(out, jsonFlag, err)
+				return err
+			}
+
+			svc, err := inviteService(cmd, storeFileFlag, "")
 			if err != nil {
-				return fmt.Errorf("failed to initialize invite store: %w", err)
+				err = fmt.Errorf("failed to initialize invite store: %w", err)
+				identityWriteFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				svc.Out = nil
+				svc.Err = nil
+			}
+
+			tokenOrID := ""
+			if len(args) == 1 {
+				tokenOrID = args[0]
+			}
+			res, err := svc.Revoke(tokenOrID, allFlag)
+			if err != nil {
+				identityWriteFailure(out, jsonFlag, err)
+				return err
+			}
+
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
 
 			if allFlag {
-				if len(args) > 0 {
-					return errors.New("cannot specify positional invite token/ID when --all is used")
-				}
-
-				revoked, err := store.RevokeAllInvites()
-				if err != nil {
-					return fmt.Errorf("failed to revoke all invitations: %w", err)
-				}
-
-				if len(revoked) == 0 {
+				if res.None {
 					fmt.Fprintln(out, infoStyle.Render("No active invitations to revoke."))
 					return nil
 				}
-
 				fmt.Fprintln(out, titleStyle.Render("Invitations Revoked"))
 				fmt.Fprintf(out, "  %s  Revoked %d active invitation(s):\n",
 					iconOK,
-					len(revoked),
+					len(res.Revoked),
 				)
-				for _, r := range revoked {
+				for _, r := range res.Revoked {
 					idCol := r.ID
 					if len(idCol) > 16 {
 						idCol = idCol[:16] + "…"
@@ -526,26 +467,7 @@ func newInviteRevokeCmd() *cobra.Command {
 				return nil
 			}
 
-			if len(args) == 0 {
-				return errors.New("invite token or ID required (or use --all to revoke all active invitations)")
-			}
-			if len(args) > 1 {
-				return errors.New("accepts at most 1 arg(s), received multiple")
-			}
-
-			tokenOrID := strings.TrimSpace(args[0])
-			if tokenOrID == "" {
-				return errors.New("invite token or ID required (or use --all to revoke all active invitations)")
-			}
-
-			rec, err := store.RevokeInvite(tokenOrID)
-			if err != nil {
-				if errors.Is(err, invite.ErrInviteNotFound) {
-					return fmt.Errorf("invitation %q not found in store", tokenOrID)
-				}
-				return fmt.Errorf("failed to revoke invitation: %w", err)
-			}
-
+			rec := res.Revoked[0]
 			fmt.Fprintln(out, titleStyle.Render("Invitation Revoked"))
 			fmt.Fprintf(out, "  %s  Revoked invitation %s for %s (scope: %s)\n",
 				iconOK,
@@ -560,85 +482,7 @@ func newInviteRevokeCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&storeFileFlag, "store-file", "", "Custom path to invites storage file")
 	cmd.Flags().BoolVarP(&allFlag, "all", "a", false, "Revoke all active developer onboarding invitations")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
-}
-
-func resolveSecret(secretFlag, secretEnvFlag, verifiedOwnerSecret string) ([]byte, bool) {
-	if secretFlag != "" {
-		return []byte(secretFlag), false
-	}
-
-	envVar := secretEnvFlag
-	if envVar == "" {
-		envVar = DefaultSecretEnv
-	}
-
-	if val := os.Getenv(envVar); val != "" {
-		return []byte(val), false
-	}
-
-	if val := os.Getenv("MANOVA_INVITE_SECRET"); val != "" {
-		return []byte(val), false
-	}
-
-	if jwtVal := os.Getenv("ORBIT_JWT_SECRET"); jwtVal != "" {
-		return []byte(jwtVal), false
-	}
-
-	if jwtVal := os.Getenv("MANOVA_JWT_SECRET"); jwtVal != "" {
-		return []byte(jwtVal), false
-	}
-
-	if verifiedOwnerSecret != "" {
-		return []byte(verifiedOwnerSecret), false
-	}
-
-	return []byte(DefaultFallbackSecret), true
-}
-
-func parseDuration(s string) (time.Duration, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 7 * 24 * time.Hour, nil
-	}
-
-	// Handle day suffix "d" or "D", e.g. "7d", "14d", "1d"
-	if strings.HasSuffix(s, "d") || strings.HasSuffix(s, "D") {
-		daysStr := s[:len(s)-1]
-		days, err := strconv.Atoi(daysStr)
-		if err != nil || days <= 0 {
-			return 0, fmt.Errorf("invalid day duration %q", s)
-		}
-		return time.Duration(days) * 24 * time.Hour, nil
-	}
-
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid duration format %q (e.g., '7d', '24h', '168h'): %w", s, err)
-	}
-	if d <= 0 {
-		return 0, fmt.Errorf("duration must be greater than zero, got %v", d)
-	}
-	return d, nil
-}
-
-func formatRemaining(d time.Duration) string {
-	if d <= 0 {
-		return "expired"
-	}
-	if d > 24*time.Hour {
-		days := int(d.Hours() / 24)
-		hours := int(d.Hours()) % 24
-		if hours == 0 {
-			return fmt.Sprintf("%dd remaining", days)
-		}
-		return fmt.Sprintf("%dd %dh remaining", days, hours)
-	}
-	if d > time.Hour {
-		hours := int(d.Hours())
-		mins := int(d.Minutes()) % 60
-		return fmt.Sprintf("%dh %dm remaining", hours, mins)
-	}
-	return fmt.Sprintf("%dm remaining", int(d.Minutes()))
 }

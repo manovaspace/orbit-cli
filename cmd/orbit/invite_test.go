@@ -10,24 +10,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	inviteapp "github.com/manovaspace/orbit-cli/pkg/invite/application"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	invitefilestore "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/filestore"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 )
 
-func createTestVerifiedOwnerStore(t *testing.T, dir string) (string, *owner.OwnerRecord) {
+func createTestVerifiedOwnerStore(t *testing.T, dir string) (string, *ownerdomain.OwnerRecord) {
 	t.Helper()
 	storePath := filepath.Join(dir, "owner.json")
-	store := owner.NewStore(storePath)
-	secret, err := owner.GenerateMasterSecret()
+	store := ownerfilestore.NewStore(storePath)
+	secret, err := ownerdomain.GenerateMasterSecret()
 	if err != nil {
 		t.Fatalf("failed to generate master secret: %v", err)
 	}
-	rec := &owner.OwnerRecord{
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		DisplayName:       "Admin User",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: secret,
-		KeyFingerprint:    owner.ComputeFingerprint(secret),
+		KeyFingerprint:    ownerdomain.ComputeFingerprint(secret),
 	}
 	if err := store.SaveOwner(rec); err != nil {
 		t.Fatalf("failed to save test owner record: %v", err)
@@ -56,8 +59,8 @@ func TestInviteOwnerGuard_Unverified(t *testing.T) {
 		t.Fatal("expected error creating invite when owner is unverified, got nil")
 	}
 
-	if !strings.Contains(err.Error(), inviteOwnerUnverified) {
-		t.Fatalf("expected error %q, got %q", inviteOwnerUnverified, err.Error())
+	if !strings.Contains(err.Error(), inviteapp.UnverifiedOwner) {
+		t.Fatalf("expected error %q, got %q", inviteapp.UnverifiedOwner, err.Error())
 	}
 }
 
@@ -121,7 +124,7 @@ func TestInviteOwnerGuard_VerifiedOwner(t *testing.T) {
 		t.Errorf("output missing Created By line: %s", out)
 	}
 
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -138,7 +141,7 @@ func TestInviteOwnerGuard_VerifiedOwner(t *testing.T) {
 		t.Errorf("expected email newdev@example.com, got %s", records[0].Email)
 	}
 
-	claims, err := invite.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
+	claims, err := invitedomain.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
 	if err != nil {
 		t.Fatalf("ValidateToken with owner root secret failed: %v", err)
 	}
@@ -191,7 +194,7 @@ func TestInviteCreateCmd(t *testing.T) {
 	}
 
 	// Verify saved to store
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -219,7 +222,7 @@ func TestInviteCreateCmd(t *testing.T) {
 	if !strings.HasPrefix(records[0].Token, "orbit-inv.") {
 		t.Fatalf("expected signed token with prefix orbit-inv., got %s", records[0].Token)
 	}
-	claims, err := invite.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
+	claims, err := invitedomain.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
 	if err != nil {
 		t.Fatalf("ValidateToken on generated token failed: %v", err)
 	}
@@ -249,7 +252,7 @@ func TestInviteCreateWithStorePath(t *testing.T) {
 		t.Fatalf("invite create failed: %v", err)
 	}
 
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -295,7 +298,7 @@ func TestInviteCreateCmd_WithTOTP(t *testing.T) {
 		t.Errorf("output missing TOTP URI label:\n%s", out)
 	}
 
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -304,7 +307,7 @@ func TestInviteCreateCmd_WithTOTP(t *testing.T) {
 		t.Fatalf("expected 1 record, got %v (err: %v)", len(records), err)
 	}
 
-	claims, err := invite.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
+	claims, err := invitedomain.ValidateToken(records[0].Token, []byte(ownerRec.RootSigningSecret))
 	if err != nil {
 		t.Fatalf("ValidateToken failed: %v", err)
 	}
@@ -410,8 +413,9 @@ func TestInviteListCmd(t *testing.T) {
 		t.Fatalf("invite list json failed: %v", err)
 	}
 
-	var jsonRecords []invite.InviteRecord
-	if err := json.Unmarshal(buf.Bytes(), &jsonRecords); err != nil {
+	env := decodeEnvelope(t, buf.String())
+	var jsonRecords []invitedomain.InviteRecord
+	if err := json.Unmarshal(env.Data, &jsonRecords); err != nil {
 		t.Fatalf("failed to unmarshal JSON list output: %v\nOutput: %s", err, buf.String())
 	}
 	if len(jsonRecords) != 2 {
@@ -419,7 +423,7 @@ func TestInviteListCmd(t *testing.T) {
 	}
 
 	// 5. Revoke one invite (Alex)
-	store, _ := invite.NewStore(storePath)
+	store, _ := invitefilestore.NewStore(storePath)
 	records, _ := store.ListInvites()
 	var alexID string
 	for _, r := range records {
@@ -473,8 +477,9 @@ func TestInviteListCmd(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--store-file", storePath})
 	_ = cmd.Execute()
-	var jsonActiveOnly []invite.InviteRecord
-	_ = json.Unmarshal(buf.Bytes(), &jsonActiveOnly)
+	activeEnv := decodeEnvelope(t, buf.String())
+	var jsonActiveOnly []invitedomain.InviteRecord
+	_ = json.Unmarshal(activeEnv.Data, &jsonActiveOnly)
 	if len(jsonActiveOnly) != 1 {
 		t.Fatalf("expected 1 active JSON record, got %d", len(jsonActiveOnly))
 	}
@@ -485,8 +490,9 @@ func TestInviteListCmd(t *testing.T) {
 	cmd.SetErr(buf)
 	cmd.SetArgs([]string{"invite", "list", "--format", "json", "--all", "--store-file", storePath})
 	_ = cmd.Execute()
-	var jsonAll []invite.InviteRecord
-	_ = json.Unmarshal(buf.Bytes(), &jsonAll)
+	allEnv := decodeEnvelope(t, buf.String())
+	var jsonAll []invitedomain.InviteRecord
+	_ = json.Unmarshal(allEnv.Data, &jsonAll)
 	if len(jsonAll) != 2 {
 		t.Fatalf("expected 2 JSON records with --all, got %d", len(jsonAll))
 	}
@@ -522,7 +528,7 @@ func TestInviteRevokeCmd(t *testing.T) {
 		t.Fatalf("invite create failed: %v", err)
 	}
 
-	store, _ := invite.NewStore(storePath)
+	store, _ := invitefilestore.NewStore(storePath)
 	records, _ := store.ListInvites()
 	if len(records) != 1 {
 		t.Fatalf("expected 1 record, got %d", len(records))
@@ -664,15 +670,15 @@ func TestParseDuration(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := parseDuration(tc.input)
+		got, err := invitedomain.ParseTTL(tc.input)
 		if tc.hasErr && err == nil {
-			t.Errorf("parseDuration(%q) expected error, got nil", tc.input)
+			t.Errorf("invitedomain.ParseTTL(%q) expected error, got nil", tc.input)
 		}
 		if !tc.hasErr && err != nil {
-			t.Errorf("parseDuration(%q) unexpected error: %v", tc.input, err)
+			t.Errorf("invitedomain.ParseTTL(%q) unexpected error: %v", tc.input, err)
 		}
 		if !tc.hasErr && got != tc.expected {
-			t.Errorf("parseDuration(%q) = %v, expected %v", tc.input, got, tc.expected)
+			t.Errorf("invitedomain.ParseTTL(%q) = %v, expected %v", tc.input, got, tc.expected)
 		}
 	}
 }
@@ -874,7 +880,7 @@ func TestInviteCreateInteractiveShorthandNonTTY(t *testing.T) {
 }
 
 func TestInviteTokenMetadata_CreateAlias(t *testing.T) {
-	req := invite.InviteRequest{
+	req := invitedomain.InviteRequest{
 		Email:       "test-alias@example.com",
 		DisplayName: "Alias User",
 		Scope:       "dev",
@@ -885,7 +891,7 @@ func TestInviteTokenMetadata_CreateAlias(t *testing.T) {
 		},
 	}
 
-	tokenStr, claims, err := invite.GenerateToken(req, []byte(DefaultFallbackSecret))
+	tokenStr, claims, err := invitedomain.GenerateToken(req, []byte(DefaultFallbackSecret))
 	if err != nil {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}
@@ -898,12 +904,12 @@ func TestInviteTokenMetadata_CreateAlias(t *testing.T) {
 
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "invites.json")
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
 
-	rec := &invite.InviteRecord{
+	rec := &invitedomain.InviteRecord{
 		ID:          claims.ID,
 		Email:       claims.Email,
 		DisplayName: claims.DisplayName,
@@ -949,7 +955,7 @@ func TestInviteListTableOutputStructure(t *testing.T) {
 		t.Fatalf("failed to create revoked invite: %v", err)
 	}
 
-	store, err := invite.NewStore(storePath)
+	store, err := invitefilestore.NewStore(storePath)
 	if err != nil {
 		t.Fatalf("NewStore failed: %v", err)
 	}
@@ -964,7 +970,7 @@ func TestInviteListTableOutputStructure(t *testing.T) {
 	}
 
 	// Add an expired invite directly
-	expiredRec := &invite.InviteRecord{
+	expiredRec := &invitedomain.InviteRecord{
 		ID:          "expired-invite-id-12345678",
 		Email:       "expired@example.com",
 		DisplayName: "Expired User",

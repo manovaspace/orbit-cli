@@ -15,10 +15,12 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	invitefilestore "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/filestore"
+	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/middleware"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/ratelimit"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 )
@@ -34,12 +36,12 @@ type ServerConfig struct {
 	Addr                    string
 	Secret                  []byte
 	Provisioner             provisioner.Provisioner
-	InviteStore             *invite.Store
+	InviteStore             *invitefilestore.Store
 	Store                   serverstore.Store
 	RateLimitStore          serverstore.RateLimitStore
-	ChallengeManager        *owner.ChallengeManager
-	GrantManager            *owner.GrantManager
-	Mailer                  invite.Mailer
+	ChallengeManager        *ownerdomain.ChallengeManager
+	GrantManager            *ownerdomain.GrantManager
+	Mailer                  invitesmtp.Mailer
 	DisablePublicChallenges bool          // When true, rejects unauthenticated /api/v1/admin/challenge requests
 	AllowedAdminEmails      []string      // When non-empty, restricts challenge requests to specific emails
 	RateLimit               int           // Maximum requests per window per IP (default 10)
@@ -159,13 +161,13 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		cfg.WriteTimeout = 15 * time.Second
 	}
 	if cfg.ChallengeManager == nil {
-		cfg.ChallengeManager = owner.NewChallengeManager()
+		cfg.ChallengeManager = ownerdomain.NewChallengeManager()
 	}
 	if cfg.GrantManager == nil {
-		cfg.GrantManager = owner.NewGrantManager()
+		cfg.GrantManager = ownerdomain.NewGrantManager()
 	}
 	if cfg.Mailer == nil {
-		cfg.Mailer = invite.NewMailerFromEnv()
+		cfg.Mailer = invitesmtp.NewMailerFromEnv()
 	}
 
 	rateStore := cfg.RateLimitStore
@@ -357,7 +359,7 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		idempKey = r.Header.Get("X-Idempotency-Key")
 	}
 	if idempKey == "" && req.InviteToken != "" {
-		idempKey = invite.ComputeIdempotencyKey(req.InviteToken, req.MachineFingerprint)
+		idempKey = invitedomain.ComputeIdempotencyKey(req.InviteToken, req.MachineFingerprint)
 	}
 
 	if idempKey != "" {
@@ -375,17 +377,17 @@ func (s *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := invite.ValidateToken(req.InviteToken, s.config.Secret)
+	claims, err := invitedomain.ValidateToken(req.InviteToken, s.config.Secret)
 	if err != nil {
-		if errors.Is(err, invite.ErrTokenExpired) {
+		if errors.Is(err, invitedomain.ErrTokenExpired) {
 			writeJSONError(w, http.StatusUnauthorized, "invite token has expired", 0)
 			return
 		}
-		if errors.Is(err, invite.ErrInvalidSignature) {
+		if errors.Is(err, invitedomain.ErrInvalidSignature) {
 			writeJSONError(w, http.StatusUnauthorized, "invalid token signature", 0)
 			return
 		}
-		if errors.Is(err, invite.ErrMalformedToken) {
+		if errors.Is(err, invitedomain.ErrMalformedToken) {
 			writeJSONError(w, http.StatusBadRequest, "malformed invite token", 0)
 			return
 		}
@@ -513,7 +515,7 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, otp, err := s.config.ChallengeManager.CreateChallenge(normEmail, owner.DefaultChallengeTTL)
+	ch, otp, err := s.config.ChallengeManager.CreateChallenge(normEmail, ownerdomain.DefaultChallengeTTL)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to generate verification challenge: %v", err), 0)
 		return
@@ -525,7 +527,7 @@ func (s *Server) handleAdminChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	emailData := invite.OwnerChallengeEmailData{
+	emailData := invitedomain.OwnerChallengeEmailData{
 		OwnerEmail:  normEmail,
 		OTPCode:     otp,
 		ExpiresIn:   "10 minutes",
@@ -568,7 +570,7 @@ func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 
 	normEmail := strings.ToLower(strings.TrimSpace(req.Email))
 	rawCode := strings.TrimSpace(req.Code)
-	cleanCode := owner.CleanCode(rawCode)
+	cleanCode := ownerdomain.CleanCode(rawCode)
 
 	if normEmail == "" {
 		writeJSONError(w, http.StatusBadRequest, "email cannot be empty", 0)
@@ -579,7 +581,7 @@ func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyFingerprint := owner.ComputeFingerprint(string(s.config.Secret))
+	keyFingerprint := ownerdomain.ComputeFingerprint(string(s.config.Secret))
 
 	// 3. Priority A: Check if valid 8-digit admin grant
 	if s.config.GrantManager != nil && len(cleanCode) == 8 {
@@ -595,7 +597,7 @@ func (s *Server) handleAdminVerify(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if err != nil && !errors.Is(err, owner.ErrGrantNotFound) {
+		if err != nil && !errors.Is(err, ownerdomain.ErrGrantNotFound) {
 			writeJSONError(w, http.StatusBadRequest, err.Error(), 0)
 			return
 		}
@@ -629,7 +631,7 @@ func (s *Server) handleAdminGrantCreate(w http.ResponseWriter, r *http.Request) 
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if strings.TrimSpace(token) != string(s.config.Secret) {
-		if _, err := invite.ValidateToken(token, s.config.Secret); err != nil {
+		if _, err := invitedomain.ValidateToken(token, s.config.Secret); err != nil {
 			writeJSONError(w, http.StatusUnauthorized, "unauthorized: valid master secret or token required", 0)
 			return
 		}
@@ -649,18 +651,18 @@ func (s *Server) handleAdminGrantCreate(w http.ResponseWriter, r *http.Request) 
 
 	ttl := time.Duration(req.TTLSeconds) * time.Second
 	if ttl <= 0 {
-		ttl = owner.DefaultGrantTTL
+		ttl = ownerdomain.DefaultGrantTTL
 	}
 
 	var (
-		rec           *owner.GrantRecord
+		rec           *ownerdomain.GrantRecord
 		codeFormatted string
 		err           error
 	)
 
 	if req.Code != "" {
 		rec, err = s.config.GrantManager.RegisterGrantWithCode(req.Email, req.Role, req.Code, "remote-owner", ttl)
-		codeFormatted = owner.Format8DigitCode(req.Code)
+		codeFormatted = ownerdomain.Format8DigitCode(req.Code)
 	} else {
 		rec, codeFormatted, err = s.config.GrantManager.CreateGrant(req.Email, req.Role, "remote-owner", ttl)
 	}
@@ -685,7 +687,7 @@ func (s *Server) handleAdminGrantList(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if strings.TrimSpace(token) != string(s.config.Secret) {
-		if _, err := invite.ValidateToken(token, s.config.Secret); err != nil {
+		if _, err := invitedomain.ValidateToken(token, s.config.Secret); err != nil {
 			writeJSONError(w, http.StatusUnauthorized, "unauthorized: valid master secret or token required", 0)
 			return
 		}

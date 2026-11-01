@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerapp "github.com/manovaspace/orbit-cli/pkg/owner/application"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 )
 
 func newMockAdminServer(t *testing.T, expectedEmail, validCode string) *httptest.Server {
@@ -110,7 +112,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 		t.Errorf("output missing vault sealed notice: %s", out)
 	}
 
-	store := owner.NewStore(storePath)
+	store := ownerfilestore.NewStore(storePath)
 	if !store.IsVerified() {
 		t.Fatalf("expected store to be verified")
 	}
@@ -155,7 +157,7 @@ func TestAdminInit_APIServer_InteractiveCode(t *testing.T) {
 		t.Fatalf("admin init with interactive code failed: %v", err)
 	}
 
-	store := owner.NewStore(storePath)
+	store := ownerfilestore.NewStore(storePath)
 	if !store.IsVerified() {
 		t.Fatalf("expected store to be verified")
 	}
@@ -273,7 +275,7 @@ func TestAdminInit_SuccessWithCodeAndNoSend(t *testing.T) {
 		t.Errorf("output missing vault permissions notice: %s", out)
 	}
 
-	store := owner.NewStore(storePath)
+	store := ownerfilestore.NewStore(storePath)
 	if !store.IsVerified() {
 		t.Fatalf("expected store to be verified")
 	}
@@ -309,8 +311,8 @@ func TestAdminInit_AlreadyVerified(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Now().UTC(),
@@ -356,8 +358,8 @@ func TestAdminInit_ForceReInit(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	oldRec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	oldRec := &ownerdomain.OwnerRecord{
 		Email:             "old@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: "oldsecret12345678901234567890123456789012345678901234567890", // gitleaks:allow
@@ -438,7 +440,7 @@ func TestAdminInit_InteractivePrompt(t *testing.T) {
 		t.Fatalf("admin init interactive prompt failed: %v", err)
 	}
 
-	store := owner.NewStore(storePath)
+	store := ownerfilestore.NewStore(storePath)
 	if !store.IsVerified() {
 		t.Fatalf("expected store to be verified")
 	}
@@ -509,8 +511,8 @@ func TestAdminStatus_VerifiedTable(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
@@ -556,8 +558,8 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		DisplayName:       "Alireza",
 		VerifiedAt:        time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC),
@@ -582,8 +584,9 @@ func TestAdminStatus_VerifiedJSON(t *testing.T) {
 		t.Fatalf("admin status --format json failed: %v", err)
 	}
 
-	var res adminStatusJSON
-	if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+	env := decodeEnvelope(t, buf.String())
+	var res ownerapp.StatusResult
+	if err := json.Unmarshal(env.Data, &res); err != nil {
 		t.Fatalf("failed to parse JSON output: %v, output: %s", err, buf.String())
 	}
 
@@ -611,8 +614,8 @@ func TestAdminStatus_InsecurePermissions(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "test@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: "secret123",
@@ -673,7 +676,7 @@ func TestAdminVerify_Success(t *testing.T) {
 		t.Errorf("output missing verified email: %s", out)
 	}
 
-	store := owner.NewStore(storePath)
+	store := ownerfilestore.NewStore(storePath)
 	if !store.IsVerified() {
 		t.Fatalf("expected store to be verified after verify command")
 	}
@@ -688,8 +691,8 @@ func TestAdminVerify_AlreadyVerified(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "already@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: "existingsecret123",
@@ -721,13 +724,13 @@ func TestAdminRotateSecret_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	origSecret, _ := owner.GenerateMasterSecret()
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	origSecret, _ := ownerdomain.GenerateMasterSecret()
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,
-		KeyFingerprint:    owner.ComputeFingerprint(origSecret),
+		KeyFingerprint:    ownerdomain.ComputeFingerprint(origSecret),
 	}
 	if err := store.SaveOwner(rec); err != nil {
 		t.Fatalf("SaveOwner failed: %v", err)
@@ -771,9 +774,9 @@ func TestAdminRotateSecret_PromptCancel(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	origSecret, _ := owner.GenerateMasterSecret()
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	origSecret, _ := ownerdomain.GenerateMasterSecret()
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@example.com",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,
@@ -829,14 +832,14 @@ func TestAdminGrant_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	origSecret, _ := owner.GenerateMasterSecret()
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	origSecret, _ := ownerdomain.GenerateMasterSecret()
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@manova.space",
 		DisplayName:       "Owner",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,
-		KeyFingerprint:    owner.ComputeFingerprint(origSecret),
+		KeyFingerprint:    ownerdomain.ComputeFingerprint(origSecret),
 	}
 	_ = store.SaveOwner(rec)
 
@@ -889,9 +892,9 @@ func TestAdminGrant_JSONOutput(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	origSecret, _ := owner.GenerateMasterSecret()
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	origSecret, _ := ownerdomain.GenerateMasterSecret()
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@manova.space",
 		DisplayName:       "Owner",
 		VerifiedAt:        time.Now().UTC(),
@@ -913,8 +916,9 @@ func TestAdminGrant_JSONOutput(t *testing.T) {
 		t.Fatalf("admin grant --json failed: %v", err)
 	}
 
+	env := decodeEnvelope(t, buf.String())
 	var data map[string]interface{}
-	if err := json.Unmarshal(buf.Bytes(), &data); err != nil {
+	if err := json.Unmarshal(env.Data, &data); err != nil {
 		t.Fatalf("failed to parse JSON output: %v, raw: %s", err, buf.String())
 	}
 	if data["email"] != "sara@manova.space" {
@@ -929,9 +933,9 @@ func TestAdminTOTPReset_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	storePath := filepath.Join(tempDir, "owner.json")
 
-	store := owner.NewStore(storePath)
-	origSecret, _ := owner.GenerateMasterSecret()
-	rec := &owner.OwnerRecord{
+	store := ownerfilestore.NewStore(storePath)
+	origSecret, _ := ownerdomain.GenerateMasterSecret()
+	rec := &ownerdomain.OwnerRecord{
 		Email:             "admin@manova.space",
 		VerifiedAt:        time.Now().UTC(),
 		RootSigningSecret: origSecret,

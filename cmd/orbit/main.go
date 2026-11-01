@@ -8,7 +8,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/host"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
@@ -65,7 +65,7 @@ func newRootCmd() *cobra.Command {
 			}
 
 			// Check for pending onboarding session and notify user (only if not verified as platform owner/admin)
-			ownerStore := owner.NewStore("")
+			ownerStore := ownerfilestore.NewStore("")
 			if !ownerStore.IsVerified() {
 				if sm, err := session.NewSessionManager(""); err == nil && sm.HasPendingSession() {
 					if sess, err := sm.LoadSession(); err == nil && sess != nil {

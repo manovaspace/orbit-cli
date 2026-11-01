@@ -18,9 +18,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/config/application"
 	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
 	"github.com/manovaspace/orbit-cli/pkg/onboard"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
+	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 	"github.com/spf13/cobra"
@@ -182,7 +183,7 @@ and serves the canonical developer onboarding script.`,
 	return cmd
 }
 
-func resolveSMTPConfig(opts *serverOptions) invite.MailerConfig {
+func resolveSMTPConfig(opts *serverOptions) invitesmtp.MailerConfig {
 	smtpHost := strings.TrimSpace(opts.smtpHost)
 	if smtpHost == "" {
 		if v := strings.TrimSpace(os.Getenv("ORBIT_SMTP_HOST")); v != "" {
@@ -234,7 +235,7 @@ func resolveSMTPConfig(opts *serverOptions) invite.MailerConfig {
 		}
 	}
 
-	return invite.MailerConfig{
+	return invitesmtp.MailerConfig{
 		Host: smtpHost,
 		Port: smtpPort,
 		User: smtpUser,
@@ -253,7 +254,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 
 	// 2. Resolve SMTP parameters independently (CLI Flags -> Env Vars -> Defaults)
 	smtpCfg := resolveSMTPConfig(opts)
-	mailer := invite.NewSMTPMailer(smtpCfg)
+	mailer := invitesmtp.NewSMTPMailer(smtpCfg)
 
 	// 3. Resolve signing secret
 	secret, secretSource := resolveSigningSecret(opts.signingSecret, opts.ownerStorePath)
@@ -276,8 +277,8 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	}()
 
 	// 5. Initialize persistent challenge and grant managers
-	challengeMgr := owner.NewPersistentChallengeManager(db.Challenges())
-	grantMgr := owner.NewPersistentGrantManager(db.Grants())
+	challengeMgr := ownerdomain.NewPersistentChallengeManager(db.Challenges())
+	grantMgr := ownerdomain.NewPersistentGrantManager(db.Grants())
 
 	// 7. Resolve trusted proxies
 	trustedProxies := opts.trustedProxies
@@ -374,7 +375,7 @@ func resolveSigningSecret(flagSecret, ownerStorePath string) (string, string) {
 		return val, "loaded from $ORBIT_SIGNING_SECRET"
 	}
 
-	ownerStore := owner.NewStore(ownerStorePath)
+	ownerStore := ownerfilestore.NewStore(ownerStorePath)
 	if rec, err := ownerStore.LoadOwner(); err == nil && rec != nil && rec.RootSigningSecret != "" {
 		return rec.RootSigningSecret, fmt.Sprintf("sealed owner vault (%s)", rec.Email)
 	}

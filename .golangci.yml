@@ -320,3 +320,78 @@ linters:
               desc: "pkg/dev/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/dev/application writes through its injected UI"
+        # The staff domain is pure directory types and rules.
+        staff-domain:
+          files:
+            - "**/pkg/staff/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/staff/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/staff/application"
+              desc: "pkg/staff/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/staff/infrastructure"
+              desc: "pkg/staff/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/staff/domain is pure and must not style output"
+        # The staff application reaches the control plane and vault only through
+        # its ports.
+        staff-application:
+          files:
+            - "**/pkg/staff/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/staff/application reaches the control plane through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/staff/infrastructure"
+              desc: "pkg/staff/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/staff/application writes through its injected writer"
+        # The invitation domain is pure token, record and template rules.
+        invite-domain:
+          files:
+            - "**/pkg/invite/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/invite/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/invite/application"
+              desc: "pkg/invite/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure"
+              desc: "pkg/invite/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/invite/domain is pure and must not style output"
+        # The invitation application reaches the store, mailer and vault only
+        # through its ports.
+        invite-application:
+          files:
+            - "**/pkg/invite/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/invite/application reaches external services through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure"
+              desc: "pkg/invite/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/invite/application writes through its injected writer"
+        # The owner domain is pure vault, challenge and grant rules.
+        owner-domain:
+          files:
+            - "**/pkg/owner/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/owner/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/owner/application"
+              desc: "pkg/owner/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure"
+              desc: "pkg/owner/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/owner/domain is pure and must not style output"
+        # The owner application reaches the vault, auth service, mail and
+        # telegram only through its ports.
+        owner-application:
+          files:
+            - "**/pkg/owner/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/owner/application reaches external services through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure"
+              desc: "pkg/owner/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/owner/application writes through its injected UI"

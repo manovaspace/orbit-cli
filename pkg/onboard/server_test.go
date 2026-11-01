@@ -16,8 +16,9 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	invitefilestore "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/filestore"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
@@ -26,7 +27,7 @@ func testSecret() []byte {
 	return []byte("test-onboard-gateway-secret-key-32bytes-min!")
 }
 
-func setupTestServer(t *testing.T, prov provisioner.Provisioner, store *invite.Store) (*Server, []byte) {
+func setupTestServer(t *testing.T, prov provisioner.Provisioner, store *invitefilestore.Store) (*Server, []byte) {
 	t.Helper()
 	secret := testSecret()
 	if prov == nil {
@@ -107,7 +108,7 @@ func TestClaim_Success(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	tokenStr, claims, err := invite.GenerateToken(invite.InviteRequest{
+	tokenStr, claims, err := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email:       "charlie@manova.space",
 		DisplayName: "Charlie Day",
 		Scope:       "core",
@@ -171,7 +172,7 @@ func TestClaim_IdempotentReplay(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	tokenStr, _, err := invite.GenerateToken(invite.InviteRequest{
+	tokenStr, _, err := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email:       "dana@manova.space",
 		DisplayName: "Dana Scully",
 		Scope:       "core",
@@ -273,7 +274,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 	}
 
 	// 2. Expired token
-	expiredToken, _, _ := invite.GenerateToken(invite.InviteRequest{
+	expiredToken, _, _ := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "expired@manova.space",
 		TTL:   -1 * time.Hour,
 	}, secret)
@@ -295,7 +296,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 
 	// 3. Bad signature (signed with different key)
 	otherSecret := []byte("different-secret-key-32bytes-long!")
-	badSigToken, _, _ := invite.GenerateToken(invite.InviteRequest{
+	badSigToken, _, _ := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "badsig@manova.space",
 		TTL:   24 * time.Hour,
 	}, otherSecret)
@@ -319,7 +320,7 @@ func TestClaim_InvalidOrExpiredToken(t *testing.T) {
 func TestClaim_RevokedToken(t *testing.T) {
 	tempDir := t.TempDir()
 	storeFile := filepath.Join(tempDir, "invites.json")
-	store, err := invite.NewStore(storeFile)
+	store, err := invitefilestore.NewStore(storeFile)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -328,7 +329,7 @@ func TestClaim_RevokedToken(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	tokenStr, claims, err := invite.GenerateToken(invite.InviteRequest{
+	tokenStr, claims, err := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "revoked@manova.space",
 		TTL:   24 * time.Hour,
 	}, secret)
@@ -337,7 +338,7 @@ func TestClaim_RevokedToken(t *testing.T) {
 	}
 
 	// Save and revoke in store
-	_ = store.SaveInvite(&invite.InviteRecord{
+	_ = store.SaveInvite(&invitedomain.InviteRecord{
 		ID:        claims.ID,
 		Email:     claims.Email,
 		Token:     tokenStr,
@@ -393,7 +394,7 @@ func TestClaim_RateLimiting(t *testing.T) {
 
 	client := &http.Client{}
 
-	tokenStr, _, _ := invite.GenerateToken(invite.InviteRequest{
+	tokenStr, _, _ := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "ratelimit@manova.space",
 		TTL:   time.Hour,
 	}, secret)
@@ -438,7 +439,7 @@ func TestClaim_ProvisionerFailure(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	tokenStr, _, _ := invite.GenerateToken(invite.InviteRequest{
+	tokenStr, _, _ := invitedomain.GenerateToken(invitedomain.InviteRequest{
 		Email: "failtest@manova.space",
 		TTL:   time.Hour,
 	}, secret)
@@ -506,13 +507,13 @@ func TestServer_StartAndShutdown(t *testing.T) {
 }
 
 type mockMailer struct {
-	sentInvites    []invite.EmailData
-	sentChallenges []invite.OwnerChallengeEmailData
+	sentInvites    []invitedomain.EmailData
+	sentChallenges []invitedomain.OwnerChallengeEmailData
 	sendInviteErr  error
 	sendOwnerErr   error
 }
 
-func (m *mockMailer) SendInvite(ctx context.Context, to string, data invite.EmailData) error {
+func (m *mockMailer) SendInvite(ctx context.Context, to string, data invitedomain.EmailData) error {
 	if m.sendInviteErr != nil {
 		return m.sendInviteErr
 	}
@@ -520,7 +521,7 @@ func (m *mockMailer) SendInvite(ctx context.Context, to string, data invite.Emai
 	return nil
 }
 
-func (m *mockMailer) SendOwnerChallenge(ctx context.Context, to string, data invite.OwnerChallengeEmailData) error {
+func (m *mockMailer) SendOwnerChallenge(ctx context.Context, to string, data invitedomain.OwnerChallengeEmailData) error {
 	if m.sendOwnerErr != nil {
 		return m.sendOwnerErr
 	}
@@ -530,7 +531,7 @@ func (m *mockMailer) SendOwnerChallenge(ctx context.Context, to string, data inv
 
 func TestServer_AdminChallengeAndVerify(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           []byte("test-secret-12345678901234567890"),
 		ChallengeManager: cm,
@@ -587,7 +588,7 @@ func TestServer_AdminChallengeAndVerify(t *testing.T) {
 
 func TestServer_AdminChallenge_Errors(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           []byte("test-secret-12345678901234567890"),
 		ChallengeManager: cm,
@@ -629,7 +630,7 @@ func TestServer_AdminChallenge_Errors(t *testing.T) {
 
 func TestServer_AdminVerify_Errors(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           []byte("test-secret-12345678901234567890"),
 		ChallengeManager: cm,
@@ -779,7 +780,7 @@ func TestServer_InstallScript(t *testing.T) {
 
 func TestServer_AdminGrant_CreateAndVerify_Success(t *testing.T) {
 	secret := []byte("secret-key-32-bytes-long-12345678")
-	gm := owner.NewGrantManager()
+	gm := ownerdomain.NewGrantManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           secret,
 		GrantManager:     gm,
@@ -858,7 +859,7 @@ func TestServer_DisablePublicChallenges_RejectsSpam(t *testing.T) {
 
 func TestServer_AllowedAdminEmails_EnforcesAllowlist(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:             []byte("secret-key-32-bytes-long-12345678"),
 		ChallengeManager:   cm,
@@ -892,7 +893,7 @@ func TestServer_AllowedAdminEmails_EnforcesAllowlist(t *testing.T) {
 
 func TestServer_RateLimit_HardenedReverseProxy(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           []byte("secret-key-32-bytes-long-12345678"),
 		ChallengeManager: cm,
@@ -945,7 +946,7 @@ func TestServer_RateLimit_HardenedReverseProxy(t *testing.T) {
 
 func TestServer_RateLimit_ChallengeEmailExhaustion(t *testing.T) {
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 	srv, err := NewServer(ServerConfig{
 		Secret:           []byte("secret-key-32-bytes-long-12345678"),
 		ChallengeManager: cm,
@@ -998,7 +999,7 @@ func TestServer_RateLimit_ChallengeEmailExhaustion(t *testing.T) {
 func TestServer_RateLimit_SQLitePersistence(t *testing.T) {
 	db := sqlite.NewTestDB(t)
 	mockMailer := &mockMailer{}
-	cm := owner.NewChallengeManager()
+	cm := ownerdomain.NewChallengeManager()
 
 	cfg := ServerConfig{
 		Secret:           []byte("secret-key-32-bytes-long-12345678"),

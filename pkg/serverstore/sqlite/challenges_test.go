@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
 
@@ -18,10 +18,10 @@ func TestChallenges_SaveAndGetActive(t *testing.T) {
 	email := "Admin@Manova.Space"
 	salt := "test-salt-123456"
 	code := "123456"
-	codeHash := owner.HashCode(code, salt)
+	codeHash := ownerdomain.HashCode(code, salt)
 	now := time.Now().UTC()
 
-	ch := &owner.Challenge{
+	ch := &ownerdomain.Challenge{
 		Email:       email,
 		CodeHash:    codeHash,
 		Salt:        salt,
@@ -69,13 +69,13 @@ func TestChallenges_SaveAndGetActive(t *testing.T) {
 
 	// 2. Non-existent email
 	_, err = store.GetActiveChallenge(ctx, "nonexistent@manova.space")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound for non-existent email, got %v", err)
 	}
 
 	// 3. Empty email
 	_, err = store.GetActiveChallenge(ctx, "")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound for empty email, got %v", err)
 	}
 }
@@ -86,7 +86,7 @@ func TestChallenges_IncrementAttempts(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC()
-	ch := &owner.Challenge{
+	ch := &ownerdomain.Challenge{
 		Email:       "retry@manova.space",
 		CodeHash:    "dummy-hash",
 		Salt:        "dummy-salt",
@@ -129,7 +129,7 @@ func TestChallenges_IncrementAttempts(t *testing.T) {
 
 	// Increment non-existent ID
 	_, err = store.IncrementAttempts(ctx, "non-existent-id")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound for invalid ID, got %v", err)
 	}
 }
@@ -140,7 +140,7 @@ func TestChallenges_MarkVerified(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC()
-	ch := &owner.Challenge{
+	ch := &ownerdomain.Challenge{
 		Email:       "verify@manova.space",
 		CodeHash:    "dummy-hash",
 		Salt:        "dummy-salt",
@@ -159,13 +159,13 @@ func TestChallenges_MarkVerified(t *testing.T) {
 
 	// Active challenge query should now return not found because verified == 1
 	_, err := store.GetActiveChallenge(ctx, "verify@manova.space")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound after verification, got %v", err)
 	}
 
 	// MarkVerified on non-existent ID
 	err = store.MarkVerified(ctx, "non-existent-id")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound for non-existent ID, got %v", err)
 	}
 }
@@ -179,7 +179,7 @@ func TestChallenges_PruneExpired(t *testing.T) {
 	future := time.Now().UTC().Add(10 * time.Minute)
 
 	// Expired challenge
-	expiredCh := &owner.Challenge{
+	expiredCh := &ownerdomain.Challenge{
 		ID:          "expired-ch-1",
 		Email:       "expired@manova.space",
 		CodeHash:    "dummy-hash",
@@ -193,7 +193,7 @@ func TestChallenges_PruneExpired(t *testing.T) {
 	}
 
 	// Active challenge
-	activeCh := &owner.Challenge{
+	activeCh := &ownerdomain.Challenge{
 		ID:          "active-ch-1",
 		Email:       "active@manova.space",
 		CodeHash:    "dummy-hash",
@@ -213,7 +213,7 @@ func TestChallenges_PruneExpired(t *testing.T) {
 
 	// Expired challenge should be deleted
 	_, err := store.GetActiveChallenge(ctx, "expired@manova.space")
-	if !errors.Is(err, owner.ErrChallengeNotFound) {
+	if !errors.Is(err, ownerdomain.ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound for pruned challenge, got %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestChallenges_LatestActiveOrdering(t *testing.T) {
 	t1 := time.Now().UTC().Add(-2 * time.Minute)
 	t2 := time.Now().UTC()
 
-	ch1 := &owner.Challenge{
+	ch1 := &ownerdomain.Challenge{
 		ID:          "ch-older",
 		Email:       email,
 		CodeHash:    "hash-1",
@@ -245,7 +245,7 @@ func TestChallenges_LatestActiveOrdering(t *testing.T) {
 		ExpiresAt:   t1.Add(10 * time.Minute),
 		MaxAttempts: 3,
 	}
-	ch2 := &owner.Challenge{
+	ch2 := &ownerdomain.Challenge{
 		ID:          "ch-newer",
 		Email:       email,
 		CodeHash:    "hash-2",
@@ -280,7 +280,7 @@ func TestChallenges_Validation(t *testing.T) {
 		t.Errorf("expected error saving nil challenge, got nil")
 	}
 
-	if err := store.SaveChallenge(ctx, &owner.Challenge{Email: ""}); err == nil {
+	if err := store.SaveChallenge(ctx, &ownerdomain.Challenge{Email: ""}); err == nil {
 		t.Errorf("expected error saving challenge with empty email, got nil")
 	}
 }

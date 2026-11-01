@@ -10,8 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	staffapp "github.com/manovaspace/orbit-cli/pkg/staff/application"
+	staffdomain "github.com/manovaspace/orbit-cli/pkg/staff/domain"
 )
 
 func TestStaffOwnerGuard_Unverified(t *testing.T) {
@@ -32,8 +33,8 @@ func TestStaffOwnerGuard_Unverified(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when owner is unverified")
 	}
-	if !strings.Contains(err.Error(), staffOwnerUnverified) {
-		t.Fatalf("expected error %q, got %q", staffOwnerUnverified, err.Error())
+	if !strings.Contains(err.Error(), staffapp.UnverifiedOwner) {
+		t.Fatalf("expected error %q, got %q", staffapp.UnverifiedOwner, err.Error())
 	}
 }
 
@@ -56,7 +57,7 @@ func TestPrintStaffCreateIncludesProfileNames(t *testing.T) {
 	cmd := newRootCmdForTest(t)
 	cmd.SetOut(buf)
 
-	printStaffCreate(cmd, &client.StaffCreateResult{StaffMember: client.StaffMember{
+	printStaffCreate(cmd.OutOrStdout(), &staffdomain.CreateResult{Member: staffdomain.Member{
 		UID:       "alirezaopmc",
 		FirstName: "Alireza",
 		LastName:  "J",
@@ -437,7 +438,7 @@ func TestStaffCreate_InviteWithWebSetupURL(t *testing.T) {
 		t.Fatalf("failed to extract token from output:\n%s", out)
 	}
 
-	claims, err := invite.ValidateToken(tokenStr, []byte(ownerRec.RootSigningSecret))
+	claims, err := invitedomain.ValidateToken(tokenStr, []byte(ownerRec.RootSigningSecret))
 	if err != nil {
 		t.Fatalf("ValidateToken failed: %v", err)
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/invite"
+	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
 
@@ -18,7 +18,7 @@ func TestInvites_SaveAndGet(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	exp := now.Add(24 * time.Hour)
 
-	rec := &invite.InviteRecord{
+	rec := &invitedomain.InviteRecord{
 		ID:          "inv_test123456789",
 		Token:       "tok_secret_token_123456",
 		Email:       "user@example.com",
@@ -76,7 +76,7 @@ func TestInvites_SaveAndGet(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent invite, got nil")
 	}
-	if err != invite.ErrInviteNotFound {
+	if err != invitedomain.ErrInviteNotFound {
 		t.Fatalf("expected ErrInviteNotFound, got %v", err)
 	}
 }
@@ -89,7 +89,7 @@ func TestInvites_PrefixAmbiguity(t *testing.T) {
 	now := time.Now().UTC()
 	exp := now.Add(24 * time.Hour)
 
-	rec1 := &invite.InviteRecord{
+	rec1 := &invitedomain.InviteRecord{
 		ID:        "inv_prefix_match_1",
 		Token:     "tok_1",
 		Email:     "u1@example.com",
@@ -97,7 +97,7 @@ func TestInvites_PrefixAmbiguity(t *testing.T) {
 		IssuedAt:  now,
 		ExpiresAt: exp,
 	}
-	rec2 := &invite.InviteRecord{
+	rec2 := &invitedomain.InviteRecord{
 		ID:        "inv_prefix_match_2",
 		Token:     "tok_2",
 		Email:     "u2@example.com",
@@ -137,7 +137,7 @@ func TestInvites_Upsert(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	exp := now.Add(24 * time.Hour)
 
-	rec := &invite.InviteRecord{
+	rec := &invitedomain.InviteRecord{
 		ID:          "inv_upsert_test",
 		Token:       "tok_initial",
 		Email:       "first@example.com",
@@ -188,7 +188,7 @@ func TestInvites_ListInvites(t *testing.T) {
 
 	baseTime := time.Now().UTC().Truncate(time.Second)
 
-	rec1 := &invite.InviteRecord{
+	rec1 := &invitedomain.InviteRecord{
 		ID:        "inv_1",
 		Token:     "tok_1",
 		Email:     "a@example.com",
@@ -196,7 +196,7 @@ func TestInvites_ListInvites(t *testing.T) {
 		IssuedAt:  baseTime.Add(-2 * time.Hour),
 		ExpiresAt: baseTime.Add(24 * time.Hour),
 	}
-	rec2 := &invite.InviteRecord{
+	rec2 := &invitedomain.InviteRecord{
 		ID:        "inv_2",
 		Token:     "tok_2",
 		Email:     "b@example.com",
@@ -204,7 +204,7 @@ func TestInvites_ListInvites(t *testing.T) {
 		IssuedAt:  baseTime.Add(-1 * time.Hour),
 		ExpiresAt: baseTime.Add(24 * time.Hour),
 	}
-	rec3 := &invite.InviteRecord{
+	rec3 := &invitedomain.InviteRecord{
 		ID:        "inv_3",
 		Token:     "tok_3",
 		Email:     "c@example.com",
@@ -239,7 +239,7 @@ func TestInvites_RevokeInvite(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	exp := now.Add(24 * time.Hour)
 
-	rec := &invite.InviteRecord{
+	rec := &invitedomain.InviteRecord{
 		ID:        "inv_revoke_test_123",
 		Token:     "tok_revoke_123",
 		Email:     "revoke@example.com",
@@ -288,7 +288,7 @@ func TestInvites_RevokeInvite(t *testing.T) {
 
 	// Revoking non-existent should fail with ErrInviteNotFound
 	_, err = store.RevokeInvite(ctx, "non_existent_prefix")
-	if err != invite.ErrInviteNotFound {
+	if err != invitedomain.ErrInviteNotFound {
 		t.Fatalf("expected ErrInviteNotFound, got %v", err)
 	}
 }
@@ -319,7 +319,7 @@ func TestInvites_RevokeAll(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+	_ = store.SaveInvite(ctx, &invitedomain.InviteRecord{
 		ID:        "inv_bulk_1",
 		Token:     "tok_bulk_1",
 		Email:     "dev1@example.com",
@@ -328,7 +328,7 @@ func TestInvites_RevokeAll(t *testing.T) {
 		ExpiresAt: now.Add(24 * time.Hour),
 		Revoked:   false,
 	})
-	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+	_ = store.SaveInvite(ctx, &invitedomain.InviteRecord{
 		ID:        "inv_bulk_2",
 		Token:     "tok_bulk_2",
 		Email:     "dev2@example.com",
@@ -337,7 +337,7 @@ func TestInvites_RevokeAll(t *testing.T) {
 		ExpiresAt: now.Add(48 * time.Hour),
 		Revoked:   false,
 	})
-	_ = store.SaveInvite(ctx, &invite.InviteRecord{
+	_ = store.SaveInvite(ctx, &invitedomain.InviteRecord{
 		ID:        "inv_bulk_3",
 		Token:     "tok_bulk_3",
 		Email:     "dev3@example.com",

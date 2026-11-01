@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/owner"
+	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/serverstore"
 )
 
@@ -27,11 +27,11 @@ func NewGrantStore(db *sql.DB) *GrantStore {
 // Ensure GrantStore implements serverstore.GrantStore and owner.GrantStore.
 var (
 	_ serverstore.GrantStore = (*GrantStore)(nil)
-	_ owner.GrantStore       = (*GrantStore)(nil)
+	_ ownerdomain.GrantStore = (*GrantStore)(nil)
 )
 
 // SaveGrant inserts or updates an admin grant record in SQLite.
-func (s *GrantStore) SaveGrant(ctx context.Context, g *owner.AdminGrant) error {
+func (s *GrantStore) SaveGrant(ctx context.Context, g *ownerdomain.AdminGrant) error {
 	if g == nil {
 		return errors.New("cannot save nil grant")
 	}
@@ -62,7 +62,7 @@ func (s *GrantStore) SaveGrant(ctx context.Context, g *owner.AdminGrant) error {
 
 	role := g.Role
 	if role == "" {
-		role = owner.DefaultGrantRole
+		role = ownerdomain.DefaultGrantRole
 		g.Role = role
 	}
 
@@ -112,10 +112,10 @@ ON CONFLICT(id) DO UPDATE SET
 }
 
 // GetGrant finds an active or matching grant by email and optional code hash.
-func (s *GrantStore) GetGrant(ctx context.Context, email, codeHash string) (*owner.AdminGrant, error) {
+func (s *GrantStore) GetGrant(ctx context.Context, email, codeHash string) (*ownerdomain.AdminGrant, error) {
 	normEmail := strings.ToLower(strings.TrimSpace(email))
 	if normEmail == "" {
-		return nil, owner.ErrGrantNotFound
+		return nil, ownerdomain.ErrGrantNotFound
 	}
 
 	now := time.Now().UTC()
@@ -146,7 +146,7 @@ LIMIT 1;`
 	g, err := scanGrantRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, owner.ErrGrantNotFound
+			return nil, ownerdomain.ErrGrantNotFound
 		}
 		return nil, fmt.Errorf("failed to get admin grant: %w", err)
 	}
@@ -158,7 +158,7 @@ LIMIT 1;`
 func (s *GrantStore) MarkUsed(ctx context.Context, id string) error {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return owner.ErrGrantNotFound
+		return ownerdomain.ErrGrantNotFound
 	}
 
 	now := time.Now().UTC()
@@ -173,14 +173,14 @@ func (s *GrantStore) MarkUsed(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to check rows affected: %w", err)
 	}
 	if rows == 0 {
-		return owner.ErrGrantNotFound
+		return ownerdomain.ErrGrantNotFound
 	}
 
 	return nil
 }
 
 // ListActiveGrants retrieves all active, unused, unexpired admin grants ordered by created_at DESC.
-func (s *GrantStore) ListActiveGrants(ctx context.Context) ([]*owner.AdminGrant, error) {
+func (s *GrantStore) ListActiveGrants(ctx context.Context) ([]*ownerdomain.AdminGrant, error) {
 	now := time.Now().UTC()
 	query := `
 SELECT id, email, code_hash, salt, role, created_by, used, used_at, created_at, expires_at
@@ -194,7 +194,7 @@ ORDER BY created_at DESC;`
 	}
 	defer func() { _ = rows.Close() }()
 
-	grants := make([]*owner.AdminGrant, 0)
+	grants := make([]*ownerdomain.AdminGrant, 0)
 	for rows.Next() {
 		g, err := scanGrantRows(rows)
 		if err != nil {
@@ -209,17 +209,17 @@ ORDER BY created_at DESC;`
 	return grants, nil
 }
 
-func scanGrantRow(row *sql.Row) (*owner.AdminGrant, error) {
+func scanGrantRow(row *sql.Row) (*ownerdomain.AdminGrant, error) {
 	return scanGrant(row)
 }
 
-func scanGrantRows(rows *sql.Rows) (*owner.AdminGrant, error) {
+func scanGrantRows(rows *sql.Rows) (*ownerdomain.AdminGrant, error) {
 	return scanGrant(rows)
 }
 
-func scanGrant(s rowScanner) (*owner.AdminGrant, error) {
+func scanGrant(s rowScanner) (*ownerdomain.AdminGrant, error) {
 	var (
-		g         owner.AdminGrant
+		g         ownerdomain.AdminGrant
 		usedAt    sql.NullTime
 		createdAt time.Time
 		expiresAt time.Time
@@ -247,7 +247,7 @@ func scanGrant(s rowScanner) (*owner.AdminGrant, error) {
 	}
 	g.IssuedAt = createdAt.UTC()
 	g.ExpiresAt = expiresAt.UTC()
-	g.MaxAttempts = owner.DefaultGrantMaxAttempts
+	g.MaxAttempts = ownerdomain.DefaultGrantMaxAttempts
 
 	return &g, nil
 }
