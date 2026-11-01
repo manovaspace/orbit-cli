@@ -3,14 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/manovaspace/orbit-cli/pkg/dev/application"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
+	"github.com/manovaspace/orbit-cli/pkg/runner/runnertest"
 )
 
 func TestDevCmd_Registration(t *testing.T) {
@@ -53,382 +53,174 @@ func TestDevUpCmd_Flags(t *testing.T) {
 	if timeoutFlag.DefValue != "15s" {
 		t.Errorf("expected --timeout default to be 15s, got %s", timeoutFlag.DefValue)
 	}
-}
 
-func TestCheckPortReady(t *testing.T) {
-	// 1. Live open port should return true
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen on random port: %v", err)
-	}
-	defer l.Close()
-
-	port := l.Addr().(*net.TCPAddr).Port
-	if !checkPortReady("127.0.0.1", port, 500*time.Millisecond) {
-		t.Errorf("expected checkPortReady to return true for open port %d", port)
-	}
-
-	// 2. Closed port should return false
-	_ = l.Close()
-	// Allow OS socket cleanup
-	time.Sleep(20 * time.Millisecond)
-	if checkPortReady("127.0.0.1", port, 50*time.Millisecond) {
-		t.Errorf("expected checkPortReady to return false for closed port %d", port)
+	if cmd.Flags().Lookup("json") == nil {
+		t.Error("expected --json flag on dev up")
 	}
 }
 
-func TestWaitForServiceHealth_Success(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen on random port: %v", err)
-	}
-	defer l.Close()
+type devTestProbe struct{}
 
-	port := l.Addr().(*net.TCPAddr).Port
-	ctx := context.Background()
+func (devTestProbe) Wait(context.Context, string, int, time.Duration) bool { return true }
 
-	if !waitForServiceHealth(ctx, "127.0.0.1", port, 1*time.Second) {
-		t.Errorf("expected waitForServiceHealth to return true for open port %d", port)
-	}
-}
-
-func TestWaitForServiceHealth_Timeout(t *testing.T) {
-	// Use an unused port
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen on random port: %v", err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
-
-	ctx := context.Background()
-	start := time.Now()
-	res := waitForServiceHealth(ctx, "127.0.0.1", port, 100*time.Millisecond)
-	elapsed := time.Since(start)
-
-	if res {
-		t.Errorf("expected waitForServiceHealth to return false for closed port %d", port)
-	}
-	if elapsed < 80*time.Millisecond {
-		t.Errorf("expected waitForServiceHealth to respect timeout, elapsed: %v", elapsed)
-	}
-}
-
-func TestWaitForServiceHealth_ContextCancel(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen on random port: %v", err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-	_ = l.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	res := waitForServiceHealth(ctx, "127.0.0.1", port, 2*time.Second)
-	if res {
-		t.Errorf("expected waitForServiceHealth to return false for cancelled context")
-	}
-}
-
-func TestProbeServiceReadiness(t *testing.T) {
-	ctx := context.Background()
-	statuses := probeServiceReadiness(ctx, 100*time.Millisecond)
-
-	if len(statuses) != 5 {
-		t.Fatalf("expected 5 service statuses, got %d", len(statuses))
-	}
-
-	expectedServices := map[string]int{
-		"Postgres":      10333,
-		"NATS":          10422,
-		"LLDAP":         3890,
-		"Caddy Ingress": 80,
-		"Mailpit":       10825,
-	}
-
-	for _, s := range statuses {
-		expPort, ok := expectedServices[s.Name]
-		if !ok {
-			t.Errorf("unexpected service in probe results: %s", s.Name)
-			continue
-		}
-		if s.Name == "Caddy Ingress" {
-			if s.Port != 80 && s.Port != 10443 {
-				t.Errorf("service %s expected port 80 or 10443, got %d", s.Name, s.Port)
-			}
-		} else if s.Port != expPort {
-			t.Errorf("service %s expected port %d, got %d", s.Name, expPort, s.Port)
-		}
-		if s.Message == "" {
-			t.Errorf("service %s had empty message", s.Name)
-		}
-	}
-}
-
-func TestDevPortalCmd_Output(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cmd := newDevPortalCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("portal command failed: %v", err)
-	}
-
-	out := buf.String()
-	expectedStrings := []string{
-		"Orbit Local Developer Portal",
-		"http://localhost:10007",
-		"http://auth.internal.manova.space:10000",
-		"http://git.internal.manova.space:10000",
-		"http://mail.internal.manova.space:10000",
-		"http://grafana.internal.manova.space:10000",
-	}
-
-	for _, exp := range expectedStrings {
-		if !strings.Contains(out, exp) {
-			t.Errorf("expected portal output to contain %q, got:\n%s", exp, out)
-		}
-	}
-}
-
-func setupMockInfra(t *testing.T) (string, *[]string) {
+func setupDevCommandTest(t *testing.T) (infraDir string, fake *runnertest.Fake) {
 	t.Helper()
-	tempDir := t.TempDir()
-	t.Setenv("ORBIT_INFRA_DIR", tempDir)
+	infraDir = t.TempDir()
+	t.Setenv("ORBIT_INFRA_DIR", infraDir)
+	workspace := t.TempDir()
+	t.Setenv("ORBIT_WORKSPACE", workspace)
 
-	var recordedCalls []string
-	origRunner := infraRunner
-	infraRunner = func(dir string, stdout, stderr io.Writer, cmdName string, args ...string) error {
-		call := fmt.Sprintf("%s %s", cmdName, strings.Join(args, " "))
-		recordedCalls = append(recordedCalls, call)
-		return nil
-	}
-
+	fake = &runnertest.Fake{}
+	previousRunner, previousProbe := devRunner, devProbe
+	devRunner = fake
+	devProbe = devTestProbe{}
 	t.Cleanup(func() {
-		infraRunner = origRunner
+		devRunner = previousRunner
+		devProbe = previousProbe
+	})
+	return infraDir, fake
+}
+
+func writeInfraFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDevJSONEnvelopes(t *testing.T) {
+	t.Run("up", func(t *testing.T) {
+		infraDir, fake := setupDevCommandTest(t)
+		writeInfraFile(t, filepath.Join(infraDir, "compose.sh"))
+		fake.On(filepath.Join(infraDir, "compose.sh")+" up -d", runner.Result{}, nil)
+
+		out := new(bytes.Buffer)
+		cmd := newDevUpCmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"--json", "--timeout", "1ms"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev up --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["infraDir"] != infraDir {
+			t.Errorf("infraDir = %v, want %s", data["infraDir"], infraDir)
+		}
+		command, ok := data["command"].(map[string]any)
+		if !ok || command["name"] != filepath.Join(infraDir, "compose.sh") {
+			t.Errorf("command = %v", data["command"])
+		}
 	})
 
-	return tempDir, &recordedCalls
+	t.Run("down", func(t *testing.T) {
+		infraDir, fake := setupDevCommandTest(t)
+		writeInfraFile(t, filepath.Join(infraDir, "compose.sh"))
+		fake.On(filepath.Join(infraDir, "compose.sh")+" down", runner.Result{}, nil)
+
+		out := new(bytes.Buffer)
+		cmd := newDevDownCmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev down --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["action"] != "down" {
+			t.Errorf("action = %v", data["action"])
+		}
+	})
+
+	t.Run("tier2", func(t *testing.T) {
+		infraDir, fake := setupDevCommandTest(t)
+		script := filepath.Join(infraDir, "scripts", "start-tier2.sh")
+		writeInfraFile(t, script)
+		fake.On(script, runner.Result{}, nil)
+
+		out := new(bytes.Buffer)
+		cmd := newDevTier2Cmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev tier2 --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["action"] != "tier2" {
+			t.Errorf("action = %v", data["action"])
+		}
+	})
+
+	t.Run("caddy", func(t *testing.T) {
+		infraDir, fake := setupDevCommandTest(t)
+		writeInfraFile(t, filepath.Join(infraDir, "compose.sh"))
+		fake.On(filepath.Join(infraDir, "compose.sh")+" exec caddy", runner.Result{}, nil)
+
+		out := new(bytes.Buffer)
+		cmd := newDevCaddyCmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"reload", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev caddy --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["action"] != "reload" {
+			t.Errorf("action = %v", data["action"])
+		}
+	})
+
+	t.Run("portal", func(t *testing.T) {
+		setupDevCommandTest(t)
+
+		out := new(bytes.Buffer)
+		cmd := newDevPortalCmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev portal --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["url"] != "http://localhost:10007" {
+			t.Errorf("url = %v", data["url"])
+		}
+	})
+
+	t.Run("logs", func(t *testing.T) {
+		_, fake := setupDevCommandTest(t)
+
+		out := new(bytes.Buffer)
+		cmd := newDevLogsCmd()
+		cmd.SetOut(out)
+		cmd.SetArgs([]string{"postgres", "--json"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("dev logs --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["streaming"] != false {
+			t.Errorf("streaming = %v, want false for a plan", data["streaming"])
+		}
+		if len(fake.Calls()) != 0 {
+			t.Errorf("logs --json ran commands: %+v", fake.Calls())
+		}
+	})
 }
 
-func TestDevUpCmd_Execution(t *testing.T) {
-	tempDir, recordedCalls := setupMockInfra(t)
-	// Create mock compose.sh
-	_ = os.WriteFile(filepath.Join(tempDir, "compose.sh"), []byte("#!/bin/sh\n"), 0755)
-
-	buf := new(bytes.Buffer)
-	cmd := newDevUpCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"--timeout", "100ms"})
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("dev up failed: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "Starting Orbit Dev Stack") {
-		t.Errorf("expected output to contain starting message, got:\n%s", out)
-	}
-	if !strings.Contains(out, "Orbit Local Developer Endpoints") {
-		t.Errorf("expected output to contain endpoints banner, got:\n%s", out)
-	}
-
-	if len(*recordedCalls) != 1 {
-		t.Fatalf("expected 1 infra command execution, got %d", len(*recordedCalls))
-	}
-	if !strings.Contains((*recordedCalls)[0], "compose.sh up -d") {
-		t.Errorf("expected compose.sh up -d call, got: %s", (*recordedCalls)[0])
-	}
-}
-
-func TestDevUpCmd_WithWaitFlag(t *testing.T) {
-	tempDir, _ := setupMockInfra(t)
-	_ = os.WriteFile(filepath.Join(tempDir, "compose.sh"), []byte("#!/bin/sh\n"), 0755)
-
-	buf := new(bytes.Buffer)
-	cmd := newDevUpCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"--wait", "--timeout", "100ms"})
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("dev up with --wait failed: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "Probing service readiness") {
-		t.Errorf("expected output to indicate probing service readiness, got:\n%s", out)
-	}
-	if !strings.Contains(out, "Service Readiness:") {
-		t.Errorf("expected output to contain Service Readiness table, got:\n%s", out)
-	}
-}
-
-func TestDevDownCmd_Execution(t *testing.T) {
-	tempDir, recordedCalls := setupMockInfra(t)
-	_ = os.WriteFile(filepath.Join(tempDir, "compose.sh"), []byte("#!/bin/sh\n"), 0755)
-
-	buf := new(bytes.Buffer)
-	cmd := newDevDownCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("dev down failed: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "Stopping Orbit Dev Stack") {
-		t.Errorf("expected output to contain stopping message, got:\n%s", out)
-	}
-
-	if len(*recordedCalls) != 1 {
-		t.Fatalf("expected 1 infra command execution, got %d", len(*recordedCalls))
-	}
-	if !strings.Contains((*recordedCalls)[0], "compose.sh down") {
-		t.Errorf("expected compose.sh down call, got: %s", (*recordedCalls)[0])
-	}
-}
-
-func TestDevTier2Cmd_Execution(t *testing.T) {
-	tempDir, recordedCalls := setupMockInfra(t)
-	scriptsDir := filepath.Join(tempDir, "scripts")
-	_ = os.MkdirAll(scriptsDir, 0755)
-	tier2Script := filepath.Join(scriptsDir, "start-tier2.sh")
-	_ = os.WriteFile(tier2Script, []byte("#!/bin/sh\n"), 0755)
-
-	buf := new(bytes.Buffer)
-	cmd := newDevTier2Cmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("dev tier2 failed: %v", err)
-	}
-
-	if len(*recordedCalls) != 1 {
-		t.Fatalf("expected 1 infra command execution, got %d", len(*recordedCalls))
-	}
-	if !strings.Contains((*recordedCalls)[0], "start-tier2.sh") {
-		t.Errorf("expected start-tier2.sh call, got: %s", (*recordedCalls)[0])
-	}
-}
-
-func TestDevTier2Cmd_MissingScript(t *testing.T) {
-	_, _ = setupMockInfra(t)
-	// Don't create start-tier2.sh
-
-	buf := new(bytes.Buffer)
-	cmd := newDevTier2Cmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when start-tier2.sh is missing")
-	}
-	if !strings.Contains(err.Error(), "start-tier2.sh script not found") {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-func TestDevCaddyCmd_Actions(t *testing.T) {
-	tempDir, recordedCalls := setupMockInfra(t)
-	_ = os.WriteFile(filepath.Join(tempDir, "compose.sh"), []byte("#!/bin/sh\n"), 0755)
-
-	// Test reload
-	buf := new(bytes.Buffer)
+func TestDevJSONFailure(t *testing.T) {
+	setupDevCommandTest(t)
+	out := new(bytes.Buffer)
 	cmd := newDevCaddyCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"reload"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("caddy reload failed: %v", err)
-	}
-
-	// Test restart
-	buf.Reset()
-	cmd = newDevCaddyCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"restart"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("caddy restart failed: %v", err)
-	}
-
-	// Test logs
-	buf.Reset()
-	cmd = newDevCaddyCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"logs"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("caddy logs failed: %v", err)
-	}
-
-	// Test unknown action
-	buf.Reset()
-	cmd = newDevCaddyCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"unknown-action"})
+	cmd.SetOut(out)
+	cmd.SetArgs([]string{"bogus", "--json"})
 	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error for unknown caddy action")
+		t.Fatal("expected an error for an unknown caddy action")
 	}
-
-	if len(*recordedCalls) != 3 {
-		t.Fatalf("expected 3 caddy calls, got %d", len(*recordedCalls))
+	env := decodeEnvelope(t, out.String())
+	if env.OK {
+		t.Error("expected a failed envelope")
 	}
-}
-
-func TestDevLogsCmd_Execution(t *testing.T) {
-	_, recordedCalls := setupMockInfra(t)
-
-	buf := new(bytes.Buffer)
-	cmd := newDevLogsCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"postgres"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("dev logs failed: %v", err)
-	}
-
-	if len(*recordedCalls) != 1 {
-		t.Fatalf("expected 1 logs call, got %d", len(*recordedCalls))
-	}
-	if !strings.Contains((*recordedCalls)[0], "docker compose logs -f postgres") {
-		t.Errorf("expected docker compose logs -f postgres, got: %s", (*recordedCalls)[0])
+	if env.Error == nil || env.Error.Code != "usage" {
+		t.Errorf("error = %+v, want usage", env.Error)
 	}
 }
 
-func TestFindOrbitInfraDir(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// 1. ORBIT_INFRA_DIR set
-	t.Setenv("ORBIT_INFRA_DIR", tempDir)
-	found := findOrbitInfraDir("/some/workspace")
-	if found != tempDir {
-		t.Errorf("expected %s, got %s", tempDir, found)
-	}
-
-	// 2. Clear env var and test candidates
-	t.Setenv("ORBIT_INFRA_DIR", "")
-	wsDir := t.TempDir()
-	orbitInfraDir := filepath.Join(wsDir, "orbit", "orbit-infra")
-	_ = os.MkdirAll(orbitInfraDir, 0755)
-	_ = os.WriteFile(filepath.Join(orbitInfraDir, "compose.sh"), []byte("#!/bin/sh\n"), 0755)
-
-	found = findOrbitInfraDir(wsDir)
-	if found != orbitInfraDir {
-		t.Errorf("expected %s, got %s", orbitInfraDir, found)
-	}
-}
+var _ application.Probe = devTestProbe{}

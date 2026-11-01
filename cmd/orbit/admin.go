@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/config"
+	"github.com/manovaspace/orbit-cli/pkg/config/application"
+	configdomain "github.com/manovaspace/orbit-cli/pkg/config/domain"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/spf13/cobra"
@@ -56,7 +57,7 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
 
-			cfg, err := config.Resolve(config.ResolveOptions{
+			cfg, err := newConfigService(out).Resolve(application.ResolveOptions{
 				ConfigPath: getConfigPath(cmd),
 				ServerFlag: serverFlag,
 			})
@@ -118,7 +119,7 @@ orbit-api-gateway stores the OTP in memory and does not send mail.`,
 			} else {
 				serverURL := strings.TrimSpace(cfg.Config.Server.URL)
 				if serverURL == "" {
-					serverURL = config.DefaultServerURL
+					serverURL = configdomain.DefaultServerURL
 				}
 				apiClient = client.NewClient(serverURL)
 
@@ -243,7 +244,7 @@ func newAdminStatusCmd() *cobra.Command {
 			rec, err := store.LoadOwner()
 			permErr := store.CheckPermissions()
 
-			cfg, _ := config.Resolve(config.ResolveOptions{
+			cfg, _ := newConfigService(out).Resolve(application.ResolveOptions{
 				ConfigPath: getConfigPath(cmd),
 			})
 			_ = cfg
@@ -350,7 +351,7 @@ func newAdminVerifyCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
 
-			cfg, _ := config.Resolve(config.ResolveOptions{
+			cfg, _ := newConfigService(out).Resolve(application.ResolveOptions{
 				ConfigPath: getConfigPath(cmd),
 			})
 			_ = cfg
@@ -532,7 +533,7 @@ to initialize their workstation without sending or receiving public challenge em
 				return fmt.Errorf("invalid recipient email address %q", args[0])
 			}
 
-			cfg, err := config.Resolve(config.ResolveOptions{
+			cfg, err := newConfigService(out).Resolve(application.ResolveOptions{
 				ConfigPath: getConfigPath(cmd),
 				ServerFlag: serverFlag,
 			})
@@ -570,7 +571,7 @@ to initialize their workstation without sending or receiving public challenge em
 			// Register on server if server is configured
 			serverURL := strings.TrimSpace(cfg.Config.Server.URL)
 			if serverURL == "" {
-				serverURL = config.DefaultServerURL
+				serverURL = configdomain.DefaultServerURL
 			}
 
 			apiClient := client.NewClient(serverURL)

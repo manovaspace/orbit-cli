@@ -6,6 +6,7 @@ Usage:
 Flags:
   -f, --force   Overwrite existing configuration file with default values
   -h, --help    help for init
+      --json    Print the result as a JSON envelope
 
 Global Flags:
       --config string   Custom path to configuration file

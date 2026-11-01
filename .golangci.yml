@@ -270,3 +270,53 @@ linters:
               desc: "pkg/ci/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/ci/application writes through its injected writer"
+        # The config domain is the pure configuration model.
+        config-domain:
+          files:
+            - "**/pkg/config/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/config/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/config/application"
+              desc: "pkg/config/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/config/infrastructure"
+              desc: "pkg/config/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/config/domain is pure and must not style output"
+        # The config application reaches the file and environment through its
+        # ports.
+        config-application:
+          files:
+            - "**/pkg/config/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/config/application reaches no external commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/config/infrastructure"
+              desc: "pkg/config/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/config/application writes through its injected UI"
+        # The dev domain is the pure local stack model.
+        dev-domain:
+          files:
+            - "**/pkg/dev/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/dev/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/dev/application"
+              desc: "pkg/dev/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/dev/infrastructure"
+              desc: "pkg/dev/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/dev/domain is pure and must not style output"
+        # The dev application reaches commands, files and TCP probes only
+        # through its ports.
+        dev-application:
+          files:
+            - "**/pkg/dev/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/dev/application reaches external commands through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/dev/infrastructure"
+              desc: "pkg/dev/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/dev/application writes through its injected UI"
