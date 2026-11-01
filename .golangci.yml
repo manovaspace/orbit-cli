@@ -3,6 +3,7 @@ version: "2"
 linters:
   default: none
   enable:
+    - depguard
     - errcheck
     - govet
     - ineffassign
@@ -23,3 +24,27 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
+    depguard:
+      rules:
+        # The pull-request domain is pure types and rules: no process execution
+        # and no dependency on the layers above it.
+        pr-domain:
+          files:
+            - "**/pkg/pr/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/pr/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/infrastructure"
+              desc: "pkg/pr/domain must not depend on the adapters"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/application"
+              desc: "pkg/pr/domain must not depend on the application layer"
+        # The application layer reaches the outside world only through its
+        # Forge and Git ports.
+        pr-application:
+          files:
+            - "**/pkg/pr/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/pr/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/infrastructure"
+              desc: "pkg/pr/application must not depend on the adapters"
