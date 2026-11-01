@@ -135,6 +135,7 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 		headFlag   string
 		mergeFlag  bool
 		methodFlag string
+		gateOpts   = gateOptions{wait: true}
 	)
 
 	cmd := &cobra.Command{
@@ -252,6 +253,10 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 					default:
 						mergeArgs = append(mergeArgs, "--merge")
 					}
+					gateOpts.overrideSet = cmd.Flags().Changed("override")
+					if err := enforceMergeGate(out, dir, fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), fmt.Sprintf("%d", prIndex), gateOpts); err != nil {
+						return err
+					}
 					if _, err := runGH(dir, mergeArgs...); err != nil {
 						return fmt.Errorf("failed to merge pull request #%d on GitHub: %w", prIndex, err)
 					}
@@ -273,12 +278,16 @@ func newPRCreateCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 	cmd.Flags().StringVar(&headFlag, "head", "", "Head branch (defaults to current branch)")
 	cmd.Flags().BoolVar(&mergeFlag, "merge", false, "Merge pull request immediately after creation")
 	cmd.Flags().StringVar(&methodFlag, "method", "merge", "Merge method (merge, squash, rebase, rebase-merge)")
+	addGateFlags(cmd, &gateOpts, true)
 
 	return cmd
 }
 
 func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
-	var methodFlag string
+	var (
+		methodFlag string
+		gateOpts   gateOptions
+	)
 
 	cmd := &cobra.Command{
 		Use:   "merge [number]",
@@ -321,6 +330,10 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 					mergeArgs = append(mergeArgs, "--rebase")
 				default:
 					mergeArgs = append(mergeArgs, "--merge")
+				}
+				gateOpts.overrideSet = cmd.Flags().Changed("override")
+				if err := enforceMergeGate(out, dir, fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), prRef, gateOpts); err != nil {
+					return err
 				}
 				if _, err := runGH(dir, mergeArgs...); err != nil {
 					return fmt.Errorf("failed to merge pull request %s on GitHub: %w", prRef, err)
@@ -368,6 +381,7 @@ func newPRMergeCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&methodFlag, "method", "merge", "Merge method (merge, squash, rebase, rebase-merge)")
+	addGateFlags(cmd, &gateOpts, false)
 
 	return cmd
 }
@@ -492,6 +506,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 		bodyFlag   string
 		baseFlag   string
 		methodFlag string
+		gateOpts   = gateOptions{wait: true}
 	)
 
 	cmd := &cobra.Command{
@@ -613,6 +628,10 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 				default:
 					mergeArgs = append(mergeArgs, "--merge")
 				}
+				gateOpts.overrideSet = cmd.Flags().Changed("override")
+				if err := enforceMergeGate(out, dir, fmt.Sprintf("%s/%s", ctx.owner, ctx.repo), fmt.Sprintf("%d", prIndex), gateOpts); err != nil {
+					return err
+				}
 				if _, err := runGH(dir, mergeArgs...); err != nil {
 					return fmt.Errorf("failed to merge pull request #%d on GitHub: %w", prIndex, err)
 				}
@@ -661,6 +680,7 @@ func newPRDeliverCmd(dirFlag, urlFlag, tokenFlag *string) *cobra.Command {
 	cmd.Flags().StringVar(&bodyFlag, "body", "", "Pull request body/description")
 	cmd.Flags().StringVar(&baseFlag, "base", "main", "Base branch to deliver into")
 	cmd.Flags().StringVar(&methodFlag, "method", "merge", "Merge method (merge, squash, rebase, rebase-merge)")
+	addGateFlags(cmd, &gateOpts, true)
 
 	return cmd
 }

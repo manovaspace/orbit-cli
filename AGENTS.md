@@ -20,7 +20,7 @@ Orbit CLI follows a dual-binary architecture:
 - **Workspace Migrations**: `orbit migrate` (applies pending) and `orbit migrate status`.
 - **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
 - **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
-- **Pull Request & Delivery Lifecycle**: `orbit pr create`, `orbit pr merge`, `orbit pr status`, `orbit pr deliver` — automated branch pushing, Forgejo PR creation, PR status listing, merging, and full end-to-end branch delivery with fast-forward trunk re-sync per ADR-026.
+- **Pull Request & Delivery Lifecycle**: `orbit pr create`, `orbit pr merge`, `orbit pr status`, `orbit pr deliver` — automated branch pushing, Forgejo PR creation, PR status listing, merging, and full end-to-end branch delivery with fast-forward trunk re-sync per ADR-026. GitHub merges refuse unless checks pass; `--override "reason"` records an override comment, `--allow-no-checks` permits merging with no reported checks, and deliver (plus `create --merge`) waits for pending checks up to `--wait-timeout`.
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
 
 ## Non-negotiables
