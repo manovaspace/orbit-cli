@@ -1,0 +1,10 @@
+Manage local Caddy reverse proxy
+
+Usage:
+  orbit dev caddy [reload|restart|logs] [flags]
+
+Flags:
+  -h, --help   help for caddy
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

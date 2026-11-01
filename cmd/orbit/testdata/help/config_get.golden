@@ -1,0 +1,11 @@
+Retrieve a specific configuration setting by key (e.g. 'server.url', 'defaults.scope').
+
+Usage:
+  orbit config get <key> [flags]
+
+Flags:
+  -h, --help   help for get
+      --raw    Print raw value without trailing newline or formatting
+
+Global Flags:
+      --config string   Custom path to configuration file

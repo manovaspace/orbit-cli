@@ -1,0 +1,22 @@
+Pushes the head branch to origin, creates a pull request on Forgejo or GitHub, and optionally merges it.
+
+Usage:
+  orbit pr create [flags]
+
+Flags:
+      --allow-no-checks         Allow merging when the pull request reports no checks
+      --base string             Base branch to merge into (default "main")
+      --body string             Pull request body/description
+      --head string             Head branch (defaults to current branch)
+  -h, --help                    help for create
+      --merge                   Merge pull request immediately after creation
+      --method string           Merge method (merge, squash, rebase, rebase-merge) (default "merge")
+      --override string         Merge despite failing checks and record the reason as a PR comment
+      --title string            Pull request title (defaults to latest commit message)
+      --wait-timeout duration   Maximum time to wait for pending checks (default 20m0s)
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+      --dir string      Path to repository directory (default: current directory) (default ".")
+      --token string    Forgejo API access token
+      --url string      Custom Forgejo/Gitea base URL

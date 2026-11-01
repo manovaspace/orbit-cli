@@ -1,0 +1,17 @@
+Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.
+
+Usage:
+  orbit uninstall [flags]
+
+Aliases:
+  uninstall, remove, purge
+
+Flags:
+      --force             Alias for --yes
+  -h, --help              help for uninstall
+      --purge-state       Purge cache, session, and owner vault (~/.orbit, ~/.config/orbit)
+      --purge-workspace   Purge workspace repositories (blocked if uncommitted changes exist)
+  -y, --yes               Uninstall without confirmation prompt
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

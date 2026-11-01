@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
@@ -179,6 +180,12 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(exitCodeFor(err))
 	}
+}
+
+// exitCodeFor maps a command error to the process exit code. Errors that do not
+// carry a clierr code still exit 1, so existing commands keep their behaviour.
+func exitCodeFor(err error) int {
+	return clierr.ExitCode(err)
 }

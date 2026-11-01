@@ -1,0 +1,16 @@
+Move private repositories between the GitHub-hosted runner and the standby vps runner, and push each repository's secrets without writing them to argv.
+
+Usage:
+  orbit ci [command]
+
+Available Commands:
+  runner      Start or stop the standby runner and set CI_RUNNER on private repos
+  secrets     Push repository secrets declared in workspace.yaml
+
+Flags:
+  -h, --help   help for ci
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit ci [command] --help" for more information about a command.

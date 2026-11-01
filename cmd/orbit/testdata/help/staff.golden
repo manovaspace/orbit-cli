@@ -1,0 +1,25 @@
+Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
+
+Usage:
+  orbit staff [command]
+
+Available Commands:
+  create         Create a staff member (LLDAP + retained mailbox)
+  delete         Delete a staff member
+  disable        Disable a staff member
+  enable         Enable a staff member
+  get            Get a staff member
+  list           List staff members
+  recreate       Deprecated: use the safe Keycloak identity reset procedure
+  reset-password Rotate the LLDAP password used for staff SSO and mailbox sign-in
+  update         Update display name, profile names, forward, or groups
+
+Flags:
+  -h, --help                 help for staff
+      --owner-store string   path to owner.json vault
+      --server string        staff server URL (or ORBIT_STAFF_URL)
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit staff [command] --help" for more information about a command.

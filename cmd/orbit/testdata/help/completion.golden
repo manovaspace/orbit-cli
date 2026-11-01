@@ -1,0 +1,15 @@
+Generate zsh autocompletion
+
+Usage:
+  orbit completion [command]
+
+Available Commands:
+  zsh         Generate the autocompletion script for zsh
+
+Flags:
+  -h, --help   help for completion
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit completion [command] --help" for more information about a command.

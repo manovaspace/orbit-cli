@@ -1,0 +1,10 @@
+Generate the autocompletion script for zsh
+
+Usage:
+  orbit completion zsh [flags]
+
+Flags:
+  -h, --help   help for zsh
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

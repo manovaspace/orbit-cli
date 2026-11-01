@@ -1,0 +1,10 @@
+Hash, upload, and gitignore a file; update orbit-assets.yaml
+
+Usage:
+  orbit assets add <path> [flags]
+
+Flags:
+  -h, --help   help for add
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

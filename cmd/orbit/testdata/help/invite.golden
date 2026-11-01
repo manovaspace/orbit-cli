@@ -1,0 +1,19 @@
+Create, list, and revoke cryptographically signed developer onboarding invitations.
+Invitations are HMAC-SHA256 signed single-use or scoped tokens with built-in expiration
+and claims for automated developer onboarding.
+
+Usage:
+  orbit invite [command]
+
+Available Commands:
+  create      Generate a cryptographically signed onboarding invitation token
+  list        List active and stored developer onboarding invitations
+  revoke      Revoke active developer onboarding invitations
+
+Flags:
+  -h, --help   help for invite
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit invite [command] --help" for more information about a command.

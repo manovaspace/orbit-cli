@@ -1,0 +1,12 @@
+Disable a staff member
+
+Usage:
+  orbit staff disable <uid> [flags]
+
+Flags:
+  -h, --help   help for disable
+
+Global Flags:
+      --config string        Custom path to Orbit CLI configuration file
+      --owner-store string   path to owner.json vault
+      --server string        staff server URL (or ORBIT_STAFF_URL)

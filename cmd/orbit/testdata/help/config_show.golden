@@ -1,0 +1,11 @@
+Displays configuration values loaded from ~/.config/orbit/config.yaml, with sensitive credentials masked.
+
+Usage:
+  orbit config show [flags]
+
+Flags:
+  -f, --format string   Output format: yaml or json (default "yaml")
+  -h, --help            help for show
+
+Global Flags:
+      --config string   Custom path to configuration file

@@ -39,6 +39,8 @@ Orbit CLI follows a dual-binary architecture:
 - **`orbit status` distinguishes states:** "not cloned" (absent dir) vs "gitless" (dir exists, no `.git`) vs "dirty" (uncommitted changes). These require different remediation.
 - **`--resume` vs `--reset` in `orbit onboard`:** `--resume` continues from checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it entirely.
 - **Mail templates are owned by `orbit-notifications`:** `pkg/mailtemplates` is the canonical source. Never duplicate or inline mail templates in orbit-cli.
+- **Exit codes and output:** commands exit `0` ok, `1` failed, `2` could not check, `3` usage, `4` auth, `5` network, `6` external tool. New commands return `pkg/clierr` errors and write machine-readable results through `pkg/output`; external commands go through `pkg/runner` (tests use `pkg/runner/runnertest.Fake`). `cmd/orbit/main.go` maps every error to its exit code, and plain errors still exit `1`.
+- **Help goldens:** `cmd/orbit/testdata/help/` captures every command's `--help`. Run `go test ./cmd/orbit -run TestHelpGolden -update` after intentionally changing flags or help text. The test pins `HOME`, `COLUMNS` and `NO_COLOR` so goldens never depend on the machine.
 
 ## Commands
 

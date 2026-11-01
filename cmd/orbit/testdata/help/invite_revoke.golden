@@ -1,0 +1,12 @@
+Marks an invitation token or all active invitations as revoked, preventing further claim attempts.
+
+Usage:
+  orbit invite revoke [token_or_id] [flags]
+
+Flags:
+  -a, --all                 Revoke all active developer onboarding invitations
+  -h, --help                help for revoke
+      --store-file string   Custom path to invites storage file
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

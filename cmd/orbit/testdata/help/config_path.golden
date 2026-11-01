@@ -1,0 +1,10 @@
+Outputs the active filesystem path to the Orbit CLI configuration file.
+
+Usage:
+  orbit config path [flags]
+
+Flags:
+  -h, --help   help for path
+
+Global Flags:
+      --config string   Custom path to configuration file

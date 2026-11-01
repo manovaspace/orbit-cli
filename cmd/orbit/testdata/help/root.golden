@@ -1,0 +1,37 @@
+Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')
+
+Usage:
+  orbit [flags]
+  orbit [command]
+
+Available Commands:
+  admin       Manage platform ownership verification and root cryptographic secrets
+  assets      Sync gitignored media with private Cloudflare R2
+  ci          Switch the CI runner and sync GitHub Actions secrets
+  completion  Generate zsh autocompletion
+  config      Manage Orbit CLI configuration
+  dev         Control and orchestrate local development stacks and containers
+  doc         Generate documentation and man pages for Orbit CLI
+  doctor      Run pre-flight system diagnostics and environment health checks
+  env         Manage and validate workspace environment variables and .env files
+  help        Help about any command
+  init        Clone and initialize workspace repositories
+  invite      Manage developer onboarding invite tokens
+  migrate     Run and inspect workspace state migrations
+  onboard     Interactive onboarding wizard with resume, claims, and stack provisioning
+  port        Manage and inspect the hybrid 50-port allocation model
+  pr          Manage pull requests and automated delivery via Forgejo and GitHub
+  repair      Attach .git to gitless workspace trees without overwriting files
+  self-update Update the Orbit CLI binary to the latest release
+  staff       Manage Orbit staff via the staff control plane
+  status      Show git status and working tree cleanliness across workspace repositories
+  sync        Fetch and fast-forward clean default branches across workspace repositories
+  uninstall   Uninstall Orbit CLI binaries and cleanup shell configuration
+  update      Unified workspace update (CLI, git branches, migrations, and env validation)
+  version     Print the CLI version and build metadata
+
+Flags:
+      --config string   Custom path to Orbit CLI configuration file
+  -h, --help            help for orbit
+
+Use "orbit [command] --help" for more information about a command.
