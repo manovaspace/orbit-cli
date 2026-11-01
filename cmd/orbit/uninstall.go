@@ -3,21 +3,40 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 
 	"github.com/manovaspace/orbit-cli/pkg/istty"
-	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
+	uninstallapp "github.com/manovaspace/orbit-cli/pkg/uninstall/application"
+	uninstallosfs "github.com/manovaspace/orbit-cli/pkg/uninstall/infrastructure/osfs"
+	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 	"github.com/spf13/cobra"
 )
+
+// uninstallFS is the seam through which uninstall removes files.
+var uninstallFS uninstallapp.FS = uninstallosfs.New(runner.Exec{})
+
+func uninstallUI() uninstallapp.UI {
+	return uninstallapp.UI{
+		OK:    iconOK,
+		Warn:  iconWarn,
+		Error: iconError,
+		Info:  iconInfo,
+
+		Title:     func(text string) string { return titleStyle.Render(text) },
+		Success:   func(text string) string { return successStyle.Render(text) },
+		Warning:   func(text string) string { return warningStyle.Render(text) },
+		ErrorText: func(text string) string { return errorStyle.Render(text) },
+		Subtle:    func(text string) string { return subtleStyle.Render(text) },
+	}
+}
 
 func newUninstallCmd() *cobra.Command {
 	var (
 		force          bool
 		purgeState     bool
 		purgeWorkspace bool
+		jsonFlag       bool
 	)
 
 	cmd := &cobra.Command{
@@ -27,111 +46,47 @@ func newUninstallCmd() *cobra.Command {
 		Long:    "Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 
 			// Check for workspace context and uncommitted changes
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, "")
 			var dirtyRepos []string
-			if _, err := os.Stat(manifestPath); err == nil {
-				if m, err := manifest.Load(manifestPath); err == nil {
-					if targets, err := m.ResolveRepos("all"); err == nil && len(targets) > 0 {
-						statuses := orchestrator.GetWorkspaceStatus(workspaceRoot, targets)
-						for _, st := range statuses {
-							if !st.IsClean && st.Error == "" {
-								dirtyRepos = append(dirtyRepos, fmt.Sprintf("%s (%d uncommitted changes)", st.Name, st.ModifiedCount))
-							}
-						}
+			statuses, statusErr := newWorkspaceService(io.Discard).Status(cmd.Context(), workspaceapp.StatusInput{
+				WorkspaceRoot: workspaceRoot,
+				ManifestPath:  manifestPath,
+				Scope:         "all",
+			})
+			if statusErr == nil {
+				for _, st := range statuses.Repos {
+					if !st.IsClean && st.Error == "" {
+						dirtyRepos = append(dirtyRepos, fmt.Sprintf("%s (%d uncommitted changes)", st.Name, st.ModifiedCount))
 					}
 				}
 			}
 
-			if len(dirtyRepos) > 0 {
-				fmt.Fprintf(out, "\n  %s  %s\n", iconWarn, warningStyle.Render("Workspace Uncommitted Changes Detected:"))
-				for _, dr := range dirtyRepos {
-					fmt.Fprintf(out, "     • %s\n", dr)
+			svc := &uninstallapp.Service{FS: uninstallFS, Out: uiOut, UI: uninstallUI()}
+			res, err := svc.Uninstall(cmd.Context(), uninstallapp.Input{
+				Force:          force,
+				PurgeState:     purgeState,
+				PurgeWorkspace: purgeWorkspace,
+				Interactive:    !jsonFlag && istty.IsInteractiveSession(),
+				DirtyRepos:     dirtyRepos,
+				Confirm: func(question string, defaultYes bool) bool {
+					return promptYesNo(cmd.InOrStdin(), uiOut, question, defaultYes)
+				},
+			})
+			if err != nil {
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
 				}
-				if !purgeWorkspace {
-					fmt.Fprintln(out, subtleStyle.Render("     (Note: Your source code repositories will remain intact on disk)"))
-				}
-				fmt.Fprintln(out)
+				return err
 			}
-
-			if purgeWorkspace && len(dirtyRepos) > 0 && !force {
-				return fmt.Errorf("cannot purge workspace: %d repositories have uncommitted changes. Commit or stash them first, or pass --force", len(dirtyRepos))
-			}
-
-			if !force && istty.IsInteractiveSession() {
-				fmt.Fprintln(out, titleStyle.Render("Orbit CLI Uninstaller"))
-				if !promptYesNo(os.Stdin, out, "Are you sure you want to uninstall Orbit CLI from this system?", false) {
-					fmt.Fprintln(out, subtleStyle.Render("Uninstallation aborted."))
-					return nil
-				}
-			}
-
-			fmt.Fprintln(out, titleStyle.Render("Uninstalling Orbit CLI..."))
-
-			home, _ := os.UserHomeDir()
-			candidates := []string{
-				"/usr/local/bin/orbit",
-				"/usr/local/bin/o",
-				filepath.Join(home, ".local", "bin", "orbit"),
-				filepath.Join(home, ".local", "bin", "o"),
-			}
-
-			if execPath, err := os.Executable(); err == nil {
-				candidates = append(candidates, execPath)
-			}
-
-			seen := make(map[string]bool)
-			removedCount := 0
-			for _, path := range candidates {
-				if path == "" || seen[path] {
-					continue
-				}
-				seen[path] = true
-				if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
-					if err := removeFileElevated(path); err == nil {
-						fmt.Fprintf(out, "  %s  Removed binary: %s\n", iconOK, subtleStyle.Render(path))
-						removedCount++
-					} else {
-						fmt.Fprintf(out, "  %s  Failed to remove binary %s: %v\n", iconError, path, err)
-					}
-				}
-			}
-
-			// Clean shell completions
-			completionCandidates := []string{
-				filepath.Join(home, ".local", "share", "zsh", "site-functions", "_orbit"),
-				filepath.Join(home, ".local", "share", "zsh", "site-functions", "_o"),
-			}
-			for _, cp := range completionCandidates {
-				if _, err := os.Stat(cp); err == nil {
-					_ = removeFileElevated(cp)
-					fmt.Fprintf(out, "  %s  Removed shell completion: %s\n", iconOK, subtleStyle.Render(cp))
-				}
-			}
-
-			// Clean installed man pages
-			cleanManPagesWithHome(home, out)
-
-			// Purge state directories if requested
-			if purgeState {
-				stateDirs := []string{
-					filepath.Join(home, ".orbit"),
-					filepath.Join(home, ".config", "orbit"),
-				}
-				for _, sd := range stateDirs {
-					if _, err := os.Stat(sd); err == nil {
-						_ = os.RemoveAll(sd)
-						fmt.Fprintf(out, "  %s  Purged workspace state cache: %s\n", iconOK, subtleStyle.Render(sd))
-					}
-				}
-			}
-
-			if removedCount == 0 {
-				fmt.Fprintln(out, subtleStyle.Render("No active Orbit binaries found in standard locations."))
-			} else {
-				fmt.Fprintf(out, "\n  %s  %s\n\n", iconOK, successStyle.Render("Orbit CLI uninstalled successfully."))
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
 			return nil
 		},
@@ -141,39 +96,7 @@ func newUninstallCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "Alias for --yes")
 	cmd.Flags().BoolVar(&purgeState, "purge-state", false, "Purge cache, session, and owner vault (~/.orbit, ~/.config/orbit)")
 	cmd.Flags().BoolVar(&purgeWorkspace, "purge-workspace", false, "Purge workspace repositories (blocked if uncommitted changes exist)")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
-}
-
-func removeFileElevated(target string) error {
-	if err := os.Remove(target); err == nil {
-		return nil
-	}
-	if os.Geteuid() != 0 {
-		cmd := exec.Command("sudo", "rm", "-f", target)
-		return cmd.Run()
-	}
-	return os.Remove(target)
-}
-
-func cleanManPagesWithHome(home string, out io.Writer) int {
-	removedCount := 0
-	manDirs := []string{
-		filepath.Join(home, ".local", "share", "man", "man1"),
-	}
-	for _, md := range manDirs {
-		matches, err := filepath.Glob(filepath.Join(md, "orbit*.1"))
-		if err == nil {
-			for _, mf := range matches {
-				if err := removeFileElevated(mf); err == nil {
-					fmt.Fprintf(out, "  %s  Removed man page: %s\n", iconOK, subtleStyle.Render(mf))
-					removedCount++
-				}
-			}
-		}
-	}
-	if _, err := exec.LookPath("mandb"); err == nil {
-		_ = exec.Command("mandb", "-q").Run()
-	}
-	return removedCount
 }

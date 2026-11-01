@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/manovaspace/orbit-cli/pkg/updater/domain"
 )
 
 func TestNotifyIfUpdateAvailable(t *testing.T) {
@@ -16,21 +18,18 @@ func TestNotifyIfUpdateAvailable(t *testing.T) {
 	t.Setenv("ORBIT_NO_UPDATE_NOTIFIER", "")
 	cachePath := filepath.Join(tempDir, "update-check.json")
 
-	// 1. Create a cached result with an available update
-	cached := UpdateCheckResult{
+	cached := domain.UpdateCheckResult{
 		CurrentVersion: "v0.1.0",
 		LatestVersion:  "v0.2.0",
 		HasUpdate:      true,
 		CheckedAt:      time.Now(),
 	}
 	data, _ := json.Marshal(cached)
-	_ = os.WriteFile(cachePath, data, 0644)
+	_ = os.WriteFile(cachePath, data, 0o644)
 
-	// Set home dir or cache path for test
 	t.Setenv("HOME", tempDir)
-	// Create .orbit dir
-	_ = os.MkdirAll(filepath.Join(tempDir, ".orbit"), 0755)
-	_ = os.WriteFile(filepath.Join(tempDir, ".orbit", "update-check.json"), data, 0644)
+	_ = os.MkdirAll(filepath.Join(tempDir, ".orbit"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, ".orbit", "update-check.json"), data, 0o644)
 
 	buf := new(bytes.Buffer)
 	NotifyIfUpdateAvailable(buf, "v0.1.0")
@@ -43,7 +42,6 @@ func TestNotifyIfUpdateAvailable(t *testing.T) {
 		t.Errorf("expected versions in notification, got: %s", output)
 	}
 
-	// 2. Test suppression via CI=true
 	t.Setenv("CI", "true")
 	buf.Reset()
 	NotifyIfUpdateAvailable(buf, "v0.1.0")
@@ -52,7 +50,6 @@ func TestNotifyIfUpdateAvailable(t *testing.T) {
 	}
 	_ = os.Unsetenv("CI")
 
-	// 3. Test suppression via ORBIT_NO_UPDATE_NOTIFIER=1
 	t.Setenv("ORBIT_NO_UPDATE_NOTIFIER", "1")
 	buf.Reset()
 	NotifyIfUpdateAvailable(buf, "v0.1.0")

@@ -1,18 +1,37 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"os"
-	"strings"
 
-	"github.com/manovaspace/orbit-cli/pkg/updater"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	updaterapp "github.com/manovaspace/orbit-cli/pkg/updater/application"
 	"github.com/spf13/cobra"
 )
+
+func updaterUI() updaterapp.UI {
+	return updaterapp.UI{
+		OK:    iconOK,
+		Info:  iconInfo,
+		Error: iconError,
+		Warn:  iconWarn,
+		Arrow: iconArrow,
+
+		Title:   func(text string) string { return titleStyle.Render(text) },
+		Header:  func(text string) string { return headerStyle.Render(text) },
+		Bold:    func(text string) string { return boldStyle.Render(text) },
+		Success: func(text string) string { return successStyle.Render(text) },
+		Warning: func(text string) string { return warningStyle.Render(text) },
+		Subtle:  func(text string) string { return subtleStyle.Render(text) },
+		Code:    func(text string) string { return codeStyle.Render(text) },
+	}
+}
 
 func newSelfUpdateCmd() *cobra.Command {
 	var (
 		checkOnly bool
 		yesFlag   bool
+		jsonFlag  bool
 	)
 
 	cmd := &cobra.Command{
@@ -23,24 +42,9 @@ func newSelfUpdateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			in := cmd.InOrStdin()
-			curVer := "v" + strings.TrimPrefix(version, "v")
-			fmt.Fprintln(out, titleStyle.Render("Orbit CLI Self-Update"))
-
-			apiURL := os.Getenv("ORBIT_RELEASE_API_URL")
-			res, err := updater.CheckUpdate(version, apiURL, "")
-			if err != nil {
-				return fmt.Errorf("failed to check for updates: %w", err)
-			}
-
-			latestVer := "v" + strings.TrimPrefix(res.LatestVersion, "v")
-
-			if !res.HasUpdate {
-				fmt.Fprintf(out, "  %s  %s (Current: %s)\n",
-					iconOK,
-					successStyle.Render("Orbit CLI is already up to date!"),
-					codeStyle.Render(curVer),
-				)
-				return nil
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
 			}
 
 			execPath, _ := os.Executable()
@@ -48,53 +52,33 @@ func newSelfUpdateCmd() *cobra.Command {
 				execPath = "/usr/local/bin/orbit"
 			}
 
-			fmt.Fprintf(out, "  %s  %s %s %s\n",
-				iconInfo,
-				codeStyle.Render(curVer),
-				iconArrow,
-				successStyle.Render(latestVer),
-			)
-
-			// Display top 5 release highlights if present
-			if res.Release != nil && res.Release.ReleaseNotes != "" {
-				highlights := updater.ExtractReleaseHighlights(res.Release.ReleaseNotes, 5)
-				if len(highlights) > 0 {
-					fmt.Fprintf(out, "\n  %s\n", boldStyle.Render("Highlights in "+latestVer+":"))
-					for _, h := range highlights {
-						fmt.Fprintf(out, "    %s %s\n", subtleStyle.Render("•"), h)
-					}
+			svc := &updaterapp.Service{Updater: releaseUpdater, Out: uiOut, UI: updaterUI()}
+			res, err := svc.SelfUpdate(cmd.Context(), updaterapp.SelfUpdateInput{
+				CurrentVersion: version,
+				APIURL:         os.Getenv("ORBIT_RELEASE_API_URL"),
+				CheckOnly:      checkOnly,
+				Yes:            yesFlag,
+				ExecutablePath: execPath,
+				Confirm: func(question string, defaultYes bool) bool {
+					return promptConfirm(in, uiOut, question, defaultYes)
+				},
+			})
+			if err != nil {
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
 				}
+				return err
 			}
-			fmt.Fprintln(out)
-
-			if checkOnly {
-				fmt.Fprintf(out, "  Run '%s' to install.\n", boldStyle.Render("orbit self-update"))
-				return nil
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
-
-			if !yesFlag {
-				if !promptConfirm(in, out, fmt.Sprintf("Update Orbit to %s?", latestVer), true) {
-					fmt.Fprintf(out, "\n  %s  Update cancelled.\n", iconInfo)
-					return nil
-				}
-			}
-
-			fmt.Fprintf(out, "\n%s\n", headerStyle.Render("Downloading and installing update..."))
-
-			if err := updater.SelfUpdate(version, "", nil); err != nil {
-				if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-					return fmt.Errorf("insufficient permissions to replace %s. Try running with sudo: sudo orbit self-update", execPath)
-				}
-				return fmt.Errorf("self-update failed: %w", err)
-			}
-
-			fmt.Fprintf(out, "  %s  %s\n", iconOK, successStyle.Render(fmt.Sprintf("Successfully updated Orbit to %s!", latestVer)))
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check for updates without downloading or installing")
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Automatically accept update confirmation prompt")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
 }

@@ -6,6 +6,7 @@ Usage:
 Flags:
       --concurrency int   Number of concurrent sync workers (default 4)
   -h, --help              help for sync
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
 
 Global Flags:

@@ -38,6 +38,8 @@ linters:
               desc: "pkg/pr/domain must not depend on the adapters"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/application"
               desc: "pkg/pr/domain must not depend on the application layer"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/pr/domain is pure and must not style output"
         # The application layer reaches the outside world only through its
         # Forge and Git ports.
         pr-application:
@@ -48,3 +50,76 @@ linters:
               desc: "pkg/pr/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/infrastructure"
               desc: "pkg/pr/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/pr/application writes through its injected UI"
+        # The workspace domain is pure types and rules.
+        workspace-domain:
+          files:
+            - "**/pkg/workspace/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/workspace/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/workspace/application"
+              desc: "pkg/workspace/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/workspace/infrastructure"
+              desc: "pkg/workspace/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/workspace/domain is pure and must not style output"
+        # The workspace application reaches git and the filesystem only through
+        # its ports.
+        workspace-application:
+          files:
+            - "**/pkg/workspace/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/workspace/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/workspace/infrastructure"
+              desc: "pkg/workspace/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/workspace/application writes through its injected UI"
+        # The updater domain is pure types and version rules.
+        updater-domain:
+          files:
+            - "**/pkg/updater/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/updater/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/updater/application"
+              desc: "pkg/updater/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/updater/infrastructure"
+              desc: "pkg/updater/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/updater/domain is pure and must not style output"
+        updater-application:
+          files:
+            - "**/pkg/updater/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/updater/application reaches the network and binary through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/updater/infrastructure"
+              desc: "pkg/updater/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/updater/application writes through its injected UI"
+        # The uninstall domain is pure result types.
+        uninstall-domain:
+          files:
+            - "**/pkg/uninstall/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/uninstall/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/uninstall/application"
+              desc: "pkg/uninstall/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/uninstall/infrastructure"
+              desc: "pkg/uninstall/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/uninstall/domain is pure and must not style output"
+        uninstall-application:
+          files:
+            - "**/pkg/uninstall/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/uninstall/application reaches the filesystem through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/uninstall/infrastructure"
+              desc: "pkg/uninstall/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/uninstall/application writes through its injected UI"

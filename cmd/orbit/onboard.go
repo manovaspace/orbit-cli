@@ -29,10 +29,11 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
+	"github.com/manovaspace/orbit-cli/pkg/workspace"
+	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
@@ -570,7 +571,7 @@ Actions that will be executed during onboarding:
 					if !opts.json {
 						fmt.Fprintf(out, "  Cloning %d repositories from manifest...\n", len(targets))
 					}
-					results := orchestrator.CloneTargets(workspaceRoot, targets, 4, func(res orchestrator.CloneResult) {
+					results := workspace.CloneTargets(workspaceRoot, targets, 4, func(res workspacedomain.CloneResult) {
 						if !opts.json {
 							if res.Success {
 								if res.AlreadyExists {

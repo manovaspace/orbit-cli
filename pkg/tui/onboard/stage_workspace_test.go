@@ -6,9 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
+	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 )
 
 func sampleManifest() *manifest.WorkspaceManifest {
@@ -246,7 +246,7 @@ func TestWorkspaceModelParallelCloningSuccess(t *testing.T) {
 	wsModel.SetItems(items)
 
 	runnerCalled := false
-	wsModel.SetClonerRunner(func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(orchestrator.CloneResult)) []orchestrator.CloneResult {
+	wsModel.SetClonerRunner(func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(workspacedomain.CloneResult)) []workspacedomain.CloneResult {
 		runnerCalled = true
 		if len(targets) != 3 {
 			t.Errorf("expected 3 targets to clone, got %d", len(targets))
@@ -255,9 +255,9 @@ func TestWorkspaceModelParallelCloningSuccess(t *testing.T) {
 			t.Errorf("expected workspace root %q, got %q", tmpDir, workspaceRoot)
 		}
 
-		var results []orchestrator.CloneResult
+		var results []workspacedomain.CloneResult
 		for _, target := range targets {
-			res := orchestrator.CloneResult{
+			res := workspacedomain.CloneResult{
 				Name:    target.Name,
 				Path:    target.Path,
 				Success: true,
@@ -337,11 +337,11 @@ func TestWorkspaceModelCloningFailureAndRetry(t *testing.T) {
 	wsModel.SetItems(items)
 
 	attempt := 0
-	wsModel.SetClonerRunner(func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(orchestrator.CloneResult)) []orchestrator.CloneResult {
+	wsModel.SetClonerRunner(func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(workspacedomain.CloneResult)) []workspacedomain.CloneResult {
 		attempt++
-		var results []orchestrator.CloneResult
+		var results []workspacedomain.CloneResult
 		for _, target := range targets {
-			res := orchestrator.CloneResult{
+			res := workspacedomain.CloneResult{
 				Name: target.Name,
 				Path: target.Path,
 			}

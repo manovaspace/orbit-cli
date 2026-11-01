@@ -1,9 +1,23 @@
-package orchestrator
+// Package domain holds the workspace types and rules that need no I/O.
+package domain
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // Stable InspectRepo / status Error values. The CLI must not collapse these.
 const (
 	ErrMissing = "missing"
 	ErrGitless = "not a git repository"
+)
+
+// Reasons a repository is skipped instead of updated.
+const (
+	SkipUncommitted    = "working tree has uncommitted changes"
+	SkipNotFastForward = "branch cannot be fast-forwarded"
+	NotCloned          = "repository not cloned"
 )
 
 // RepoStatus represents the git status of a repository in the workspace.
@@ -45,4 +59,47 @@ type RepairResult struct {
 	Success bool   `json:"success" yaml:"success"`
 	Skipped string `json:"skipped,omitempty" yaml:"skipped,omitempty"`
 	Error   string `json:"error,omitempty" yaml:"error,omitempty"`
+}
+
+// ModifiedCount counts the non-empty lines of `git status --porcelain` output.
+func ModifiedCount(porcelain string) int {
+	trimmed := strings.TrimSpace(porcelain)
+	if trimmed == "" {
+		return 0
+	}
+	count := 0
+	for _, line := range strings.Split(trimmed, "\n") {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+	return count
+}
+
+// ParseAheadBehind reads the two counts of `git rev-list --left-right --count`.
+// Malformed output yields zeros, matching the old "no upstream means no
+// counts" behaviour.
+func ParseAheadBehind(output string) (ahead, behind int) {
+	fields := strings.Fields(strings.TrimSpace(output))
+	if len(fields) < 2 {
+		return 0, 0
+	}
+	if a, err := strconv.Atoi(fields[0]); err == nil {
+		ahead = a
+	}
+	if b, err := strconv.Atoi(fields[1]); err == nil {
+		behind = b
+	}
+	return ahead, behind
+}
+
+// IsFastForward reports whether `git merge --ff-only` actually moved HEAD.
+func IsFastForward(mergeOutput string) bool {
+	return strings.Contains(mergeOutput, "Fast-forward") || strings.Contains(mergeOutput, "Updating")
+}
+
+// NotDefaultBranch is the skip reason used when the checkout is not on the
+// default branch.
+func NotDefaultBranch(current, defaultBranch string) string {
+	return fmt.Sprintf("current branch '%s' is not default branch '%s'", current, defaultBranch)
 }

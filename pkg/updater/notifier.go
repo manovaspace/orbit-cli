@@ -1,12 +1,15 @@
 package updater
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/manovaspace/orbit-cli/pkg/updater/domain"
+	"github.com/manovaspace/orbit-cli/pkg/updater/infrastructure/releases"
 )
 
 var (
@@ -45,7 +48,7 @@ func NotifyIfUpdateAvailable(out io.Writer, currentVersion string) {
 		return
 	}
 
-	result, err := CheckUpdateCached(currentVersion, "", DefaultTTL, "", "")
+	result, err := releases.New().CheckCached(context.Background(), currentVersion, "", domain.DefaultTTL, "", "")
 	if err != nil || result == nil || !result.HasUpdate {
 		return
 	}
