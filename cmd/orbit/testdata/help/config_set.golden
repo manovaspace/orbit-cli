@@ -1,0 +1,10 @@
+Update a specific configuration setting by key and persist it using comment-preserving AST yaml.
+
+Usage:
+  orbit config set <key> <value> [flags]
+
+Flags:
+  -h, --help   help for set
+
+Global Flags:
+      --config string   Custom path to configuration file

@@ -1,0 +1,21 @@
+Commands to verify server and platform administrative ownership, manage
+cryptographic root signing secrets, and check ownership vault status.
+
+Usage:
+  orbit admin [command]
+
+Available Commands:
+  grant         Generate an 8-digit single-use authorization code for a new admin
+  init          Initialize and verify platform server ownership via email OTP challenge
+  rotate-secret Rotate root master signing secret in the sealed owner vault
+  status        Display platform ownership verification status, vault integrity, and mail config
+  totp          Manage two-factor authentication and user TOTP recovery
+  verify        Seal owner.json locally (hermetic OTP; no API call)
+
+Flags:
+  -h, --help   help for admin
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit admin [command] --help" for more information about a command.

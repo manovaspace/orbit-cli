@@ -1,0 +1,11 @@
+Scans for .env.schema.yaml contracts and generates .env files populated with default values and strict 0600 permissions.
+
+Usage:
+  orbit env setup [path] [flags]
+
+Flags:
+      --force   Overwrite existing .env files with schema defaults
+  -h, --help    help for setup
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

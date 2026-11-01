@@ -141,6 +141,7 @@ Agents must run the narrowest sufficient recipe matching the modified subsystem 
    - `ORBIT_WORKSPACE`: points to temporary workspace root.
    - `ORBIT_API_URL`: points to local mock server.
 3. **No Environmental Residue:** Tests must clean up all temporary sockets, files, and background mock servers upon completion or failure traps (`trap cleanup EXIT`).
+4. **Hermetic Git Config:** Tests that create git repositories must not inherit the developer's git configuration. The `cmd/orbit` `TestMain` exports `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=core.hooksPath` and `GIT_CONFIG_VALUE_0=/dev/null`, so the workspace `pre-commit` hook cannot refuse test commits on `main`. Any new `TestMain` for a package that shells out to git must set the same three variables before `m.Run()`.
 
 ---
 

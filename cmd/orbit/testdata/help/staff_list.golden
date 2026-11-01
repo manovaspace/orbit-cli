@@ -1,0 +1,14 @@
+List staff members
+
+Usage:
+  orbit staff list [flags]
+
+Flags:
+  -h, --help        help for list
+      --limit int   maximum rows per page (0 = all)
+      --page int    page number to display (default 1)
+
+Global Flags:
+      --config string        Custom path to Orbit CLI configuration file
+      --owner-store string   path to owner.json vault
+      --server string        staff server URL (or ORBIT_STAFF_URL)

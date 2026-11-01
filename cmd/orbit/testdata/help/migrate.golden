@@ -1,0 +1,16 @@
+Executes pending workspace migrations and tracks applied state in .orbit/migrations.json.
+
+Usage:
+  orbit migrate [flags]
+  orbit migrate [command]
+
+Available Commands:
+  status      Show status of all registered workspace migrations
+
+Flags:
+  -h, --help   help for migrate
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit migrate [command] --help" for more information about a command.

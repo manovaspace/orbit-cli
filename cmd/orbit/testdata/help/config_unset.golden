@@ -1,0 +1,10 @@
+Remove a custom key or reset a core domain property to default in the configuration file.
+
+Usage:
+  orbit config unset <key> [flags]
+
+Flags:
+  -h, --help   help for unset
+
+Global Flags:
+      --config string   Custom path to configuration file

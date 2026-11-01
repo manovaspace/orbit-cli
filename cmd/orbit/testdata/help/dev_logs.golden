@@ -1,0 +1,10 @@
+Stream logs from local dev stack containers
+
+Usage:
+  orbit dev logs [service] [flags]
+
+Flags:
+  -h, --help   help for logs
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

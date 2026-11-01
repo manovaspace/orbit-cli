@@ -1,0 +1,10 @@
+Print the CLI version and build metadata
+
+Usage:
+  orbit version [flags]
+
+Flags:
+  -h, --help   help for version
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

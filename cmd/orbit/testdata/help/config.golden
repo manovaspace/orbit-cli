@@ -1,0 +1,20 @@
+View, update, and manage persistent Orbit CLI configuration (~/.config/orbit/config.yaml).
+Supports hierarchical resolution with environment variables and command-line flags.
+
+Usage:
+  orbit config [command]
+
+Available Commands:
+  get         Get configuration value for a key
+  init        Initialize default configuration file
+  list        List all resolved configuration entries and their sources
+  path        Print path to the configuration file
+  set         Set a configuration key-value pair
+  show        Display current configuration with secrets masked
+  unset       Unset a configuration key
+
+Flags:
+      --config string   Custom path to configuration file
+  -h, --help            help for config
+
+Use "orbit config [command] --help" for more information about a command.

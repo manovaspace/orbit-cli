@@ -1,0 +1,12 @@
+Generates markdown documentation or unix man pages for all Orbit commands.
+
+Usage:
+  orbit doc [flags]
+
+Flags:
+  -f, --format string   Documentation format: markdown or man (default "markdown")
+  -h, --help            help for doc
+  -o, --output string   Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages) (default "./docs/cli")
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

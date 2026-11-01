@@ -1,0 +1,10 @@
+Validate project .env files against their .env.schema.yaml contracts
+
+Usage:
+  orbit env check [path] [flags]
+
+Flags:
+  -h, --help   help for check
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

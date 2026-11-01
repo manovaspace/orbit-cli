@@ -1,0 +1,17 @@
+Local diagnostics are the default: no remote probes, updater activity or repairs. --remote selects SSH, Docker daemon, listener and cloud probes. --fix explicitly selects repairs; --accept-host-keys additionally requires --remote --fix. --local rejects remote probes and repairs.
+
+Usage:
+  orbit doctor [flags]
+
+Flags:
+      --accept-host-keys   Accept new SSH host keys (requires --remote --fix)
+  -f, --fix                Automatically install and configure missing toolchain dependencies
+  -h, --help               help for doctor
+      --json               Output diagnostic report in JSON format
+      --local              Explicitly require diagnostics without remote probes or writes (default behavior)
+      --non-interactive    Compatibility flag; doctor does not prompt
+      --remote             Opt in to remote SSH/cloud and daemon/listener probes
+  -y, --yes                Compatibility flag; doctor does not prompt
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

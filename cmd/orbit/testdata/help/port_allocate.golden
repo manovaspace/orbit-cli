@@ -1,0 +1,10 @@
+Suggest a bindable dynamic port; no reservation is retained
+
+Usage:
+  orbit port allocate <project> <service> [flags]
+
+Flags:
+  -h, --help   help for allocate
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

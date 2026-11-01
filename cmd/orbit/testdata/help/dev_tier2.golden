@@ -1,0 +1,10 @@
+Start Tier 2 Orbit services (orbit-auth, orbit-notifications, orbit-api-gateway)
+
+Usage:
+  orbit dev tier2 [flags]
+
+Flags:
+  -h, --help   help for tier2
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

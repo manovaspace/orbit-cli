@@ -1,0 +1,11 @@
+Creates the Orbit CLI configuration file (~/.config/orbit/config.yaml) with platform defaults.
+
+Usage:
+  orbit config init [flags]
+
+Flags:
+  -f, --force   Overwrite existing configuration file with default values
+  -h, --help    help for init
+
+Global Flags:
+      --config string   Custom path to configuration file

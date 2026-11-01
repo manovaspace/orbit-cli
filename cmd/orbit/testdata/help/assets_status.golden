@@ -1,0 +1,11 @@
+Show missing or mismatched local assets
+
+Usage:
+  orbit assets status [scope] [flags]
+
+Flags:
+  -h, --help              help for status
+      --manifest string   Path to workspace.yaml
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

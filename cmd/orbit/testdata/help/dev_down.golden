@@ -1,0 +1,10 @@
+Stop local development stack containers
+
+Usage:
+  orbit dev down [flags]
+
+Flags:
+  -h, --help   help for down
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

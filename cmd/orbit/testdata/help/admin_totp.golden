@@ -1,0 +1,15 @@
+Manage two-factor authentication and user TOTP recovery
+
+Usage:
+  orbit admin totp [command]
+
+Available Commands:
+  reset       Reset two-factor TOTP for a user and issue a fresh recovery grant
+
+Flags:
+  -h, --help   help for totp
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit admin totp [command] --help" for more information about a command.

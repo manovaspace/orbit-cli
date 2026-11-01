@@ -1,0 +1,12 @@
+Show status of all registered workspace migrations
+
+Usage:
+  orbit migrate status [flags]
+
+Flags:
+  -h, --help        help for status
+      --limit int   maximum rows per page (0 = all)
+      --page int    page number to display (default 1)
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

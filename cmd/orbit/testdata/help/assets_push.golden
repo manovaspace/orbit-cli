@@ -1,0 +1,11 @@
+Upload index objects that are missing from R2
+
+Usage:
+  orbit assets push [scope] [flags]
+
+Flags:
+  -h, --help              help for push
+      --manifest string   Path to workspace.yaml
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

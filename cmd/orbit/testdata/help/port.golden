@@ -1,0 +1,16 @@
+Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and suggest ports (10-49) after a momentary IPv4 loopback bind probe. Suggestions are not durable reservations.
+
+Usage:
+  orbit port [command]
+
+Available Commands:
+  allocate    Suggest a bindable dynamic port; no reservation is retained
+  list        List base ports and deterministic slots for all registered projects
+
+Flags:
+  -h, --help   help for port
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit port [command] --help" for more information about a command.

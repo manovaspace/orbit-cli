@@ -1,0 +1,10 @@
+Open or print the local developer portal URL
+
+Usage:
+  orbit dev portal [flags]
+
+Flags:
+  -h, --help   help for portal
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
