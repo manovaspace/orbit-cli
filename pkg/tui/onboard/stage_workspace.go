@@ -10,8 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
 	"github.com/manovaspace/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/workspace"
+	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 )
 
 // DefaultCloneConcurrency is the default number of parallel cloner workers.
@@ -30,17 +31,17 @@ type RepoTreeItem struct {
 }
 
 // CloneRunnerFunc defines the functional signature for executing parallel repository clones.
-type CloneRunnerFunc func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(orchestrator.CloneResult)) []orchestrator.CloneResult
+type CloneRunnerFunc func(workspaceRoot string, targets []manifest.RepoTarget, concurrency int, callback func(workspacedomain.CloneResult)) []workspacedomain.CloneResult
 
 // CloneProgressMsg is dispatched when an individual repository completes cloning.
 type CloneProgressMsg struct {
-	Result orchestrator.CloneResult
-	ch     <-chan orchestrator.CloneResult
+	Result workspacedomain.CloneResult
+	ch     <-chan workspacedomain.CloneResult
 }
 
 // CloneFinishedMsg is dispatched when all parallel clone workers have completed.
 type CloneFinishedMsg struct {
-	Results []orchestrator.CloneResult
+	Results []workspacedomain.CloneResult
 	Err     error
 }
 
@@ -120,7 +121,7 @@ type WorkspaceModel struct {
 	isCloning     bool
 	isComplete    bool
 	hasError      bool
-	results       []orchestrator.CloneResult
+	results       []workspacedomain.CloneResult
 	clonerRunner  CloneRunnerFunc
 	spinner       spinner.Model
 	width         int
@@ -177,7 +178,7 @@ func NewWorkspaceModel(parent *WizardModel) *WorkspaceModel {
 		isCloning:     false,
 		isComplete:    false,
 		hasError:      false,
-		clonerRunner:  orchestrator.CloneTargets,
+		clonerRunner:  workspace.CloneTargets,
 		spinner:       sp,
 		width:         w,
 		workspaceRoot: workspaceRoot,
@@ -343,7 +344,7 @@ func (m *WorkspaceModel) ToggleAll() {
 	}
 }
 
-func waitForCloneProgress(ch <-chan orchestrator.CloneResult) tea.Cmd {
+func waitForCloneProgress(ch <-chan workspacedomain.CloneResult) tea.Cmd {
 	return func() tea.Msg {
 		res, ok := <-ch
 		if !ok {
@@ -383,11 +384,11 @@ func (m *WorkspaceModel) RunCloner() tea.Cmd {
 		return nil
 	}
 
-	ch := make(chan orchestrator.CloneResult, len(targets))
+	ch := make(chan workspacedomain.CloneResult, len(targets))
 
 	runner := m.clonerRunner
 	if runner == nil {
-		runner = orchestrator.CloneTargets
+		runner = workspace.CloneTargets
 	}
 
 	wsRoot := m.workspaceRoot
@@ -397,7 +398,7 @@ func (m *WorkspaceModel) RunCloner() tea.Cmd {
 	}
 
 	go func() {
-		_ = runner(wsRoot, targets, concurrency, func(r orchestrator.CloneResult) {
+		_ = runner(wsRoot, targets, concurrency, func(r workspacedomain.CloneResult) {
 			ch <- r
 		})
 		close(ch)

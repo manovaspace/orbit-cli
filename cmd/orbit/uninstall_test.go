@@ -2,41 +2,62 @@ package main
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
+	"context"
 	"testing"
+
+	uninstalldomain "github.com/manovaspace/orbit-cli/pkg/uninstall/domain"
 )
 
-func TestCleanManPages(t *testing.T) {
-	tmpDir := t.TempDir()
-	man1Dir := filepath.Join(tmpDir, ".local", "share", "man", "man1")
-	if err := os.MkdirAll(man1Dir, 0755); err != nil {
-		t.Fatalf("failed to create mock man directory: %v", err)
+type fakeUninstallFS struct {
+	entries map[string]bool
+	home    string
+
+	removed    []string
+	removedAll []string
+}
+
+func (f *fakeUninstallFS) Stat(path string) (uninstalldomain.FileInfo, bool, error) {
+	isDir, ok := f.entries[path]
+	if !ok {
+		return uninstalldomain.FileInfo{}, false, nil
+	}
+	return uninstalldomain.FileInfo{IsDir: isDir}, true, nil
+}
+
+func (f *fakeUninstallFS) RemoveElevated(_ context.Context, path string) error {
+	f.removed = append(f.removed, path)
+	return nil
+}
+
+func (f *fakeUninstallFS) RemoveAll(path string) error {
+	f.removedAll = append(f.removedAll, path)
+	return nil
+}
+
+func (f *fakeUninstallFS) Glob(string) ([]string, error) { return nil, nil }
+
+func (f *fakeUninstallFS) RefreshManPages(context.Context) {}
+
+func (f *fakeUninstallFS) HomeDir() (string, error) { return f.home, nil }
+
+func (f *fakeUninstallFS) Executable() (string, error) { return "", nil }
+
+func TestUninstallJSONEnvelope(t *testing.T) {
+	previous := uninstallFS
+	t.Cleanup(func() { uninstallFS = previous })
+	uninstallFS = &fakeUninstallFS{entries: map[string]bool{}, home: "/home/orbit-test"}
+
+	t.Setenv("ORBIT_WORKSPACE", t.TempDir())
+	out := &bytes.Buffer{}
+	cmd := newUninstallCmd()
+	cmd.SetOut(out)
+	cmd.SetArgs([]string{"--yes", "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("uninstall --json: %v", err)
 	}
 
-	// Create mock orbit man pages and unrelated man page
-	orbit1 := filepath.Join(man1Dir, "orbit.1")
-	orbitStaff1 := filepath.Join(man1Dir, "orbit-staff.1")
-	other1 := filepath.Join(man1Dir, "other.1")
-
-	_ = os.WriteFile(orbit1, []byte(".TH ORBIT 1"), 0644)
-	_ = os.WriteFile(orbitStaff1, []byte(".TH ORBIT-STAFF 1"), 0644)
-	_ = os.WriteFile(other1, []byte(".TH OTHER 1"), 0644)
-
-	var buf bytes.Buffer
-	removed := cleanManPagesWithHome(tmpDir, &buf)
-
-	if removed != 2 {
-		t.Errorf("expected 2 man pages removed, got %d", removed)
-	}
-
-	if _, err := os.Stat(orbit1); !os.IsNotExist(err) {
-		t.Errorf("expected %s to be removed", orbit1)
-	}
-	if _, err := os.Stat(orbitStaff1); !os.IsNotExist(err) {
-		t.Errorf("expected %s to be removed", orbitStaff1)
-	}
-	if _, err := os.Stat(other1); os.IsNotExist(err) {
-		t.Errorf("expected %s to remain intact", other1)
+	data := envelopeData(t, requireEnvelope(t, out))
+	if data["noBinaries"] != true {
+		t.Errorf("noBinaries = %v", data["noBinaries"])
 	}
 }

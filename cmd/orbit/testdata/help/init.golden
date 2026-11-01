@@ -14,6 +14,7 @@ Flags:
       --bootstrap         Bootstrap workspace without failing if workspace.yaml is not yet cloned
       --concurrency int   Number of concurrent clone workers (default 4)
   -h, --help              help for init
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
       --skip-hooks        Skip post-clone workspace hooks and migrations
 

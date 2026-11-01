@@ -2,17 +2,32 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"io"
 
-	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
+	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 	"github.com/spf13/cobra"
 )
+
+type repairSummary struct {
+	Repaired int `json:"repaired"`
+	Skipped  int `json:"skipped"`
+	Failed   int `json:"failed"`
+}
+
+type repairJSON struct {
+	Scope   string                         `json:"scope"`
+	Results []workspacedomain.RepairResult `json:"results"`
+	Summary repairSummary                  `json:"summary"`
+}
 
 func newRepairCmd() *cobra.Command {
 	var (
 		manifestFlag string
 		concurrency  int
+		jsonFlag     bool
 	)
 
 	cmd := &cobra.Command{
@@ -28,6 +43,10 @@ Scopes match orbit init / orbit status (default: all).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 			scope := "all"
 			if len(args) > 0 && args[0] != "" {
 				scope = args[0]
@@ -36,62 +55,56 @@ Scopes match orbit init / orbit status (default: all).`,
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Repair — Scope: %s", scope)))
-
-			if _, err := os.Stat(manifestPath); err != nil {
-				return fmt.Errorf("manifest file not found at %s. Ensure workspace.yaml exists or pass --manifest", manifestPath)
+			if !jsonFlag {
+				fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Repair — Scope: %s", scope)))
 			}
 
-			m, err := manifest.Load(manifestPath)
+			res, err := newWorkspaceService(uiOut).Repair(cmd.Context(), workspaceapp.RepairInput{
+				WorkspaceRoot: workspaceRoot,
+				ManifestPath:  manifestPath,
+				Scope:         scope,
+				Concurrency:   concurrency,
+			})
 			if err != nil {
-				return fmt.Errorf("failed to load workspace manifest: %w", err)
-			}
-
-			targets, err := m.ResolveRepos(scope)
-			if err != nil {
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
+				}
 				return err
 			}
-			if len(targets) == 0 {
+
+			if len(res.Results) == 0 {
+				if jsonFlag {
+					return output.Write(out, output.Success(repairJSON{
+						Scope:   res.Scope,
+						Results: res.Results,
+						Summary: repairSummary{Repaired: res.Repaired, Skipped: res.Skipped, Failed: res.Failed},
+					}))
+				}
 				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
 				return nil
 			}
 
-			fmt.Fprintf(out, "%s\n\n", headerStyle.Render(fmt.Sprintf("Repairing %d repositories (concurrency: %d)...", len(targets), concurrency)))
-
-			repaired := 0
-			skipped := 0
-			failed := 0
-
-			results := orchestrator.RepairTargets(workspaceRoot, targets, concurrency, func(res orchestrator.RepairResult) {
-				nameCol := boldStyle.Render(padRight(res.Name, 24))
-				switch {
-				case !res.Success:
-					fmt.Fprintf(out, "  %s  %s %s\n", iconError, nameCol, errorStyle.Render(res.Error))
-				case res.Skipped != "":
-					fmt.Fprintf(out, "  %s  %s %s\n", iconOK, nameCol, subtleStyle.Render(res.Skipped))
-				default:
-					fmt.Fprintf(out, "  %s  %s %s\n", iconOK, nameCol, successStyle.Render("attached .git"))
-				}
-			})
-
-			for _, res := range results {
-				if !res.Success {
-					failed++
-				} else if res.Skipped != "" {
-					skipped++
-				} else {
-					repaired++
-				}
+			if !jsonFlag {
+				fmt.Fprintf(out, "\n%s  %s  %s\n",
+					successStyle.Render(fmt.Sprintf("✔ %d repaired", res.Repaired)),
+					infoStyle.Render(fmt.Sprintf("ℹ %d skipped", res.Skipped)),
+					errorStyle.Render(fmt.Sprintf("✖ %d failed", res.Failed)),
+				)
 			}
 
-			fmt.Fprintf(out, "\n%s  %s  %s\n",
-				successStyle.Render(fmt.Sprintf("✔ %d repaired", repaired)),
-				infoStyle.Render(fmt.Sprintf("ℹ %d skipped", skipped)),
-				errorStyle.Render(fmt.Sprintf("✖ %d failed", failed)),
-			)
-
-			if failed > 0 {
-				return fmt.Errorf("repair completed with %d error(s)", failed)
+			if res.Failed > 0 {
+				repairErr := clierr.Failed(fmt.Sprintf("repair completed with %d error(s)", res.Failed))
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(repairErr))
+				}
+				return repairErr
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(repairJSON{
+					Scope:   res.Scope,
+					Results: res.Results,
+					Summary: repairSummary{Repaired: res.Repaired, Skipped: res.Skipped, Failed: res.Failed},
+				}))
 			}
 			return nil
 		},
@@ -99,6 +112,7 @@ Scopes match orbit init / orbit status (default: all).`,
 
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 4, "Number of concurrent repair workers")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
 }

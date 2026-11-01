@@ -60,6 +60,34 @@ func TestSubcommandRegistration(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateJSONEnvelope(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tag_name": version,
+			"body":     "Orbit release notes",
+		})
+	}))
+	defer srv.Close()
+
+	t.Setenv("ORBIT_RELEASE_API_URL", srv.URL)
+
+	buf := new(bytes.Buffer)
+	rootCmd := newRootCmdForTest(t)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"self-update", "--check", "--json"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("self-update --check --json failed: %v", err)
+	}
+
+	data := envelopeData(t, requireEnvelope(t, buf))
+	if data["upToDate"] != true {
+		t.Errorf("upToDate = %v", data["upToDate"])
+	}
+}
+
 func TestSelfUpdateCheckUpToDate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

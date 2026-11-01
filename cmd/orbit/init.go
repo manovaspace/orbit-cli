@@ -2,13 +2,41 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"io"
 
-	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/migrate"
-	"github.com/manovaspace/orbit-cli/pkg/orchestrator"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
+	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 	"github.com/spf13/cobra"
 )
+
+type initSummary struct {
+	Cloned         int `json:"cloned"`
+	AlreadyPresent int `json:"alreadyPresent"`
+	Failed         int `json:"failed"`
+}
+
+type initMigrationJSON struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	Success     bool   `json:"success"`
+	Error       string `json:"error,omitempty"`
+}
+
+type initJSON struct {
+	Scope          string                        `json:"scope"`
+	WorkspaceRoot  string                        `json:"workspaceRoot"`
+	ManifestPath   string                        `json:"manifestPath"`
+	Bootstrap      bool                          `json:"bootstrap"`
+	Results        []workspacedomain.CloneResult `json:"results"`
+	Summary        initSummary                   `json:"summary"`
+	SetupError     string                        `json:"setupError,omitempty"`
+	Migrations     []initMigrationJSON           `json:"migrations,omitempty"`
+	MigrationError string                        `json:"migrationError,omitempty"`
+	AssetsError    string                        `json:"assetsError,omitempty"`
+}
 
 func newInitCmd() *cobra.Command {
 	var (
@@ -16,6 +44,7 @@ func newInitCmd() *cobra.Command {
 		concurrency   int
 		skipHooks     bool
 		bootstrapFlag bool
+		jsonFlag      bool
 	)
 
 	cmd := &cobra.Command{
@@ -32,6 +61,10 @@ Scopes:
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 			scope := "core"
 			if len(args) > 0 && args[0] != "" {
 				scope = args[0]
@@ -40,8 +73,18 @@ Scopes:
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			if _, err := os.Stat(manifestPath); err != nil {
+			_, manifestExists, statErr := workspaceFS.Stat(manifestPath)
+			if statErr != nil || !manifestExists {
 				if bootstrapFlag {
+					if jsonFlag {
+						return output.Write(out, output.Success(initJSON{
+							Scope:         scope,
+							WorkspaceRoot: workspaceRoot,
+							ManifestPath:  manifestPath,
+							Bootstrap:     true,
+							Results:       []workspacedomain.CloneResult{},
+						}))
+					}
 					fmt.Fprintln(out, titleStyle.Render("Orbit CLI Bootstrap"))
 					fmt.Fprintf(out, "  %s  CLI installed successfully.\n", iconOK)
 					fmt.Fprintf(out, "  %s  Run '%s' to begin setup, or run '%s' inside a cloned workspace.\n\n",
@@ -51,79 +94,91 @@ Scopes:
 					)
 					return nil
 				}
-				return fmt.Errorf("manifest file not found at %s. Ensure workspace.yaml exists or pass --manifest", manifestPath)
+				manifestErr := clierr.Failed(fmt.Sprintf("manifest file not found at %s. Ensure workspace.yaml exists or pass --manifest", manifestPath))
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(manifestErr))
+				}
+				return manifestErr
 			}
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Init — Scope: %s", scope)))
-			fmt.Fprintf(out, "  Workspace Root: %s\n", subtleStyle.Render(workspaceRoot))
-			fmt.Fprintf(out, "  Manifest Path:  %s\n\n", subtleStyle.Render(manifestPath))
+			if !jsonFlag {
+				fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Init — Scope: %s", scope)))
+				fmt.Fprintf(out, "  Workspace Root: %s\n", subtleStyle.Render(workspaceRoot))
+				fmt.Fprintf(out, "  Manifest Path:  %s\n\n", subtleStyle.Render(manifestPath))
+			}
 
-			m, err := manifest.Load(manifestPath)
+			res, err := newWorkspaceService(uiOut).Init(cmd.Context(), workspaceapp.InitInput{
+				WorkspaceRoot: workspaceRoot,
+				ManifestPath:  manifestPath,
+				Scope:         scope,
+				Concurrency:   concurrency,
+			})
 			if err != nil {
-				return fmt.Errorf("failed to load workspace manifest: %w", err)
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(err))
+				}
+				return err
 			}
 
-			targets, err := m.ResolveRepos(scope)
-			if err != nil {
-				return fmt.Errorf("failed to resolve repositories for scope %q: %w", scope, err)
+			data := initJSON{
+				Scope:         scope,
+				WorkspaceRoot: workspaceRoot,
+				ManifestPath:  manifestPath,
+				Results:       res.Results,
+				Summary: initSummary{
+					Cloned:         res.Cloned,
+					AlreadyPresent: res.AlreadyPresent,
+					Failed:         res.Failed,
+				},
 			}
 
-			if len(targets) == 0 {
+			if len(res.Targets) == 0 {
+				if jsonFlag {
+					return output.Write(out, output.Success(data))
+				}
 				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
 				return nil
 			}
 
-			fmt.Fprintf(out, "%s\n", headerStyle.Render(fmt.Sprintf("Cloning %d repositories (concurrency: %d)...", len(targets), concurrency)))
-
-			clonedCount := 0
-			existCount := 0
-			failCount := 0
-
-			results := orchestrator.CloneTargets(workspaceRoot, targets, concurrency, func(res orchestrator.CloneResult) {
-				if res.Success {
-					if res.AlreadyExists {
-						fmt.Fprintf(out, "  %s  %s %s\n", iconOK, boldStyle.Render(res.Name), subtleStyle.Render("(already exists)"))
-					} else {
-						fmt.Fprintf(out, "  %s  %s %s\n", iconOK, boldStyle.Render(res.Name), successStyle.Render("(cloned)"))
-					}
-				} else {
-					fmt.Fprintf(out, "  %s  %s %s\n", iconError, boldStyle.Render(res.Name), errorStyle.Render(fmt.Sprintf("(failed: %s)", res.Error)))
-				}
-			})
-
-			for _, res := range results {
-				if res.Success {
-					if res.AlreadyExists {
-						existCount++
-					} else {
-						clonedCount++
-					}
-				} else {
-					failCount++
-				}
-			}
-
 			// Post-clone setup & workspace initialization
 			if !skipHooks {
-				fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Clone Setup & Workspace Initialization ─────────────"))
+				if !jsonFlag {
+					fmt.Fprintf(out, "\n%s\n", headerStyle.Render("── Post-Clone Setup & Workspace Initialization ─────────────"))
+				}
 				var selectedRepoPaths []string
-				for _, target := range targets {
+				for _, target := range res.Targets {
 					selectedRepoPaths = append(selectedRepoPaths, target.Path)
 				}
 				if err := migrate.SetupWorkspace(workspaceRoot, selectedRepoPaths...); err != nil {
+					data.SetupError = err.Error()
+					if jsonFlag {
+						setupErr := clierr.Wrap(err, clierr.Failed("repositories processed; workspace setup incomplete"))
+						_ = output.Write(out, output.Failure(setupErr))
+						return setupErr
+					}
 					fmt.Fprintf(out, "  %s  Workspace setup incomplete: %v\n", iconError, err)
 					return fmt.Errorf("repositories processed; workspace setup incomplete: %w", err)
-				} else {
+				}
+				if !jsonFlag {
 					fmt.Fprintf(out, "  %s  Workspace directory structure, hooks, and Cursor rules initialized.\n", iconOK)
 				}
 
 				if len(migrate.GetBuiltinMigrations()) > 0 {
 					migResults, err := migrate.RunPendingMigrations(workspaceRoot)
 					if err != nil {
-						fmt.Fprintf(out, "  %s  Workspace migration warning: %v\n", iconWarn, err)
+						data.MigrationError = err.Error()
+						if !jsonFlag {
+							fmt.Fprintf(out, "  %s  Workspace migration warning: %v\n", iconWarn, err)
+						}
 					} else {
 						for _, mr := range migResults {
-							if mr.Success {
+							data.Migrations = append(data.Migrations, initMigrationJSON{
+								ID:          mr.ID,
+								Description: mr.Description,
+								Success:     mr.Success,
+								Error:       mr.Error,
+							})
+							if mr.Success && !jsonFlag {
 								fmt.Fprintf(out, "  %s  Migration applied: %s (%s)\n", iconOK, boldStyle.Render(mr.ID), mr.Description)
 							}
 						}
@@ -131,25 +186,37 @@ Scopes:
 				}
 			}
 
-			// Summary
-			fmt.Fprintf(out, "\n%s  %s  %s\n",
-				successStyle.Render(fmt.Sprintf("✔ %d cloned", clonedCount)),
-				infoStyle.Render(fmt.Sprintf("ℹ %d already present", existCount)),
-				errorStyle.Render(fmt.Sprintf("✖ %d failed", failCount)),
-			)
+			if !jsonFlag {
+				// Summary
+				fmt.Fprintf(out, "\n%s  %s  %s\n",
+					successStyle.Render(fmt.Sprintf("✔ %d cloned", res.Cloned)),
+					infoStyle.Render(fmt.Sprintf("ℹ %d already present", res.AlreadyPresent)),
+					errorStyle.Render(fmt.Sprintf("✖ %d failed", res.Failed)),
+				)
+			}
 
-			if failCount > 0 {
-				return fmt.Errorf("clone completed with %d error(s)", failCount)
+			if res.Failed > 0 {
+				cloneErr := clierr.Failed(fmt.Sprintf("clone completed with %d error(s)", res.Failed))
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(cloneErr))
+				}
+				return cloneErr
 			}
 
 			var rels []string
-			for _, t := range targets {
+			for _, t := range res.Targets {
 				rels = append(rels, t.Path)
 			}
 			if err := pullWorkspaceAssets(cmd.Context(), workspaceRoot, rels, false); err != nil {
-				fmt.Fprintf(out, "  %s  Assets: %s\n", iconWarn, err.Error())
+				data.AssetsError = err.Error()
+				if !jsonFlag {
+					fmt.Fprintf(out, "  %s  Assets: %s\n", iconWarn, err.Error())
+				}
 			}
 
+			if jsonFlag {
+				return output.Write(out, output.Success(data))
+			}
 			return nil
 		},
 	}
@@ -158,6 +225,7 @@ Scopes:
 	cmd.Flags().IntVar(&concurrency, "concurrency", 4, "Number of concurrent clone workers")
 	cmd.Flags().BoolVar(&skipHooks, "skip-hooks", false, "Skip post-clone workspace hooks and migrations")
 	cmd.Flags().BoolVar(&bootstrapFlag, "bootstrap", false, "Bootstrap workspace without failing if workspace.yaml is not yet cloned")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
 }

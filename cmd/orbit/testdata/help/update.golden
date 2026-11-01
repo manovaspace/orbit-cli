@@ -10,6 +10,7 @@ Usage:
 Flags:
       --concurrency int   Concurrent git sync workers (default 4)
   -h, --help              help for update
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
       --skip-env          Skip environment validation
       --skip-migrate      Skip workspace migrations
