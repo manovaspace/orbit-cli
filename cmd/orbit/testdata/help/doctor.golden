@@ -7,7 +7,7 @@ Flags:
       --accept-host-keys   Accept new SSH host keys (requires --remote --fix)
   -f, --fix                Automatically install and configure missing toolchain dependencies
   -h, --help               help for doctor
-      --json               Output diagnostic report in JSON format
+      --json               Print the diagnostic report as a JSON envelope
       --local              Explicitly require diagnostics without remote probes or writes (default behavior)
       --non-interactive    Compatibility flag; doctor does not prompt
       --remote             Opt in to remote SSH/cloud and daemon/listener probes

@@ -1,4 +1,6 @@
-package env
+// Package domain holds the pure environment-contract types and rules: schema
+// parsing, .env parsing and value validation. It performs no file I/O.
+package domain
 
 import (
 	"fmt"
@@ -89,4 +91,31 @@ type ValidationError struct {
 
 func (e ValidationError) Error() string {
 	return fmt.Sprintf("variable %s: %s (%s)", e.Variable, e.Message, e.Type)
+}
+
+// GetVariable returns the VariableDef by name from the schema, or nil if not found.
+func (s *EnvSchema) GetVariable(name string) *VariableDef {
+	if s == nil {
+		return nil
+	}
+	for i := range s.Variables {
+		if s.Variables[i].Name == name {
+			return &s.Variables[i]
+		}
+	}
+	return nil
+}
+
+// RequiredVariables returns a slice of all variables marked as required in the schema.
+func (s *EnvSchema) RequiredVariables() []VariableDef {
+	if s == nil {
+		return nil
+	}
+	var required []VariableDef
+	for _, v := range s.Variables {
+		if v.Required {
+			required = append(required, v)
+		}
+	}
+	return required
 }

@@ -1,89 +1,42 @@
+// Package healer keeps the default remediation recipes reachable for callers
+// outside the doctor command group. The recipes live in the layered
+// infrastructure package.
 package healer
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/doctor"
+	"github.com/manovaspace/orbit-cli/pkg/doctor/application"
+	"github.com/manovaspace/orbit-cli/pkg/doctor/domain"
+	"github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure/recipes"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 )
 
-// NewDefaultRegistry creates and populates a Registry with all standard Orbit healers:
-// Go 1.26+, Bun, Node.js 24 LTS, Git, Docker, Docker Compose, Caddy, Typst, and Zsh.
+// Healer is one remediation recipe.
+type Healer = domain.Healer
+
+// HealResult is the outcome of one recipe.
+type HealResult = domain.HealResult
+
+// Registry holds remediation recipes.
+type Registry = domain.HealerRegistry
+
+// NewRegistry creates an empty registry.
+func NewRegistry() *Registry { return domain.NewHealerRegistry() }
+
+// NewDefaultRegistry creates the standard Orbit recipes over the real runner.
 func NewDefaultRegistry() *Registry {
-	reg := NewRegistry()
-	reg.Register(NewZshHealer())
-	reg.Register(NewGitHealer())
-	reg.Register(NewGoHealer())
-	reg.Register(NewBunHealer())
-	reg.Register(NewNodeHealer())
-	reg.Register(NewDockerDaemonHealer())
-	reg.Register(NewDockerComposeHealer())
-	reg.Register(NewCaddyHealer())
-	reg.Register(NewTypstHealer())
-	return reg
+	return recipes.NewDefaultRegistry(runner.Exec{})
 }
 
-// Run executes all matching healers against the provided diagnostic results.
-// It executes healers sequentially with error isolation: if one healer fails,
-// it records the failure and proceeds with the remaining healers.
-func (r *Registry) Run(ctx context.Context, results []doctor.DiagnosticResult, progress func(name, status string)) ([]HealResult, error) {
-	if progress == nil {
-		progress = func(name, status string) {}
-	}
-
-	healers := r.FindHealers(results)
-	if len(healers) == 0 {
-		return []HealResult{}, nil
-	}
-
-	var healResults []HealResult
-
-	for _, h := range healers {
-		if err := ctx.Err(); err != nil {
-			return healResults, err
-		}
-
-		start := time.Now()
-		progress(h.Name(), "Starting auto-heal...")
-
-		err := h.Heal(ctx, func(step string) {
-			progress(h.Name(), step)
-		})
-
-		duration := time.Since(start)
-
-		if err != nil {
-			progress(h.Name(), fmt.Sprintf("Failed: %v", err))
-			healResults = append(healResults, HealResult{
-				HealerName: h.Name(),
-				Success:    false,
-				Message:    fmt.Sprintf("Failed to heal %s: %v", h.Name(), err),
-				Error:      err,
-				Duration:   duration,
-			})
-		} else {
-			progress(h.Name(), "Completed successfully")
-			healResults = append(healResults, HealResult{
-				HealerName: h.Name(),
-				Success:    true,
-				Message:    fmt.Sprintf("Successfully installed/configured %s", h.Name()),
-				Duration:   duration,
-			})
-		}
-	}
-
-	return healResults, nil
-}
-
-// RunHealers is a package-level helper that invokes the default registry against diagnostic results.
-func RunHealers(ctx context.Context, results []doctor.DiagnosticResult, progress func(name, status string)) ([]HealResult, error) {
+// RunHealers executes the matching default recipes with error isolation.
+func RunHealers(ctx context.Context, results []domain.DiagnosticResult, progress func(name, status string)) ([]HealResult, error) {
 	reg := NewDefaultRegistry()
-	return reg.Run(ctx, results, progress)
+	return application.RunHealers(ctx, reg.FindHealers(results), progress)
 }
 
 // IsAutoHealable returns true if any default healer can remediate the given diagnostic result.
-func IsAutoHealable(result doctor.DiagnosticResult) bool {
+func IsAutoHealable(result domain.DiagnosticResult) bool {
 	reg := NewDefaultRegistry()
 	_, found := reg.FindHealer(result)
 	return found

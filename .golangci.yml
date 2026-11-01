@@ -123,3 +123,75 @@ linters:
               desc: "pkg/uninstall/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/uninstall/application writes through its injected UI"
+        # The diagnostics domain is pure types and version checks: every probe
+        # enters through a port the application layer defines.
+        doctor-domain:
+          files:
+            - "**/pkg/doctor/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/doctor/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/doctor/application"
+              desc: "pkg/doctor/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure"
+              desc: "pkg/doctor/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/doctor/domain is pure and must not style output"
+        # The diagnostics application reaches tools, files, ports and the
+        # manifest only through its probe, host and manifest ports.
+        doctor-application:
+          files:
+            - "**/pkg/doctor/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/doctor/application reaches external commands through its probe port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure"
+              desc: "pkg/doctor/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/doctor/application writes through its injected UI"
+        # The environment domain is pure schema and value rules.
+        env-domain:
+          files:
+            - "**/pkg/env/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/env/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/env/application"
+              desc: "pkg/env/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/env/infrastructure"
+              desc: "pkg/env/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/env/domain is pure and must not style output"
+        env-application:
+          files:
+            - "**/pkg/env/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/env/application reaches files through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/env/infrastructure"
+              desc: "pkg/env/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/env/application writes through its injected UI"
+        # The port domain is pure 50-port block arithmetic.
+        ports-domain:
+          files:
+            - "**/pkg/ports/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/ports/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ports/application"
+              desc: "pkg/ports/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure"
+              desc: "pkg/ports/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/ports/domain is pure and must not style output"
+        ports-application:
+          files:
+            - "**/pkg/ports/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/ports/application probes through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure"
+              desc: "pkg/ports/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/ports/application writes through its injected UI"
