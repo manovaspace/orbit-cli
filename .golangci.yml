@@ -195,3 +195,78 @@ linters:
               desc: "pkg/ports/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/ports/application writes through its injected UI"
+        # The assets domain is pure index types and rules.
+        assets-domain:
+          files:
+            - "**/pkg/assets/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/assets/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/assets/application"
+              desc: "pkg/assets/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure"
+              desc: "pkg/assets/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/assets/domain is pure and must not style output"
+        # The assets application reaches the store and filesystem only through
+        # its ports.
+        assets-application:
+          files:
+            - "**/pkg/assets/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/assets/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure"
+              desc: "pkg/assets/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/assets/application writes through its injected writer"
+        # The migrate domain is pure migration types and state rules.
+        migrate-domain:
+          files:
+            - "**/pkg/migrate/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/migrate/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/migrate/application"
+              desc: "pkg/migrate/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure"
+              desc: "pkg/migrate/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/migrate/domain is pure and must not style output"
+        # The migrate application reaches the state file only through its store
+        # port.
+        migrate-application:
+          files:
+            - "**/pkg/migrate/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/migrate/application reaches git through injected migrations"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure"
+              desc: "pkg/migrate/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/migrate/application writes through its injected writer"
+        # The CI domain is pure runner and secret rules.
+        ci-domain:
+          files:
+            - "**/pkg/ci/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/ci/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ci/application"
+              desc: "pkg/ci/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ci/infrastructure"
+              desc: "pkg/ci/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/ci/domain is pure and must not style output"
+        # The CI application reaches gh, systemctl and secret files only
+        # through its command and file ports.
+        ci-application:
+          files:
+            - "**/pkg/ci/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/ci/application reaches external commands through its port"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/ci/infrastructure"
+              desc: "pkg/ci/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/ci/application writes through its injected writer"

@@ -3,14 +3,31 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/manovaspace/orbit-cli/pkg/assets"
+	assetsapp "github.com/manovaspace/orbit-cli/pkg/assets/application"
+	assetsdomain "github.com/manovaspace/orbit-cli/pkg/assets/domain"
+	assetsosfs "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure/osfs"
+	assetsr2 "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure/r2"
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/spf13/cobra"
 )
+
+// The asset commands reach the filesystem and R2 through these seams so tests
+// can swap the adapters.
+var (
+	assetsFS        assetsapp.FS = assetsosfs.New()
+	openAssetsStore              = func(ctx context.Context) (assetsapp.Store, error) { return assetsr2.OpenStore(ctx) }
+)
+
+func newAssetsService(out io.Writer, store assetsapp.Store) *assetsapp.Service {
+	return &assetsapp.Service{FS: assetsFS, R2: store, Out: out}
+}
 
 func newAssetsCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -26,64 +43,88 @@ func newAssetsCmd() *cobra.Command {
 }
 
 func newAssetsPullCmd() *cobra.Command {
-	var force bool
-	var manifestFlag string
+	var (
+		force        bool
+		manifestFlag string
+		jsonFlag     bool
+	)
 	cmd := &cobra.Command{
 		Use:   "pull [scope]",
 		Short: "Download missing or outdated assets for workspace repos",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope := "all"
-			if len(args) > 0 && args[0] != "" {
-				scope = args[0]
+			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
 			}
-			root, rels, err := resolveAssetRepos(manifestFlag, scope)
+
+			root, rels, err := resolveAssetRepos(manifestFlag, assetScope(args))
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			store, err := assets.OpenStore(cmd.Context())
+			store, err := openAssets(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("R2 credentials (%s): %w", assets.DefaultR2EnvPath(), err)
-			}
-			if err := assets.PullRepos(cmd.Context(), root, rels, store, assets.PullOptions{Force: force}); err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Assets pulled.")
+			res, err := newAssetsService(uiOut, store).Pull(cmd.Context(), root, rels, assetsapp.PullOptions{Force: force})
+			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite local files whose hash does not match the index")
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newAssetsPushCmd() *cobra.Command {
-	var manifestFlag string
+	var (
+		manifestFlag string
+		jsonFlag     bool
+	)
 	cmd := &cobra.Command{
 		Use:   "push [scope]",
 		Short: "Upload index objects that are missing from R2",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope := "all"
-			if len(args) > 0 && args[0] != "" {
-				scope = args[0]
+			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
 			}
-			root, rels, err := resolveAssetRepos(manifestFlag, scope)
+
+			root, rels, err := resolveAssetRepos(manifestFlag, assetScope(args))
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			store, err := assets.OpenStore(cmd.Context())
+			store, err := openAssets(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("R2 credentials (%s): %w", assets.DefaultR2EnvPath(), err)
-			}
-			if err := assets.PushRepos(cmd.Context(), root, rels, store); err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Assets pushed.")
+			res, err := newAssetsService(uiOut, store).Push(cmd.Context(), root, rels)
+			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
@@ -101,18 +142,18 @@ func newAssetsAddCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			store, err := assets.OpenStore(cmd.Context())
-			if err != nil {
-				return fmt.Errorf("R2 credentials (%s): %w", assets.DefaultR2EnvPath(), err)
-			}
-			obj, err := assets.Add(cmd.Context(), repoRoot, rel, store)
+			store, err := openAssets(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if assets.WarnSmall(obj.Size) {
-				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s is %d bytes; consider committing small icons to git instead\n", rel, obj.Size)
+			res, err := newAssetsService(cmd.OutOrStdout(), store).Add(cmd.Context(), repoRoot, rel)
+			if err != nil {
+				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Added %s (%s, %d bytes). Commit orbit-assets.yaml and .gitignore.\n", rel, obj.SHA256[:12], obj.Size)
+			if res.Small {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s is %d bytes; consider committing small icons to git instead\n", rel, res.Object.Size)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Added %s (%s, %d bytes). Commit orbit-assets.yaml and .gitignore.\n", rel, res.Object.SHA256[:12], res.Object.Size)
 			return nil
 		},
 	}
@@ -120,49 +161,72 @@ func newAssetsAddCmd() *cobra.Command {
 }
 
 func newAssetsStatusCmd() *cobra.Command {
-	var manifestFlag string
+	var (
+		manifestFlag string
+		jsonFlag     bool
+	)
 	cmd := &cobra.Command{
 		Use:   "status [scope]",
 		Short: "Show missing or mismatched local assets",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scope := "all"
-			if len(args) > 0 && args[0] != "" {
-				scope = args[0]
+			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
 			}
-			root, rels, err := resolveAssetRepos(manifestFlag, scope)
+
+			root, rels, err := resolveAssetRepos(manifestFlag, assetScope(args))
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			out := cmd.OutOrStdout()
-			problems := 0
-			for _, rel := range rels {
-				repo := filepath.Join(root, rel)
-				if !assets.HasManifest(repo) {
-					continue
-				}
-				st, err := assets.Status(repo)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(out, "%s\n", rel)
-				for _, s := range st {
-					mark := "ok"
-					if s.State != assets.FileOK {
-						problems++
-						mark = string(s.State)
-					}
-					fmt.Fprintf(out, "  %s  %s\n", mark, s.Path)
-				}
+			// Status is local: it reads the index and hashes files without
+			// touching R2 or requiring credentials.
+			res, err := newAssetsService(uiOut, nil).Status(cmd.Context(), root, rels)
+			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
+				return err
 			}
-			if problems > 0 {
-				return fmt.Errorf("%d asset(s) missing or mismatched", problems)
+			if res.Problems > 0 {
+				problemErr := clierr.Failed(fmt.Sprintf("%d asset(s) missing or mismatched", res.Problems))
+				if jsonFlag {
+					_ = output.Write(out, output.Failure(problemErr))
+				}
+				return problemErr
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
+}
+
+func assetScope(args []string) string {
+	if len(args) > 0 && args[0] != "" {
+		return args[0]
+	}
+	return "all"
+}
+
+func writeAssetsFailure(out io.Writer, jsonFlag bool, err error) {
+	if jsonFlag {
+		_ = output.Write(out, output.Failure(err))
+	}
+}
+
+// openAssets opens the R2 store, naming the credentials file in the error the
+// same way the command always has.
+func openAssets(ctx context.Context) (assetsapp.Store, error) {
+	store, err := openAssetsStore(ctx)
+	if err != nil {
+		return nil, clierr.Wrap(err, clierr.Failed(fmt.Sprintf("R2 credentials (%s)", assetsr2.DefaultEnvPath())))
+	}
+	return store, nil
 }
 
 func resolveAssetRepos(manifestFlag, scope string) (workspaceRoot string, rels []string, err error) {
@@ -204,7 +268,7 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 	any := false
 	for _, t := range targets {
 		rels = append(rels, t.Path)
-		if assets.HasManifest(filepath.Join(workspaceRoot, t.Path)) {
+		if has, err := newAssetsService(io.Discard, nil).HasManifest(filepath.Join(workspaceRoot, t.Path)); err == nil && has {
 			any = true
 		}
 	}
@@ -212,18 +276,18 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 		return
 	}
 
-	if _, err := os.Stat(assets.DefaultR2EnvPath()); err != nil {
+	if _, err := os.Stat(assetsr2.DefaultEnvPath()); err != nil {
 		report.Add(doctor.DiagnosticResult{
 			Category:      "Assets",
 			Name:          "R2 credentials",
 			Status:        doctor.StatusError,
-			Message:       fmt.Sprintf("missing %s", assets.DefaultR2EnvPath()),
+			Message:       fmt.Sprintf("missing %s", assetsr2.DefaultEnvPath()),
 			FixSuggestion: "Create ~/.config/orbit/r2.env with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET=manova-assets",
 		})
 		return
 	}
 
-	store, err := assets.OpenStore(ctx)
+	store, err := openAssetsStore(ctx)
 	if err != nil {
 		report.Add(doctor.DiagnosticResult{
 			Category:      "Assets",
@@ -247,8 +311,9 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 		}
 	}
 
+	svc := newAssetsService(io.Discard, store)
 	if fix {
-		if err := assets.PullRepos(ctx, workspaceRoot, rels, store, assets.PullOptions{}); err != nil {
+		if _, err := svc.Pull(ctx, workspaceRoot, rels, assetsapp.PullOptions{}); err != nil {
 			report.Add(doctor.DiagnosticResult{
 				Category: "Assets",
 				Name:     "orbit assets pull",
@@ -261,10 +326,10 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 	missing := 0
 	for _, rel := range rels {
 		repo := filepath.Join(workspaceRoot, rel)
-		if !assets.HasManifest(repo) {
+		if has, err := svc.HasManifest(repo); err != nil || !has {
 			continue
 		}
-		st, err := assets.Status(repo)
+		st, err := svc.Status(ctx, workspaceRoot, []string{rel})
 		if err != nil {
 			report.Add(doctor.DiagnosticResult{
 				Category: "Assets",
@@ -274,9 +339,11 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 			})
 			continue
 		}
-		for _, s := range st {
-			if s.State != assets.FileOK {
-				missing++
+		for _, repository := range st.Repositories {
+			for _, file := range repository.Files {
+				if file.State != assetsdomain.FileOK {
+					missing++
+				}
 			}
 		}
 	}
@@ -317,19 +384,20 @@ func findRepoRelative(absFile string) (repoRoot, rel string, err error) {
 }
 
 func pullWorkspaceAssets(ctx context.Context, workspaceRoot string, rels []string, force bool) error {
-	any := false
+	hasAny := false
 	for _, rel := range rels {
-		if assets.HasManifest(filepath.Join(workspaceRoot, rel)) {
-			any = true
+		if has, err := newAssetsService(io.Discard, nil).HasManifest(filepath.Join(workspaceRoot, rel)); err == nil && has {
+			hasAny = true
 			break
 		}
 	}
-	if !any {
+	if !hasAny {
 		return nil
 	}
-	store, err := assets.OpenStore(ctx)
+	store, err := openAssets(ctx)
 	if err != nil {
-		return fmt.Errorf("R2 credentials (%s): %w", assets.DefaultR2EnvPath(), err)
+		return err
 	}
-	return assets.PullRepos(ctx, workspaceRoot, rels, store, assets.PullOptions{Force: force})
+	_, err = newAssetsService(io.Discard, store).Pull(ctx, workspaceRoot, rels, assetsapp.PullOptions{Force: force})
+	return err
 }
