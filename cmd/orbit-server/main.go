@@ -19,11 +19,11 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/config/application"
 	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
 	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
-	"github.com/manovaspace/orbit-cli/pkg/onboard"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/devprovisioner"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/server"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sqlite"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
-	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -293,10 +293,10 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	}
 
 	// 8. Initialize Onboard Server
-	serverCfg := onboard.ServerConfig{
+	serverCfg := server.ServerConfig{
 		Addr:                    opts.addr,
 		Secret:                  []byte(secret),
-		Provisioner:             provisioner.NewDevProvisioner(),
+		Provisioner:             devprovisioner.NewDevProvisioner(),
 		Store:                   db,
 		RateLimitStore:          db.RateLimits(),
 		ChallengeManager:        challengeMgr,
@@ -307,7 +307,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 		Logger:                  slog.Default(),
 	}
 
-	srv, err := onboard.NewServer(serverCfg)
+	srv, err := server.NewServer(serverCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}

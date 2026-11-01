@@ -8,7 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 )
 
 // MinTerminalWidth is the minimum terminal width required for full onboarding TUI.
@@ -19,7 +20,7 @@ const MinTerminalHeight = 24
 
 // WizardOptions encapsulates initialization parameters for the Onboarding TUI wizard.
 type WizardOptions struct {
-	SessionManager *session.SessionManager
+	SessionManager onboarddomain.SessionStore
 	PreSetToken    string
 	Resume         bool
 	Reset          bool
@@ -29,9 +30,9 @@ type WizardOptions struct {
 
 // WizardModel is the root Bubble Tea model managing the interactive onboarding lifecycle.
 type WizardModel struct {
-	Stage          session.Stage
-	Session        *session.SessionState
-	SessionManager *session.SessionManager
+	Stage          onboarddomain.Stage
+	Session        *onboarddomain.SessionState
+	SessionManager onboarddomain.SessionStore
 	Options        WizardOptions
 
 	Width        int
@@ -45,8 +46,8 @@ type WizardModel struct {
 	SuccessMsg string
 
 	// Active stage view handler overrides (can be wired by individual stage components)
-	StageViews   map[session.Stage]func(m *WizardModel) string
-	StageUpdates map[session.Stage]func(m *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd)
+	StageViews   map[onboarddomain.Stage]func(m *WizardModel) string
+	StageUpdates map[onboarddomain.Stage]func(m *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd)
 }
 
 // NewWizardModel creates and initializes a new root onboarding wizard model.
@@ -54,26 +55,26 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 	sm := opts.SessionManager
 	if sm == nil {
 		var err error
-		sm, err = session.NewSessionManager("")
+		sm, err = sessionstore.New("")
 		if err != nil {
 			// Fallback session manager if home directory cannot be determined
-			sm, _ = session.NewSessionManager("/tmp/orbit-session.json")
+			sm, _ = sessionstore.New("/tmp/orbit-session.json")
 		}
 	}
 
-	var sess *session.SessionState
+	var sess *onboarddomain.SessionState
 	if opts.Reset || opts.Rollback {
-		_ = sm.DiscardSession()
-		sess = sm.CreateSession("", "")
-	} else if opts.Resume || sm.HasPendingSession() {
-		loaded, err := sm.LoadSession()
+		_ = sm.Clear()
+		sess = sm.Create("", "")
+	} else if opts.Resume || sm.HasPending() {
+		loaded, err := sm.Load()
 		if err == nil && loaded != nil {
 			sess = loaded
 		}
 	}
 
 	if sess == nil {
-		sess = sm.CreateSession("", "")
+		sess = sm.Create("", "")
 	}
 
 	if opts.PreSetToken != "" {
@@ -82,8 +83,8 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 
 	// Determine starting stage
 	startStage := sess.CurrentStage
-	if !opts.Resume || startStage == "" || startStage == session.StageInit {
-		startStage = session.StageWelcome
+	if !opts.Resume || startStage == "" || startStage == onboarddomain.StageInit {
+		startStage = onboarddomain.StageWelcome
 		sess.CurrentStage = startStage
 	}
 
@@ -100,76 +101,76 @@ func NewWizardModel(opts WizardOptions) *WizardModel {
 		Width:          MinTerminalWidth,
 		Height:         MinTerminalHeight,
 		Spinner:        sp,
-		StageViews:     make(map[session.Stage]func(m *WizardModel) string),
-		StageUpdates:   make(map[session.Stage]func(m *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd)),
+		StageViews:     make(map[onboarddomain.Stage]func(m *WizardModel) string),
+		StageUpdates:   make(map[onboarddomain.Stage]func(m *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd)),
 	}
 
 	// Wire Welcome stage component
 	welcomeModel := NewWelcomeModel(m)
-	m.StageViews[session.StageWelcome] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageWelcome] = func(w *WizardModel) string {
 		return welcomeModel.View()
 	}
-	m.StageUpdates[session.StageWelcome] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageWelcome] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := welcomeModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Doctor stage component
 	doctorModel := NewDoctorModel(m)
-	m.StageViews[session.StageDoctor] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageDoctor] = func(w *WizardModel) string {
 		return doctorModel.View()
 	}
-	m.StageUpdates[session.StageDoctor] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageDoctor] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := doctorModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Identity stage component
 	identityModel := NewIdentityModel(m)
-	m.StageViews[session.StageIdentity] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageIdentity] = func(w *WizardModel) string {
 		return identityModel.View()
 	}
-	m.StageUpdates[session.StageIdentity] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageIdentity] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := identityModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Workspace stage component
 	workspaceModel := NewWorkspaceModel(m)
-	m.StageViews[session.StageWorkspace] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageWorkspace] = func(w *WizardModel) string {
 		return workspaceModel.View()
 	}
-	m.StageUpdates[session.StageWorkspace] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageWorkspace] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := workspaceModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Environment stage component
 	envModel := NewEnvModel(m)
-	m.StageViews[session.StageEnvironment] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageEnvironment] = func(w *WizardModel) string {
 		return envModel.View()
 	}
-	m.StageUpdates[session.StageEnvironment] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageEnvironment] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := envModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Stack stage component
 	stackModel := NewStackModel(m)
-	m.StageViews[session.StageStack] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageStack] = func(w *WizardModel) string {
 		return stackModel.View()
 	}
-	m.StageUpdates[session.StageStack] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageStack] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := stackModel.Update(msg)
 		return w, cmd
 	}
 
 	// Wire Complete stage component
 	completeModel := NewCompleteModel(m)
-	m.StageViews[session.StageComplete] = func(w *WizardModel) string {
+	m.StageViews[onboarddomain.StageComplete] = func(w *WizardModel) string {
 		return completeModel.View()
 	}
-	m.StageUpdates[session.StageComplete] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.StageUpdates[onboarddomain.StageComplete] = func(w *WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd := completeModel.Update(msg)
 		return w, cmd
 	}
@@ -183,19 +184,19 @@ func (m *WizardModel) Init() tea.Cmd {
 }
 
 // SetStage transitions the wizard to a new stage and persists a checkpoint.
-func (m *WizardModel) SetStage(stage session.Stage) {
+func (m *WizardModel) SetStage(stage onboarddomain.Stage) {
 	m.Stage = stage
 	m.ErrorMsg = ""
 	if m.Session != nil {
 		m.Session.CurrentStage = stage
 		if m.SessionManager != nil {
-			_ = m.SessionManager.SaveCheckpoint(m.Session)
+			_ = m.SessionManager.Save(m.Session)
 		}
 	}
 }
 
 // ActiveStage returns the currently active stage of the wizard.
-func (m *WizardModel) ActiveStage() session.Stage {
+func (m *WizardModel) ActiveStage() onboarddomain.Stage {
 	return m.Stage
 }
 
@@ -227,7 +228,7 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			// Persist checkpoint on abort
 			if m.Session != nil && m.SessionManager != nil {
-				_ = m.SessionManager.SaveCheckpoint(m.Session)
+				_ = m.SessionManager.Save(m.Session)
 			}
 			return m, tea.Quit
 		}

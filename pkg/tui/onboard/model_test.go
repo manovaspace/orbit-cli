@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
 func TestWizardModelInitAndResize(t *testing.T) {
-	sm, err := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, err := sessionstore.New(t.TempDir() + "/session.json")
 	if err != nil {
 		t.Fatalf("failed to create session manager: %v", err)
 	}
@@ -41,7 +42,7 @@ func TestWizardModelInitAndResize(t *testing.T) {
 }
 
 func TestWizardModelStageTransition(t *testing.T) {
-	sm, err := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, err := sessionstore.New(t.TempDir() + "/session.json")
 	if err != nil {
 		t.Fatalf("failed to create session manager: %v", err)
 	}
@@ -50,23 +51,23 @@ func TestWizardModelStageTransition(t *testing.T) {
 		SessionManager: sm,
 	})
 
-	model.SetStage(session.StageDoctor)
-	if model.ActiveStage() != session.StageDoctor {
-		t.Errorf("expected active stage %v, got %v", session.StageDoctor, model.ActiveStage())
+	model.SetStage(onboarddomain.StageDoctor)
+	if model.ActiveStage() != onboarddomain.StageDoctor {
+		t.Errorf("expected active stage %v, got %v", onboarddomain.StageDoctor, model.ActiveStage())
 	}
 
 	// Verify checkpoint was persisted
-	loaded, err := sm.LoadSession()
+	loaded, err := sm.Load()
 	if err != nil {
 		t.Fatalf("failed to load session: %v", err)
 	}
-	if loaded == nil || loaded.CurrentStage != session.StageDoctor {
-		t.Errorf("expected saved session stage %v, got %v", session.StageDoctor, loaded)
+	if loaded == nil || loaded.CurrentStage != onboarddomain.StageDoctor {
+		t.Errorf("expected saved session stage %v, got %v", onboarddomain.StageDoctor, loaded)
 	}
 }
 
 func TestWizardModelTerminalResizeConstraints(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	model := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -91,7 +92,7 @@ func TestWizardModelTerminalResizeConstraints(t *testing.T) {
 }
 
 func TestWizardModelCtrlCQuit(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	model := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -104,12 +105,12 @@ func TestWizardModelCtrlCQuit(t *testing.T) {
 
 func TestWizardModelResumeAndReset(t *testing.T) {
 	sessionPath := t.TempDir() + "/session.json"
-	sm, _ := session.NewSessionManager(sessionPath)
+	sm, _ := sessionstore.New(sessionPath)
 
 	// Save initial session at StageWorkspace
-	state := sm.CreateSession("test@manova.space", "Test User")
-	state.CurrentStage = session.StageWorkspace
-	if err := sm.SaveCheckpoint(state); err != nil {
+	state := sm.Create("test@manova.space", "Test User")
+	state.CurrentStage = onboarddomain.StageWorkspace
+	if err := sm.Save(state); err != nil {
 		t.Fatalf("failed to save checkpoint: %v", err)
 	}
 
@@ -118,8 +119,8 @@ func TestWizardModelResumeAndReset(t *testing.T) {
 		SessionManager: sm,
 		Resume:         true,
 	})
-	if resumeModel.ActiveStage() != session.StageWorkspace {
-		t.Errorf("expected resumed stage %v, got %v", session.StageWorkspace, resumeModel.ActiveStage())
+	if resumeModel.ActiveStage() != onboarddomain.StageWorkspace {
+		t.Errorf("expected resumed stage %v, got %v", onboarddomain.StageWorkspace, resumeModel.ActiveStage())
 	}
 
 	// 2. Reset should wipe session and start at StageWelcome
@@ -127,20 +128,20 @@ func TestWizardModelResumeAndReset(t *testing.T) {
 		SessionManager: sm,
 		Reset:          true,
 	})
-	if resetModel.ActiveStage() != session.StageWelcome {
-		t.Errorf("expected reset stage %v, got %v", session.StageWelcome, resetModel.ActiveStage())
+	if resetModel.ActiveStage() != onboarddomain.StageWelcome {
+		t.Errorf("expected reset stage %v, got %v", onboarddomain.StageWelcome, resetModel.ActiveStage())
 	}
 }
 
 func TestHeaderStepperRendering(t *testing.T) {
-	stages := []session.Stage{
-		session.StageWelcome,
-		session.StageDoctor,
-		session.StageIdentity,
-		session.StageWorkspace,
-		session.StageEnvironment,
-		session.StageStack,
-		session.StageCompleted,
+	stages := []onboarddomain.Stage{
+		onboarddomain.StageWelcome,
+		onboarddomain.StageDoctor,
+		onboarddomain.StageIdentity,
+		onboarddomain.StageWorkspace,
+		onboarddomain.StageEnvironment,
+		onboarddomain.StageStack,
+		onboarddomain.StageCompleted,
 	}
 
 	for _, st := range stages {
@@ -155,7 +156,7 @@ func TestHeaderStepperRendering(t *testing.T) {
 }
 
 func TestFooterStatusBarRendering(t *testing.T) {
-	footer := tuiOnboard.RenderFooterStatusBar(session.StageWelcome, 100, "[Space] Select")
+	footer := tuiOnboard.RenderFooterStatusBar(onboarddomain.StageWelcome, 100, "[Space] Select")
 	if len(footer) == 0 {
 		t.Errorf("expected non-empty footer status bar")
 	}
@@ -166,28 +167,28 @@ func TestFooterStatusBarRendering(t *testing.T) {
 
 func TestStepIndexForStage(t *testing.T) {
 	tests := []struct {
-		stage session.Stage
+		stage onboarddomain.Stage
 		want  int
 	}{
-		{session.StageInit, 0},
-		{session.StageWelcome, 0},
-		{session.StageDoctor, 1},
-		{session.StageDoctorPassed, 1},
-		{session.StageIdentity, 2},
-		{session.StageKeypairReady, 2},
-		{session.StageTokenClaimed, 2},
-		{session.StageNetworkConfigured, 2},
-		{session.StageWorkspace, 3},
-		{session.StageReposCloned, 3},
-		{session.StageEnvironment, 4},
-		{session.StageEnvironmentReady, 4},
-		{session.StageMCPConfigured, 4},
-		{session.StageStack, 5},
-		{session.StageStackReady, 5},
-		{session.StageDevStackReady, 5},
-		{session.StageComplete, 6},
-		{session.StageCompleted, 6},
-		{session.Stage("unknown_stage"), 0},
+		{onboarddomain.StageInit, 0},
+		{onboarddomain.StageWelcome, 0},
+		{onboarddomain.StageDoctor, 1},
+		{onboarddomain.StageDoctorPassed, 1},
+		{onboarddomain.StageIdentity, 2},
+		{onboarddomain.StageKeypairReady, 2},
+		{onboarddomain.StageTokenClaimed, 2},
+		{onboarddomain.StageNetworkConfigured, 2},
+		{onboarddomain.StageWorkspace, 3},
+		{onboarddomain.StageReposCloned, 3},
+		{onboarddomain.StageEnvironment, 4},
+		{onboarddomain.StageEnvironmentReady, 4},
+		{onboarddomain.StageMCPConfigured, 4},
+		{onboarddomain.StageStack, 5},
+		{onboarddomain.StageStackReady, 5},
+		{onboarddomain.StageDevStackReady, 5},
+		{onboarddomain.StageComplete, 6},
+		{onboarddomain.StageCompleted, 6},
+		{onboarddomain.Stage("unknown_stage"), 0},
 	}
 
 	for _, tc := range tests {
@@ -199,7 +200,7 @@ func TestStepIndexForStage(t *testing.T) {
 }
 
 func TestWizardModelErrorAndLoading(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	model := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -224,17 +225,17 @@ func TestWizardModelErrorAndLoading(t *testing.T) {
 }
 
 func TestWizardModelCustomViewsAndUpdates(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	model := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
 
-	model.StageViews[session.StageWelcome] = func(m *tuiOnboard.WizardModel) string {
+	model.StageViews[onboarddomain.StageWelcome] = func(m *tuiOnboard.WizardModel) string {
 		return "CUSTOM_WELCOME_VIEW"
 	}
 
 	customUpdateCalled := false
-	model.StageUpdates[session.StageWelcome] = func(m *tuiOnboard.WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
+	model.StageUpdates[onboarddomain.StageWelcome] = func(m *tuiOnboard.WizardModel, msg tea.Msg) (tea.Model, tea.Cmd) {
 		customUpdateCalled = true
 		return m, nil
 	}
@@ -256,7 +257,7 @@ func TestWizardModelZeroOptions(t *testing.T) {
 	if model == nil {
 		t.Fatalf("expected non-nil model from empty options")
 	}
-	if model.ActiveStage() != session.StageWelcome {
+	if model.ActiveStage() != onboarddomain.StageWelcome {
 		t.Errorf("expected default active stage to be StageWelcome, got: %s", model.ActiveStage())
 	}
 }

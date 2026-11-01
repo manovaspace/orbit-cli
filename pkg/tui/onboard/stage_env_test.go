@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
@@ -140,7 +141,7 @@ func TestEnsureWireGuardConfigEmpty(t *testing.T) {
 }
 
 func TestEnvModelInit(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -165,7 +166,7 @@ func TestEnvModelInit(t *testing.T) {
 }
 
 func TestEnvModelViewRendering(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -183,11 +184,11 @@ func TestEnvModelViewRendering(t *testing.T) {
 }
 
 func TestEnvModelAutomationRunnerSuccess(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
-	root.Session = &session.SessionState{
+	root.Session = &onboarddomain.SessionState{
 		ForgejoToken: "tok123",
 		UID:          "devuid",
 	}
@@ -226,7 +227,7 @@ func TestEnvModelAutomationRunnerSuccess(t *testing.T) {
 }
 
 func TestEnvModelAutomationRunnerFailure(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	envModel := tuiOnboard.NewEnvModel(root)
 
@@ -261,7 +262,7 @@ func TestEnvModelAutomationRunnerFailure(t *testing.T) {
 }
 
 func TestEnvModelRetryKeySuccess(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	envModel := tuiOnboard.NewEnvModel(root)
 
@@ -276,23 +277,23 @@ func TestEnvModelRetryKeySuccess(t *testing.T) {
 }
 
 func TestEnvModelSkipKey(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.Session = &session.SessionState{}
+	root.Session = &onboarddomain.SessionState{}
 	envModel := tuiOnboard.NewEnvModel(root)
 	envModel.SetHasError(true)
 
 	// [S] press should skip to next stage
 	_, _ = envModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	if root.ActiveStage() != session.StageStack {
+	if root.ActiveStage() != onboarddomain.StageStack {
 		t.Errorf("expected skip to transition to StageStack, got %v", root.ActiveStage())
 	}
 }
 
 func TestEnvModelWizardIntegration(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.SetStage(session.StageEnvironment)
+	root.SetStage(onboarddomain.StageEnvironment)
 
 	view := root.View()
 	if !strings.Contains(view, "Environment") {
@@ -301,9 +302,9 @@ func TestEnvModelWizardIntegration(t *testing.T) {
 }
 
 func TestEnvModelFinishedTransitionsStage(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.Session = &session.SessionState{}
+	root.Session = &onboarddomain.SessionState{}
 	envModel := tuiOnboard.NewEnvModel(root)
 
 	allSuccess := []tuiOnboard.EnvStepResult{}
@@ -313,7 +314,7 @@ func TestEnvModelFinishedTransitionsStage(t *testing.T) {
 
 	_, _ = envModel.Update(tuiOnboard.EnvAutomationFinishedMsg{Results: allSuccess, Err: nil})
 
-	if root.ActiveStage() != session.StageStack {
+	if root.ActiveStage() != onboarddomain.StageStack {
 		t.Errorf("expected transition to StageStack after env success, got %v", root.ActiveStage())
 	}
 }

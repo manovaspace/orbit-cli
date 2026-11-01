@@ -9,7 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 	"golang.org/x/crypto/ssh"
 )
@@ -143,7 +144,7 @@ func TestIdentityConfigureSSHHost(t *testing.T) {
 
 func TestIdentityModelViewRendering(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 		PreSetToken:    "inv_dev_secret_token_12345",
@@ -181,7 +182,7 @@ func TestIdentityModelViewRendering(t *testing.T) {
 }
 
 func TestIdentityModelTabNavigation(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -212,12 +213,12 @@ func TestIdentityModelTabNavigation(t *testing.T) {
 
 func TestIdentityModelClaimSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 		PreSetToken:    "inv_dev_valid_token",
 	})
-	root.SetStage(session.StageIdentity)
+	root.SetStage(onboarddomain.StageIdentity)
 
 	idModel := tuiOnboard.NewIdentityModel(root)
 	keyPath := filepath.Join(tmpDir, "id_ed25519_orbit")
@@ -303,19 +304,19 @@ func TestIdentityModelClaimSuccess(t *testing.T) {
 	}
 
 	// Verify wizard transitioned to StageWorkspace
-	if root.ActiveStage() != session.StageWorkspace {
+	if root.ActiveStage() != onboarddomain.StageWorkspace {
 		t.Errorf("expected transition to StageWorkspace, got %v", root.ActiveStage())
 	}
 }
 
 func TestIdentityModelClaimFailureAndRetry(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 		PreSetToken:    "inv_invalid_token",
 	})
-	root.SetStage(session.StageIdentity)
+	root.SetStage(onboarddomain.StageIdentity)
 
 	idModel := tuiOnboard.NewIdentityModel(root)
 	idModel.SetSSHKeyPath(filepath.Join(tmpDir, "id_ed25519_orbit"))
@@ -351,7 +352,7 @@ func TestIdentityModelClaimFailureAndRetry(t *testing.T) {
 
 func TestIdentityModelSubmittingView(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -369,13 +370,13 @@ func TestIdentityModelSubmittingView(t *testing.T) {
 
 func TestIdentityModelWizardIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 		PreSetToken:    "inv_dev_test",
 	})
 
-	root.SetStage(session.StageIdentity)
+	root.SetStage(onboarddomain.StageIdentity)
 	view := root.View()
 
 	if !strings.Contains(view, "Developer Identity & Platform Registration") {

@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
 // DashboardInfo holds the service URLs for the completion screen.
@@ -109,9 +109,9 @@ func (m *CompleteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case completeSessionMsg:
 		if m.parent != nil {
 			if m.parent.Session != nil {
-				m.parent.Session.CurrentStage = session.StageCompleted
+				m.parent.Session.CurrentStage = onboarddomain.StageCompleted
 				if m.parent.SessionManager != nil {
-					_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+					_ = m.parent.SessionManager.Save(m.parent.Session)
 				}
 			}
 			m.parent.ErrorMsg = ""

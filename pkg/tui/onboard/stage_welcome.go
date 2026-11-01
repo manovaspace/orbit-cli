@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
 const welcomeBannerASCII = `   ___      _     _ _   
@@ -20,7 +20,7 @@ type WelcomeModel struct {
 	parent            *WizardModel
 	tokenInput        textinput.Model
 	hasPendingSession bool
-	pendingSession    *session.SessionState
+	pendingSession    *onboarddomain.SessionState
 	width             int
 }
 
@@ -37,12 +37,12 @@ func NewWelcomeModel(parent *WizardModel) *WelcomeModel {
 	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorGray)
 
 	var hasPending bool
-	var pendingSess *session.SessionState
+	var pendingSess *onboarddomain.SessionState
 
 	if parent != nil && parent.SessionManager != nil {
-		if parent.SessionManager.HasPendingSession() && !parent.Options.Resume && !parent.Options.Reset {
-			loaded, err := parent.SessionManager.LoadSession()
-			if err == nil && loaded != nil && loaded.CurrentStage != session.StageComplete && loaded.CurrentStage != session.StageCompleted && loaded.CurrentStage != session.StageInit && loaded.CurrentStage != session.StageWelcome {
+		if parent.SessionManager.HasPending() && !parent.Options.Resume && !parent.Options.Reset {
+			loaded, err := parent.SessionManager.Load()
+			if err == nil && loaded != nil && loaded.CurrentStage != onboarddomain.StageComplete && loaded.CurrentStage != onboarddomain.StageCompleted && loaded.CurrentStage != onboarddomain.StageInit && loaded.CurrentStage != onboarddomain.StageWelcome {
 				hasPending = true
 				pendingSess = loaded
 			}
@@ -102,8 +102,8 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.parent != nil && m.pendingSession != nil {
 					m.parent.Session = m.pendingSession
 					targetStage := m.pendingSession.CurrentStage
-					if targetStage == "" || targetStage == session.StageInit {
-						targetStage = session.StageDoctor
+					if targetStage == "" || targetStage == onboarddomain.StageInit {
+						targetStage = onboarddomain.StageDoctor
 					}
 					m.parent.SetStage(targetStage)
 				}
@@ -112,8 +112,8 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "d", "D":
 				if m.parent != nil && m.parent.SessionManager != nil {
-					_ = m.parent.SessionManager.DiscardSession()
-					m.parent.Session = m.parent.SessionManager.CreateSession("", "")
+					_ = m.parent.SessionManager.Clear()
+					m.parent.Session = m.parent.SessionManager.Create("", "")
 				}
 				m.hasPendingSession = false
 				m.tokenInput.Focus()
@@ -138,10 +138,10 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.parent.Session != nil {
 					m.parent.Session.InviteToken = tok
 					if m.parent.SessionManager != nil {
-						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+						_ = m.parent.SessionManager.Save(m.parent.Session)
 					}
 				}
-				m.parent.SetStage(session.StageDoctor)
+				m.parent.SetStage(onboarddomain.StageDoctor)
 			}
 			return m, nil
 		}

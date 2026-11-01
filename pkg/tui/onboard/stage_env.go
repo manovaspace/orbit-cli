@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/workspace"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
-	"github.com/manovaspace/orbit-cli/pkg/session"
 )
 
 // EnvStepItem represents a single automation step in the environment setup stage.
@@ -350,12 +350,12 @@ func (m *EnvModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.parent != nil {
 				m.parent.ErrorMsg = ""
 				if m.parent.Session != nil {
-					m.parent.Session.CurrentStage = session.StageEnvironmentReady
+					m.parent.Session.CurrentStage = onboarddomain.StageEnvironmentReady
 					if m.parent.SessionManager != nil {
-						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+						_ = m.parent.SessionManager.Save(m.parent.Session)
 					}
 				}
-				m.parent.SetStage(session.StageStack)
+				m.parent.SetStage(onboarddomain.StageStack)
 			}
 		}
 
@@ -370,12 +370,12 @@ func (m *EnvModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.parent != nil {
 				m.parent.ErrorMsg = ""
 				if m.parent.Session != nil {
-					m.parent.Session.CurrentStage = session.StageEnvironmentReady
+					m.parent.Session.CurrentStage = onboarddomain.StageEnvironmentReady
 					if m.parent.SessionManager != nil {
-						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+						_ = m.parent.SessionManager.Save(m.parent.Session)
 					}
 				}
-				m.parent.SetStage(session.StageStack)
+				m.parent.SetStage(onboarddomain.StageStack)
 			}
 		}
 	}

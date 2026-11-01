@@ -395,3 +395,29 @@ linters:
               desc: "pkg/owner/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/owner/application writes through its injected UI"
+        # The onboarding domain is the pure step, session and claim model.
+        onboard-domain:
+          files:
+            - "**/pkg/onboard/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/onboard/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/onboard/application"
+              desc: "pkg/onboard/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure"
+              desc: "pkg/onboard/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/onboard/domain is pure and must not style output"
+        # The onboarding application reaches the provisioner, session file,
+        # filesystem, diagnostics, repositories and stack only through its
+        # ports.
+        onboard-application:
+          files:
+            - "**/pkg/onboard/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/onboard/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure"
+              desc: "pkg/onboard/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/onboard/application writes through its injected UI"

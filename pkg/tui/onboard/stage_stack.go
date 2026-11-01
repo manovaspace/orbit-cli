@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
 // StackService describes one Compose service shown in the launch panel.
@@ -131,12 +131,12 @@ func (m *StackModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.parent != nil {
 				m.parent.ErrorMsg = ""
 				if m.parent.Session != nil {
-					m.parent.Session.CurrentStage = session.StageStackReady
+					m.parent.Session.CurrentStage = onboarddomain.StageStackReady
 					if m.parent.SessionManager != nil {
-						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+						_ = m.parent.SessionManager.Save(m.parent.Session)
 					}
 				}
-				m.parent.SetStage(session.StageComplete)
+				m.parent.SetStage(onboarddomain.StageComplete)
 			}
 		}
 

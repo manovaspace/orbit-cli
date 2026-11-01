@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
@@ -42,7 +43,7 @@ func TestCompletionDashboardNoURLs(t *testing.T) {
 }
 
 func TestCompleteModelViewRendering(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	cm := tuiOnboard.NewCompleteModel(root)
 
@@ -53,7 +54,7 @@ func TestCompleteModelViewRendering(t *testing.T) {
 }
 
 func TestCompleteModelQuit(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	cm := tuiOnboard.NewCompleteModel(root)
 
@@ -70,9 +71,9 @@ func TestCompleteModelQuit(t *testing.T) {
 }
 
 func TestCompleteModelWizardIntegration(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.SetStage(session.StageComplete)
+	root.SetStage(onboarddomain.StageComplete)
 
 	view := root.View()
 	if !strings.Contains(view, "all set") {
@@ -83,7 +84,7 @@ func TestCompleteModelWizardIntegration(t *testing.T) {
 // ---- stage_stack tests ----
 
 func TestStackModelInit(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	sm2 := tuiOnboard.NewStackModel(root)
 
@@ -105,7 +106,7 @@ func TestStackModelInit(t *testing.T) {
 }
 
 func TestStackModelViewRendering(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	stackModel := tuiOnboard.NewStackModel(root)
 
@@ -119,9 +120,9 @@ func TestStackModelViewRendering(t *testing.T) {
 }
 
 func TestStackModelLaunchSuccess(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.Session = &session.SessionState{}
+	root.Session = &onboarddomain.SessionState{}
 	stackModel := tuiOnboard.NewStackModel(root)
 
 	stackModel.SetLauncher(func(services []tuiOnboard.StackService) []tuiOnboard.StackService {
@@ -153,9 +154,9 @@ func TestStackModelLaunchSuccess(t *testing.T) {
 }
 
 func TestStackModelLaunchSuccessTransitionsToComplete(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.Session = &session.SessionState{}
+	root.Session = &onboarddomain.SessionState{}
 	stackModel := tuiOnboard.NewStackModel(root)
 
 	readyServices := stackModel.Services()
@@ -165,13 +166,13 @@ func TestStackModelLaunchSuccessTransitionsToComplete(t *testing.T) {
 
 	_, _ = stackModel.Update(tuiOnboard.StackLaunchFinishedMsg{Services: readyServices, Err: nil})
 
-	if root.ActiveStage() != session.StageComplete {
+	if root.ActiveStage() != onboarddomain.StageComplete {
 		t.Errorf("expected transition to StageComplete, got %v", root.ActiveStage())
 	}
 }
 
 func TestStackModelRetryKey(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	stackModel := tuiOnboard.NewStackModel(root)
 
@@ -194,9 +195,9 @@ func TestStackModelRetryKey(t *testing.T) {
 }
 
 func TestStackModelWizardIntegration(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
-	root.SetStage(session.StageStack)
+	root.SetStage(onboarddomain.StageStack)
 
 	view := root.View()
 	if !strings.Contains(view, "Stack") {

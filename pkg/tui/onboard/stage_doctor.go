@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
 // DiagnosticsFinishedMsg is sent when background pre-flight diagnostics complete.
@@ -274,12 +274,12 @@ func (m *DoctorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.parent != nil {
 				m.parent.ErrorMsg = ""
 				if m.parent.Session != nil {
-					m.parent.Session.CurrentStage = session.StageDoctorPassed
+					m.parent.Session.CurrentStage = onboarddomain.StageDoctorPassed
 					if m.parent.SessionManager != nil {
-						_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+						_ = m.parent.SessionManager.Save(m.parent.Session)
 					}
 				}
-				m.parent.SetStage(session.StageIdentity)
+				m.parent.SetStage(onboarddomain.StageIdentity)
 			}
 			return m, nil
 		}
