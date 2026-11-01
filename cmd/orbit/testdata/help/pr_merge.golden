@@ -6,11 +6,10 @@ Usage:
 Flags:
       --allow-no-checks   Allow merging when the pull request reports no checks
   -h, --help              help for merge
+      --json              Print the result as a JSON envelope
       --method string     Merge method (merge, squash, rebase, rebase-merge) (default "merge")
       --override string   Merge despite failing checks and record the reason as a PR comment
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
       --dir string      Path to repository directory (default: current directory) (default ".")
-      --token string    Forgejo API access token
-      --url string      Custom Forgejo/Gitea base URL

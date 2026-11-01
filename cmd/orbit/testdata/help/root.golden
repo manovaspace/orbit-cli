@@ -20,7 +20,7 @@ Available Commands:
   migrate     Run and inspect workspace state migrations
   onboard     Interactive onboarding wizard with resume, claims, and stack provisioning
   port        Manage and inspect the hybrid 50-port allocation model
-  pr          Manage pull requests and automated delivery via Forgejo and GitHub
+  pr          Manage pull requests and automated delivery
   repair      Attach .git to gitless workspace trees without overwriting files
   self-update Update the Orbit CLI binary to the latest release
   staff       Manage Orbit staff via the staff control plane

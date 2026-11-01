@@ -1,13 +1,12 @@
-Displays all open pull requests for the current repository on Forgejo or GitHub.
+Displays all open pull requests for the current repository on GitHub.
 
 Usage:
   orbit pr status [flags]
 
 Flags:
   -h, --help   help for status
+      --json   Print the result as a JSON envelope
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
       --dir string      Path to repository directory (default: current directory) (default ".")
-      --token string    Forgejo API access token
-      --url string      Custom Forgejo/Gitea base URL

@@ -1,4 +1,4 @@
-Pushes the head branch to origin, creates a pull request on Forgejo or GitHub, and optionally merges it.
+Pushes the head branch to origin, creates a pull request on GitHub, and optionally merges it.
 
 Usage:
   orbit pr create [flags]
@@ -9,6 +9,7 @@ Flags:
       --body string             Pull request body/description
       --head string             Head branch (defaults to current branch)
   -h, --help                    help for create
+      --json                    Print the result as a JSON envelope
       --merge                   Merge pull request immediately after creation
       --method string           Merge method (merge, squash, rebase, rebase-merge) (default "merge")
       --override string         Merge despite failing checks and record the reason as a PR comment
@@ -18,5 +19,3 @@ Flags:
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
       --dir string      Path to repository directory (default: current directory) (default ".")
-      --token string    Forgejo API access token
-      --url string      Custom Forgejo/Gitea base URL

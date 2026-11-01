@@ -3,63 +3,86 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"code.gitea.io/sdk/gitea"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
+	"github.com/manovaspace/orbit-cli/pkg/runner/runnertest"
 )
 
-func setupTestGitRepo(t *testing.T, owner, repoName string) (localDir, originDir string) {
+// prFakeClock advances on every sleep so waiting commands run instantly.
+type prFakeClock struct {
+	now time.Time
+}
+
+func (c *prFakeClock) Now() time.Time { return c.now }
+
+func (c *prFakeClock) Sleep(d time.Duration) { c.now = c.now.Add(d) }
+
+// setupPRFake swaps the pr command's runner and clock for test doubles.
+func setupPRFake(t *testing.T) *runnertest.Fake {
 	t.Helper()
-	tmpDir := t.TempDir()
+	fake := &runnertest.Fake{}
+	clock := &prFakeClock{now: time.Unix(0, 0)}
 
-	originDir = filepath.Join(tmpDir, owner, repoName+".git")
-	if err := os.MkdirAll(filepath.Dir(originDir), 0755); err != nil {
-		t.Fatalf("failed to mkdir origin parent: %v", err)
-	}
-	cmd := exec.Command("git", "init", "--bare", originDir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to init bare origin: %s (%v)", out, err)
-	}
+	prevRunner, prevSleep, prevNow := prRunner, prSleep, prNow
+	prevPoll, prevWindow := prPollInterval, prRegisterWindow
+	prRunner, prSleep, prNow = fake, clock.Sleep, clock.Now
+	prPollInterval, prRegisterWindow = time.Millisecond, 5*time.Millisecond
+	t.Cleanup(func() {
+		prRunner, prSleep, prNow = prevRunner, prevSleep, prevNow
+		prPollInterval, prRegisterWindow = prevPoll, prevWindow
+	})
+	return fake
+}
 
-	localDir = filepath.Join(tmpDir, "local")
-	if err := os.MkdirAll(localDir, 0755); err != nil {
-		t.Fatalf("failed to mkdir local: %v", err)
-	}
+// expectGitAnswers registers the repository detection the pr commands perform.
+func expectGitAnswers(fake *runnertest.Fake) {
+	fake.On("git -C /repo config --get remote.origin.url", runner.Result{Stdout: "git@github.com:manovaspace/orbit-test.git\n"}, nil)
+	fake.On("git -C /repo rev-parse --abbrev-ref HEAD", runner.Result{Stdout: "feat/x\n"}, nil)
+	fake.On("git -C /repo log -1 --pretty=%s feat/x", runner.Result{Stdout: "feat: thing\n"}, nil)
+	fake.On("git -C /repo log -1 --pretty=%b feat/x", runner.Result{Stdout: "body\n"}, nil)
+}
 
-	runGitCmd := func(args ...string) {
-		t.Helper()
-		c := exec.Command("git", append([]string{"-C", localDir}, args...)...)
-		if out, err := c.CombinedOutput(); err != nil {
-			t.Fatalf("git %s failed: %s (%v)", strings.Join(args, " "), out, err)
+func runPRCmd(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	cmd := newRootCmd()
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return buf.String(), err
+}
+
+type prEnvelope struct {
+	SchemaVersion int             `json:"schemaVersion"`
+	OK            bool            `json:"ok"`
+	Data          json.RawMessage `json:"data"`
+	Error         *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// decodeEnvelope finds the JSON envelope line, which cobra may follow with its
+// own "Error:" line on failure.
+func decodeEnvelope(t *testing.T, out string) prEnvelope {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") {
+			continue
 		}
+		var env prEnvelope
+		if err := json.Unmarshal([]byte(line), &env); err != nil {
+			t.Fatalf("decoding envelope %q: %v", line, err)
+		}
+		return env
 	}
-
-	runGitCmd("init")
-	runGitCmd("config", "user.name", "Orbit Test")
-	runGitCmd("config", "user.email", "test@manova.space")
-	runGitCmd("config", "init.defaultBranch", "main")
-	runGitCmd("config", "core.hooksPath", "/dev/null")
-	runGitCmd("checkout", "-b", "main")
-
-	runGitCmd("remote", "add", "origin", originDir)
-
-	readme := filepath.Join(localDir, "README.md")
-	if err := os.WriteFile(readme, []byte("# Initial Commit\n"), 0644); err != nil {
-		t.Fatalf("failed to write README: %v", err)
-	}
-	runGitCmd("add", "README.md")
-	runGitCmd("commit", "-m", "chore: initial commit")
-	runGitCmd("push", "-u", "origin", "main")
-
-	return localDir, originDir
+	t.Fatalf("no JSON envelope in output: %s", out)
+	return prEnvelope{}
 }
 
 func TestPRHelp(t *testing.T) {
@@ -90,408 +113,201 @@ func TestPRHelp(t *testing.T) {
 	}
 }
 
-func TestPRStatusWithMockServer(t *testing.T) {
-	owner := "manova"
-	repo := "toolkit"
-	localDir, _ := setupTestGitRepo(t, owner, repo)
+func TestPRCreateJSON(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("git -C /repo push -u origin feat/x", runner.Result{}, nil)
+	fake.On("gh pr create", runner.Result{Stdout: "https://github.com/manovaspace/orbit-test/pull/7\n"}, nil)
 
-	now := time.Now()
-	mockPR := &gitea.PullRequest{
-		Index:   101,
-		Title:   "feat(api): add auth endpoint",
-		HTMLURL: "https://git.internal.manova.space/manova/toolkit/pulls/101",
-		Poster:  &gitea.User{UserName: "testuser"},
-		Head:    &gitea.PRBranchInfo{Name: "feat/auth"},
-		Base:    &gitea.PRBranchInfo{Name: "main"},
-		State:   gitea.StateOpen,
-		Created: &now,
-	}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/repos/manova/toolkit/pulls" {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode([]*gitea.PullRequest{mockPR})
-			return
-		}
-		http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
-	}))
-	defer ts.Close()
-
-	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"pr", "status",
-		"--dir", localDir,
-		"--url", ts.URL,
-		"--token", "test-token",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("pr status failed: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "#101") {
-		t.Errorf("expected output to contain '#101', got: %s", out)
-	}
-	if !strings.Contains(out, "feat(api): add auth") {
-		t.Errorf("expected output to contain PR title prefix, got: %s", out)
-	}
-	if !strings.Contains(out, "feat/auth -> main") {
-		t.Errorf("expected output to contain branch mapping, got: %s", out)
-	}
-	if !strings.Contains(out, "testuser") {
-		t.Errorf("expected output to contain author 'testuser', got: %s", out)
-	}
-}
-
-func TestPRStatusEmpty(t *testing.T) {
-	owner := "manova"
-	repo := "toolkit"
-	localDir, _ := setupTestGitRepo(t, owner, repo)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/repos/manova/toolkit/pulls" {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode([]*gitea.PullRequest{})
-			return
-		}
-		http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
-	}))
-	defer ts.Close()
-
-	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"pr", "status",
-		"--dir", localDir,
-		"--url", ts.URL,
-		"--token", "test-token",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("pr status failed: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "No open pull requests") {
-		t.Errorf("expected 'No open pull requests', got: %s", out)
-	}
-}
-
-func TestPRCreate(t *testing.T) {
-	owner := "manova"
-	repo := "handbook"
-	localDir, _ := setupTestGitRepo(t, owner, repo)
-
-	// Switch to feature branch and make commit
-	c := exec.Command("git", "-C", localDir, "checkout", "-b", "feat/my-change")
-	if out, err := c.CombinedOutput(); err != nil {
-		t.Fatalf("git checkout -b failed: %s (%v)", out, err)
-	}
-	f := filepath.Join(localDir, "change.txt")
-	_ = os.WriteFile(f, []byte("change\n"), 0644)
-	c = exec.Command("git", "-C", localDir, "add", "change.txt")
-	_ = c.Run()
-	c = exec.Command("git", "-C", localDir, "commit", "-m", "feat(guide): improve onboarding guide")
-	_ = c.Run()
-
-	createdPR := &gitea.PullRequest{
-		Index:   77,
-		Title:   "feat(guide): improve onboarding guide",
-		HTMLURL: "https://git.internal.manova.space/manova/handbook/pulls/77",
-		Base:    &gitea.PRBranchInfo{Name: "main"},
-		Head:    &gitea.PRBranchInfo{Name: "feat/my-change"},
-		State:   gitea.StateOpen,
-	}
-
-	var createCalled, mergeCalled bool
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/repos/manova/handbook/pulls":
-			createCalled = true
-			var opt gitea.CreatePullRequestOption
-			_ = json.NewDecoder(r.Body).Decode(&opt)
-			if opt.Title != "feat(guide): improve onboarding guide" {
-				t.Errorf("unexpected PR title: %q", opt.Title)
-			}
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(createdPR)
-
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/repos/manova/handbook/pulls/77/merge":
-			mergeCalled = true
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]any{"message": "merged"})
-
-		default:
-			http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-
-	t.Run("CreateWithDerivedTitleAndMerge", func(t *testing.T) {
-		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
-		cmd.SetArgs([]string{
-			"pr", "create",
-			"--dir", localDir,
-			"--url", ts.URL,
-			"--token", "test-token",
-			"--merge",
-			"--method", "merge",
-		})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("pr create failed: %v", err)
-		}
-
-		if !createCalled {
-			t.Error("expected CreatePR API to be called")
-		}
-		if !mergeCalled {
-			t.Error("expected MergePR API to be called because --merge was set")
-		}
-
-		out := buf.String()
-		if !strings.Contains(out, "Pull request created:") {
-			t.Errorf("expected PR creation notice, got: %s", out)
-		}
-		if !strings.Contains(out, "Pull request #77 merged") {
-			t.Errorf("expected PR merged notice, got: %s", out)
-		}
-	})
-}
-
-func TestPRMerge(t *testing.T) {
-	owner := "clients"
-	repo := "pulse"
-	localDir, _ := setupTestGitRepo(t, owner, repo)
-
-	c := exec.Command("git", "-C", localDir, "checkout", "-b", "feat/pulse-fix")
-	_ = c.Run()
-
-	var mergeCalledWithIndex int64
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/repos/clients/pulse/pulls":
-			openPR := &gitea.PullRequest{
-				Index: 44,
-				Head:  &gitea.PRBranchInfo{Name: "feat/pulse-fix"},
-				Base:  &gitea.PRBranchInfo{Name: "main"},
-				State: gitea.StateOpen,
-			}
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode([]*gitea.PullRequest{openPR})
-
-		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/repos/clients/pulse/pulls/"):
-			var idx int64
-			fmt.Sscanf(r.URL.Path, "/api/v1/repos/clients/pulse/pulls/%d/merge", &idx)
-			mergeCalledWithIndex = idx
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]any{"message": "merged"})
-
-		default:
-			http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-
-	t.Run("MergeExplicitIndex", func(t *testing.T) {
-		mergeCalledWithIndex = 0
-		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
-		cmd.SetArgs([]string{
-			"pr", "merge", "55",
-			"--dir", localDir,
-			"--url", ts.URL,
-			"--token", "test-token",
-			"--method", "squash",
-		})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("pr merge 55 failed: %v", err)
-		}
-		if mergeCalledWithIndex != 55 {
-			t.Errorf("expected merged index 55, got %d", mergeCalledWithIndex)
-		}
-		if !strings.Contains(buf.String(), "Pull request #55 merged using method \"squash\"") {
-			t.Errorf("unexpected output: %s", buf.String())
-		}
-	})
-
-	t.Run("MergeAutoDetectBranch", func(t *testing.T) {
-		mergeCalledWithIndex = 0
-		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
-		cmd.SetArgs([]string{
-			"pr", "merge",
-			"--dir", localDir,
-			"--url", ts.URL,
-			"--token", "test-token",
-		})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("pr merge auto-detect failed: %v", err)
-		}
-		if mergeCalledWithIndex != 44 {
-			t.Errorf("expected auto-detected merged index 44, got %d", mergeCalledWithIndex)
-		}
-	})
-}
-
-func TestPRDeliverEndToEnd(t *testing.T) {
-	owner := "manova"
-	repo := "delivery-repo"
-	localDir, originDir := setupTestGitRepo(t, owner, repo)
-
-	// Checkout topic branch
-	c := exec.Command("git", "-C", localDir, "checkout", "-b", "feat/shiny-feature")
-	_ = c.Run()
-
-	featureFile := filepath.Join(localDir, "feature.go")
-	_ = os.WriteFile(featureFile, []byte("package feature\n"), 0644)
-	c = exec.Command("git", "-C", localDir, "add", "feature.go")
-	_ = c.Run()
-	c = exec.Command("git", "-C", localDir, "commit", "-m", "feat(core): implement shiny feature")
-	_ = c.Run()
-
-	createdPR := &gitea.PullRequest{
-		Index:   88,
-		Title:   "feat(core): implement shiny feature",
-		HTMLURL: "https://git.internal.manova.space/manova/delivery-repo/pulls/88",
-		Base:    &gitea.PRBranchInfo{Name: "main"},
-		Head:    &gitea.PRBranchInfo{Name: "feat/shiny-feature"},
-		State:   gitea.StateOpen,
-	}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/repos/manova/delivery-repo/pulls":
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(createdPR)
-
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/repos/manova/delivery-repo/pulls/88/merge":
-			// On remote git server, merging the PR advances main on origin
-			// Simulate this in our bare origin repo: push feat/shiny-feature to origin main
-			pushCmd := exec.Command("git", "-C", localDir, "push", originDir, "feat/shiny-feature:main")
-			if pushOut, pushErr := pushCmd.CombinedOutput(); pushErr != nil {
-				t.Errorf("failed to simulate merge on origin: %s (%v)", pushOut, pushErr)
-			}
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]any{"message": "merged"})
-
-		default:
-			http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-
-	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"pr", "deliver",
-		"--dir", localDir,
-		"--url", ts.URL,
-		"--token", "test-token",
-		"--base", "main",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("pr deliver failed: %v\nOutput: %s", err, buf.String())
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "Successfully delivered feat/shiny-feature into main!") {
-		t.Errorf("expected success message, got: %s", out)
-	}
-
-	// Verify we are back on main branch
-	branchCmd := exec.Command("git", "-C", localDir, "rev-parse", "--abbrev-ref", "HEAD")
-	branchOut, err := branchCmd.Output()
+	out, err := runPRCmd(t, "pr", "create", "--dir", "/repo", "--json")
 	if err != nil {
-		t.Fatalf("failed to get active branch: %v", err)
-	}
-	if strings.TrimSpace(string(branchOut)) != "main" {
-		t.Errorf("expected active branch to be 'main', got %q", strings.TrimSpace(string(branchOut)))
+		t.Fatalf("pr create --json: %v\nOutput: %s", err, out)
 	}
 
-	// Verify local branch feat/shiny-feature was pruned
-	checkBranchCmd := exec.Command("git", "-C", localDir, "branch", "--list", "feat/shiny-feature")
-	checkBranchOut, _ := checkBranchCmd.Output()
-	if strings.TrimSpace(string(checkBranchOut)) != "" {
-		t.Errorf("expected local branch feat/shiny-feature to be deleted, got: %s", checkBranchOut)
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Branch      string `json:"branch"`
+		Base        string `json:"base"`
+		PullRequest struct {
+			Number int64  `json:"number"`
+			URL    string `json:"url"`
+		} `json:"pullRequest"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.Branch != "feat/x" || data.Base != "main" {
+		t.Errorf("unexpected branches: %+v", data)
+	}
+	if data.PullRequest.Number != 7 {
+		t.Errorf("pull request number = %d, want 7", data.PullRequest.Number)
 	}
 }
 
-func TestPRDeliverValidationErrors(t *testing.T) {
-	owner := "manova"
-	repo := "errors-repo"
-	localDir, _ := setupTestGitRepo(t, owner, repo)
+func TestPRMergeJSON(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
+	fake.On("gh pr merge", runner.Result{}, nil)
 
-	t.Run("CannotDeliverFromBaseBranch", func(t *testing.T) {
-		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
-		cmd.SetArgs([]string{
-			"pr", "deliver",
-			"--dir", localDir,
-			"--token", "test-token",
-			"--base", "main",
-		})
+	out, err := runPRCmd(t, "pr", "merge", "7", "--dir", "/repo", "--method", "squash", "--json")
+	if err != nil {
+		t.Fatalf("pr merge --json: %v\nOutput: %s", err, out)
+	}
 
-		err := cmd.Execute()
-		if err == nil {
-			t.Fatal("expected error delivering from main branch, got nil")
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Ref    string `json:"ref"`
+		Method string `json:"method"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.Ref != "7" || data.Method != "squash" {
+		t.Errorf("unexpected merge data: %+v", data)
+	}
+}
+
+func TestPRMergeJSONFailure(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"fail"}]`}, nil)
+
+	out, err := runPRCmd(t, "pr", "merge", "7", "--dir", "/repo", "--json")
+	if err == nil {
+		t.Fatal("expected merge to be refused, got nil")
+	}
+
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if env.Error == nil || env.Error.Code != "failed" {
+		t.Fatalf("unexpected error body: %+v", env.Error)
+	}
+	if !strings.Contains(env.Error.Message, "ci") {
+		t.Errorf("expected the failing check in the message, got: %s", env.Error.Message)
+	}
+}
+
+func TestPRStatusJSON(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("gh pr list", runner.Result{Stdout: `[{"number":12,"title":"feat: x","headRefName":"feat/x","baseRefName":"main","author":{"login":"opmc"},"url":"https://github.com/manovaspace/orbit-test/pull/12"}]`}, nil)
+
+	out, err := runPRCmd(t, "pr", "status", "--dir", "/repo", "--json")
+	if err != nil {
+		t.Fatalf("pr status --json: %v\nOutput: %s", err, out)
+	}
+
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Repo         string `json:"repo"`
+		PullRequests []struct {
+			Number int64  `json:"number"`
+			Title  string `json:"title"`
+			Head   string `json:"head"`
+			Base   string `json:"base"`
+			Author string `json:"author"`
+			URL    string `json:"url"`
+		} `json:"pullRequests"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.Repo != "manovaspace/orbit-test" {
+		t.Errorf("repo = %q", data.Repo)
+	}
+	if len(data.PullRequests) != 1 {
+		t.Fatalf("got %d pull requests, want 1", len(data.PullRequests))
+	}
+	got := data.PullRequests[0]
+	if got.Number != 12 || got.Title != "feat: x" || got.Head != "feat/x" || got.Base != "main" || got.Author != "opmc" || got.URL == "" {
+		t.Errorf("unexpected pull request: %+v", got)
+	}
+}
+
+func TestPRStatusHumanOutputHasAuthorColumn(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("gh pr list", runner.Result{Stdout: `[{"number":12,"title":"feat: x","headRefName":"feat/x","baseRefName":"main","author":{"login":"opmc"},"url":"https://github.com/manovaspace/orbit-test/pull/12"}]`}, nil)
+
+	out, err := runPRCmd(t, "pr", "status", "--dir", "/repo")
+	if err != nil {
+		t.Fatalf("pr status: %v\nOutput: %s", err, out)
+	}
+	for _, want := range []string{"AUTHOR", "opmc"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the status table, got: %s", want, out)
 		}
-		if !strings.Contains(err.Error(), "cannot deliver from \"main\" branch") {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
+	}
+	if strings.Contains(out, "schemaVersion") {
+		t.Errorf("human output must not be a JSON envelope: %s", out)
+	}
+}
 
-	t.Run("CannotDeliverWithDirtyTree", func(t *testing.T) {
-		// Checkout topic branch
-		c := exec.Command("git", "-C", localDir, "checkout", "-b", "feat/dirty-branch")
-		_ = c.Run()
+func TestPRDeliverJSON(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("git -C /repo status --porcelain", runner.Result{}, nil)
+	fake.On("git -C /repo push -u origin feat/x", runner.Result{}, nil)
+	fake.On("git -C /repo checkout main", runner.Result{}, nil)
+	fake.On("git -C /repo pull --ff-only", runner.Result{}, nil)
+	fake.On("git -C /repo branch -d feat/x", runner.Result{}, nil)
+	fake.On("gh pr create", runner.Result{Stdout: "https://github.com/manovaspace/orbit-test/pull/7\n"}, nil)
+	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
+	fake.On("gh pr merge", runner.Result{}, nil)
 
-		// Write uncommitted file
-		_ = os.WriteFile(filepath.Join(localDir, "uncommitted.txt"), []byte("dirty"), 0644)
+	out, err := runPRCmd(t, "pr", "deliver", "--dir", "/repo", "--json")
+	if err != nil {
+		t.Fatalf("pr deliver --json: %v\nOutput: %s", err, out)
+	}
 
-		buf := new(bytes.Buffer)
-		cmd := newRootCmd()
-		cmd.SetOut(buf)
-		cmd.SetErr(buf)
-		cmd.SetArgs([]string{
-			"pr", "deliver",
-			"--dir", localDir,
-			"--token", "test-token",
-		})
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Branch      string `json:"branch"`
+		Base        string `json:"base"`
+		PullRequest struct {
+			Number int64 `json:"number"`
+		} `json:"pullRequest"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.Branch != "feat/x" || data.Base != "main" || data.PullRequest.Number != 7 {
+		t.Errorf("unexpected deliver data: %+v", data)
+	}
+}
 
-		err := cmd.Execute()
-		if err == nil {
-			t.Fatal("expected error with dirty tree, got nil")
-		}
-		if !strings.Contains(err.Error(), "working tree has uncommitted changes") {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
+func TestPRMergeHumanOutput(t *testing.T) {
+	fake := setupPRFake(t)
+	expectGitAnswers(fake)
+	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
+	fake.On("gh pr merge", runner.Result{}, nil)
+
+	out, err := runPRCmd(t, "pr", "merge", "7", "--dir", "/repo")
+	if err != nil {
+		t.Fatalf("pr merge: %v\nOutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Merging pull request 7 in manovaspace/orbit-test on GitHub (merge)...") {
+		t.Errorf("expected the merge progress line, got: %s", out)
+	}
+	if !strings.Contains(out, `Pull request 7 merged using method "merge"`) {
+		t.Errorf("expected the merge result line, got: %s", out)
+	}
+	if strings.Contains(out, "schemaVersion") {
+		t.Errorf("human output must not be a JSON envelope: %s", out)
+	}
 }

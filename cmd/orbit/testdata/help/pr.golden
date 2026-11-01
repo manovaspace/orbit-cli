@@ -1,19 +1,17 @@
-Create, merge, inspect status, and deliver pull requests on Forgejo and GitHub directly from your workspace repository.
+Create, merge, inspect status, and deliver pull requests directly from your workspace repository.
 
 Usage:
   orbit pr [command]
 
 Available Commands:
-  create      Create a new pull request on Forgejo or GitHub
+  create      Create a new pull request on GitHub
   deliver     Deliver branch end-to-end: push, PR, merge, checkout base, fast-forward, and prune
-  merge       Merge a pull request on Forgejo or GitHub
+  merge       Merge a pull request on GitHub
   status      List open pull requests for the repository
 
 Flags:
-      --dir string     Path to repository directory (default: current directory) (default ".")
-  -h, --help           help for pr
-      --token string   Forgejo API access token
-      --url string     Custom Forgejo/Gitea base URL
+      --dir string   Path to repository directory (default: current directory) (default ".")
+  -h, --help         help for pr
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file

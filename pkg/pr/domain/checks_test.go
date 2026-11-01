@@ -1,4 +1,4 @@
-package pr
+package domain
 
 import (
 	"strings"

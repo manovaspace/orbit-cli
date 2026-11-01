@@ -1,4 +1,4 @@
-Executes the full Tier 1 delivery lifecycle for the active branch: pushes branch to origin, creates a PR on Forgejo or GitHub, merges the PR, checks out base branch, pulls --ff-only, and prunes the local feature branch.
+Executes the full Tier 1 delivery lifecycle for the active branch: pushes branch to origin, creates a PR on GitHub, merges the PR, checks out base branch, pulls --ff-only, and prunes the local feature branch.
 
 Usage:
   orbit pr deliver [flags]
@@ -8,6 +8,7 @@ Flags:
       --base string             Base branch to deliver into (default "main")
       --body string             Pull request body/description
   -h, --help                    help for deliver
+      --json                    Print the result as a JSON envelope
       --method string           Merge method (merge, squash, rebase, rebase-merge) (default "merge")
       --override string         Merge despite failing checks and record the reason as a PR comment
       --title string            Pull request title (defaults to latest commit message)
@@ -16,5 +17,3 @@ Flags:
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
       --dir string      Path to repository directory (default: current directory) (default ".")
-      --token string    Forgejo API access token
-      --url string      Custom Forgejo/Gitea base URL
