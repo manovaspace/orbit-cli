@@ -9,6 +9,7 @@ Available Commands:
 
 Flags:
   -h, --help   help for migrate
+      --json   Print the result as a JSON envelope
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file

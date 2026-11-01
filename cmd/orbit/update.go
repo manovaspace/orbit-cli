@@ -7,7 +7,6 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/env"
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	updaterapp "github.com/manovaspace/orbit-cli/pkg/updater/application"
 	updaterdomain "github.com/manovaspace/orbit-cli/pkg/updater/domain"
@@ -187,7 +186,7 @@ func newUpdateCmd() *cobra.Command {
 				if !jsonFlag {
 					fmt.Fprintln(out, headerStyle.Render("── 3/4 Workspace Migrations ─────────────────────────────────"))
 				}
-				migResults, err := migrate.RunPendingMigrations(workspaceRoot)
+				migResults, err := runWorkspaceMigrations(workspaceRoot)
 				if err != nil {
 					data.MigrationError = err.Error()
 					if !jsonFlag {

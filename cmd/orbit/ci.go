@@ -2,15 +2,32 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/manovaspace/orbit-cli/pkg/ci"
+	ciapp "github.com/manovaspace/orbit-cli/pkg/ci/application"
+	cidomain "github.com/manovaspace/orbit-cli/pkg/ci/domain"
+	cifiles "github.com/manovaspace/orbit-cli/pkg/ci/infrastructure/files"
+	"github.com/manovaspace/orbit-cli/pkg/ci/infrastructure/ghcli"
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/spf13/cobra"
 )
+
+// The CI commands reach gh, systemctl and secret files through these seams so
+// tests can swap the adapters.
+var (
+	ciCommands ciapp.Command = ghcli.New(runner.Exec{})
+	ciFiles    ciapp.Files   = cifiles.New()
+)
+
+func newCIService(out io.Writer) *ciapp.Service {
+	return &ciapp.Service{Commands: ciCommands, Files: ciFiles, Out: out}
+}
 
 func newCICmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -25,78 +42,106 @@ func newCICmd() *cobra.Command {
 }
 
 func newCIRunnerCmd() *cobra.Command {
-	var manifestFlag string
+	var (
+		manifestFlag string
+		jsonFlag     bool
+	)
 	cmd := &cobra.Command{
 		Use:   "runner vps|github|status",
 		Short: "Start or stop the standby runner and set CI_RUNNER on private repos",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mode := args[0]
-			if mode != "vps" && mode != "github" && mode != "status" {
-				return fmt.Errorf("unknown runner mode %q: use vps, github or status", mode)
+			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
+
+			mode, err := cidomain.ParseRunnerMode(args[0])
+			if err != nil {
+				usageErr := clierr.Usage(err.Error())
+				writeCIFailure(out, jsonFlag, usageErr)
+				return usageErr
 			}
 			m, err := loadCIManifest(manifestFlag)
 			if err != nil {
+				writeCIFailure(out, jsonFlag, err)
 				return err
 			}
-			repos, err := ci.PrivateRepos(m.AllRepos(), execCI)
+			svc := newCIService(uiOut)
+			repos, err := svc.PrivateRepos(cmd.Context(), m.AllRepos())
 			if err != nil {
+				writeCIFailure(out, jsonFlag, err)
 				return err
 			}
-			out := cmd.OutOrStdout()
-			if mode == "status" {
-				status, err := ci.RunnerStatus(repos, execCI)
+
+			if mode == cidomain.ModeStatus {
+				status, err := svc.RunnerStatus(cmd.Context(), repos)
 				if err != nil {
+					writeCIFailure(out, jsonFlag, err)
 					return err
 				}
-				fmt.Fprintf(out, "gh-ci service: %s\n", status.Service)
-				for _, repo := range repos {
-					variable := status.Vars[repo]
-					if variable == "" {
-						variable = "(unset)"
-					}
-					fmt.Fprintf(out, "  %s CI_RUNNER=%s\n", repo, variable)
+				if jsonFlag {
+					return output.Write(out, output.Success(status))
 				}
+				svc.RenderStatus(status, repos)
 				return nil
 			}
-			if err := ci.SetRunner(mode, repos, execCI); err != nil {
+
+			if err := svc.SetRunner(cmd.Context(), mode, repos); err != nil {
+				writeCIFailure(out, jsonFlag, err)
 				return err
 			}
-			fmt.Fprintf(out, "CI runner set to %s for %d private repositories.\n", mode, len(repos))
+			if jsonFlag {
+				return output.Write(out, output.Success(ciapp.SetResult{Mode: string(mode), Repositories: repos}))
+			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newCISecretsCmd() *cobra.Command {
-	var (
-		manifestFlag string
-		sourceFlag   string
-		keysFlag     string
-	)
+	var manifestFlag string
 	cmd := &cobra.Command{
 		Use:   "secrets",
 		Short: "Push repository secrets declared in workspace.yaml",
 	}
 	cmd.PersistentFlags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
 
+	var (
+		sourceFlag string
+		keysFlag   string
+		jsonFlag   bool
+	)
 	sync := &cobra.Command{
 		Use:   "sync [repo]",
 		Short: "Set every ci_secrets entry for one repo, or every repo that declares any",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
+
 			m, err := loadCIManifest(manifestFlag)
 			if err != nil {
+				writeCIFailure(out, jsonFlag, err)
 				return err
 			}
-			source, err := ci.LoadSource(sourceFlag)
+			svc := newCIService(uiOut)
+			source, err := svc.LoadSource(sourceFlag)
 			if err != nil {
-				return fmt.Errorf("secret source: %w", err)
+				sourceErr := clierr.Wrap(err, clierr.Failed("secret source"))
+				writeCIFailure(out, jsonFlag, sourceErr)
+				return sourceErr
 			}
 			keysDir, err := expandHome(keysFlag)
 			if err != nil {
+				writeCIFailure(out, jsonFlag, err)
 				return err
 			}
 
@@ -104,35 +149,29 @@ func newCISecretsCmd() *cobra.Command {
 			if len(args) == 1 {
 				wanted = args[0]
 			}
-			var selected []manifest.RepoTarget
-			for _, repo := range m.AllRepos() {
-				if len(repo.CISecrets) == 0 {
-					continue
-				}
-				if wanted != "" && repo.Name != wanted {
-					continue
-				}
-				selected = append(selected, repo)
+			res, err := svc.Sync(cmd.Context(), m.AllRepos(), wanted, source, keysDir)
+			if err != nil {
+				writeCIFailure(out, jsonFlag, err)
+				return err
 			}
-			if len(selected) == 0 {
-				return fmt.Errorf("no repository with ci_secrets matches %q", wanted)
-			}
-
-			out := cmd.OutOrStdout()
-			for _, repo := range selected {
-				if err := ci.SyncSecrets(repo, source, keysDir, execCIStdin); err != nil {
-					return err
-				}
-				fmt.Fprintf(out, "%s: set %d secret(s)\n", repo.Name, len(repo.CISecrets))
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
 			return nil
 		},
 	}
 	sync.Flags().StringVar(&sourceFlag, "source", defaultCISecretsSource(), "KEY=value file with secret values (chmod 600)")
 	sync.Flags().StringVar(&keysFlag, "keys-dir", "~/.config/orbit/deploy-keys", "Directory holding per-repo DEPLOY_SSH_KEY files")
+	sync.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	cmd.AddCommand(sync)
 	return cmd
+}
+
+func writeCIFailure(out io.Writer, jsonFlag bool, err error) {
+	if jsonFlag {
+		_ = output.Write(out, output.Failure(err))
+	}
 }
 
 func loadCIManifest(manifestFlag string) (*manifest.WorkspaceManifest, error) {
@@ -162,22 +201,4 @@ func expandHome(path string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, strings.TrimPrefix(path, "~")), nil
-}
-
-func execCI(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return string(out), nil
-}
-
-func execCIStdin(stdin, name string, args ...string) (string, error) {
-	command := exec.Command(name, args...)
-	command.Stdin = strings.NewReader(stdin)
-	out, err := command.CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return string(out), nil
 }

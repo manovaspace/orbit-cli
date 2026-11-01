@@ -2,13 +2,15 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
+	migratedomain "github.com/manovaspace/orbit-cli/pkg/migrate/domain"
+	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/statefile"
 )
 
 func TestMigrateCmd_AllUpToDate(t *testing.T) {
@@ -64,30 +66,20 @@ func TestMigrateStatusCmd_TableStructure(t *testing.T) {
 	}
 }
 
-func TestMigrateStatusCmd_WithAppliedAndPendingMigrations(t *testing.T) {
+func TestMigrateStatusCmd_WithAppliedState(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("ORBIT_WORKSPACE", tmpDir)
 
-	// Create state file with an applied migration record
-	stateDir := filepath.Join(tmpDir, ".orbit")
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		t.Fatalf("failed to create .orbit directory: %v", err)
-	}
-
 	appliedTime := time.Date(2026, 8, 31, 14, 30, 0, 0, time.UTC)
-	state := &migrate.MigrationState{
-		Version: migrate.DefaultStateVersion,
-		Applied: []migrate.AppliedMigrationRecord{
-			{
-				ID:          "001_workspace_init",
-				Description: "Initialize workspace directory tree",
-				AppliedAt:   appliedTime,
-			},
-		},
+	state := &migratedomain.MigrationState{
+		Version: migratedomain.DefaultStateVersion,
+		Applied: []migratedomain.AppliedMigrationRecord{{
+			ID:          "001_workspace_init",
+			Description: "Initialize workspace directory tree",
+			AppliedAt:   appliedTime,
+		}},
 	}
-
-	engine := migrate.NewEngine(tmpDir, "")
-	if err := engine.SaveState(state); err != nil {
+	if err := statefile.New().Save(filepath.Join(tmpDir, ".orbit", "migrations.json"), state); err != nil {
 		t.Fatalf("failed to save migration state: %v", err)
 	}
 
@@ -107,7 +99,6 @@ func TestMigrateStatusCmd_WithAppliedAndPendingMigrations(t *testing.T) {
 	if !strings.Contains(output, "MIGRATION ID") || !strings.Contains(output, "DESCRIPTION") || !strings.Contains(output, "STATUS") {
 		t.Errorf("output missing headers:\n%s", output)
 	}
-	// Check state file path mentioned
 	if !strings.Contains(output, "migrations.json") {
 		t.Errorf("output missing state file path:\n%s", output)
 	}
@@ -121,7 +112,6 @@ func TestMigrateStatusCmd_InvalidStateFile(t *testing.T) {
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		t.Fatalf("failed to create .orbit dir: %v", err)
 	}
-	// Write corrupt JSON
 	if err := os.WriteFile(filepath.Join(stateDir, "migrations.json"), []byte("{corrupt-json"), 0644); err != nil {
 		t.Fatalf("failed to write corrupt state file: %v", err)
 	}
@@ -136,5 +126,63 @@ func TestMigrateStatusCmd_InvalidStateFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to load migration state") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestMigrateJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("ORBIT_WORKSPACE", tmpDir)
+
+	out, err := runRootForTest(t, "migrate", "--json")
+	if err != nil {
+		t.Fatalf("migrate --json: %v\nOutput: %s", err, out)
+	}
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		WorkspaceRoot string `json:"workspaceRoot"`
+		Applied       int    `json:"applied"`
+		Results       []struct {
+			ID string `json:"id"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.WorkspaceRoot != tmpDir {
+		t.Errorf("workspaceRoot = %q, want %q", data.WorkspaceRoot, tmpDir)
+	}
+	if data.Applied != 0 {
+		t.Errorf("applied = %d, want 0", data.Applied)
+	}
+}
+
+func TestMigrateStatusJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("ORBIT_WORKSPACE", tmpDir)
+
+	out, err := runRootForTest(t, "migrate", "status", "--json")
+	if err != nil {
+		t.Fatalf("migrate status --json: %v\nOutput: %s", err, out)
+	}
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		StatePath string `json:"statePath"`
+		Applied   int    `json:"applied"`
+		Pending   int    `json:"pending"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if data.StatePath != filepath.Join(tmpDir, ".orbit", "migrations.json") {
+		t.Errorf("statePath = %q", data.StatePath)
+	}
+	if data.Applied != 0 || data.Pending != 0 {
+		t.Errorf("counts = %d/%d", data.Applied, data.Pending)
 	}
 }

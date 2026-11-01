@@ -10,7 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
+	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/workspace"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 )
 
@@ -42,7 +43,7 @@ type EnvAutomationRunnerFunc func(workspaceRoot string, steps []EnvStepItem, par
 
 // SetupWorkspaceEnvironment symlinks Cursor rules/skills from handbook into .cursor/.
 func SetupWorkspaceEnvironment(workspaceRoot string) error {
-	return migrate.SymlinkCursorRules(workspaceRoot)
+	return workspace.New(runner.Exec{}).SymlinkCursorRules(workspaceRoot)
 }
 
 // ConfigureMCPEnvironment writes/updates .cursor/mcp.env with Forgejo credentials.

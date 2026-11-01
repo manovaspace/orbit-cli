@@ -28,7 +28,6 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/session"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
@@ -560,7 +559,7 @@ Actions that will be executed during onboarding:
 		}
 
 		// Ensure directory hierarchy
-		_ = migrate.EnsureWorkspaceDirs(workspaceRoot)
+		_ = migrateBootstrap().EnsureWorkspaceDirs(workspaceRoot)
 
 		manifestPath := findManifestPath(workspaceRoot, opts.manifest)
 		if _, err := os.Stat(manifestPath); err == nil {
@@ -876,7 +875,7 @@ func configureMCPEnvironment(workspaceRoot string, token, uid string) error {
 	if data, err := os.ReadFile(mcpEnvPath); err == nil {
 		existingContent = string(data)
 	} else {
-		_ = migrate.SetupMCPEnvironment(workspaceRoot)
+		_ = migrateBootstrap().SetupMCPEnvironment(workspaceRoot)
 		if data, err := os.ReadFile(mcpEnvPath); err == nil {
 			existingContent = string(data)
 		}
@@ -923,7 +922,7 @@ func configureMCPEnvironment(workspaceRoot string, token, uid string) error {
 		return fmt.Errorf("failed to write %s: %w", mcpEnvPath, err)
 	}
 
-	_ = migrate.SymlinkCursorRules(workspaceRoot)
+	_ = migrateBootstrap().SymlinkCursorRules(workspaceRoot)
 	return nil
 }
 

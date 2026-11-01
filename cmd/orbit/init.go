@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
-	"github.com/manovaspace/orbit-cli/pkg/migrate"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
@@ -149,7 +148,7 @@ Scopes:
 				for _, target := range res.Targets {
 					selectedRepoPaths = append(selectedRepoPaths, target.Path)
 				}
-				if err := migrate.SetupWorkspace(workspaceRoot, selectedRepoPaths...); err != nil {
+				if err := setupWorkspace(workspaceRoot, selectedRepoPaths...); err != nil {
 					data.SetupError = err.Error()
 					if jsonFlag {
 						setupErr := clierr.Wrap(err, clierr.Failed("repositories processed; workspace setup incomplete"))
@@ -163,8 +162,8 @@ Scopes:
 					fmt.Fprintf(out, "  %s  Workspace directory structure, hooks, and Cursor rules initialized.\n", iconOK)
 				}
 
-				if len(migrate.GetBuiltinMigrations()) > 0 {
-					migResults, err := migrate.RunPendingMigrations(workspaceRoot)
+				if len(workspaceMigrations()) > 0 {
+					migResults, err := runWorkspaceMigrations(workspaceRoot)
 					if err != nil {
 						data.MigrationError = err.Error()
 						if !jsonFlag {
