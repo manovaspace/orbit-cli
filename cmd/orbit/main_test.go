@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/manovaspace/orbit-cli/pkg/config"
+	configdomain "github.com/manovaspace/orbit-cli/pkg/config/domain"
 )
 
 func TestGlobalConfigFlag(t *testing.T) {
@@ -109,7 +109,7 @@ ui:
 			t.Fatalf("failed to execute config show with root --config: %v", err)
 		}
 
-		var cfg config.Config
+		var cfg configdomain.Config
 		if err := json.Unmarshal(buf.Bytes(), &cfg); err != nil {
 			t.Fatalf("failed to parse config JSON: %v\nOutput: %s", err, buf.String())
 		}
@@ -133,7 +133,7 @@ ui:
 			t.Fatalf("failed to execute config list with root --config: %v", err)
 		}
 
-		var entries []config.ConfigEntry
+		var entries []configdomain.ConfigEntry
 		if err := json.Unmarshal(buf.Bytes(), &entries); err != nil {
 			t.Fatalf("failed to parse entries JSON: %v\nOutput: %s", err, buf.String())
 		}

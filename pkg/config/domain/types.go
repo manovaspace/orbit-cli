@@ -1,4 +1,6 @@
-package config
+// Package domain holds the pure Orbit CLI configuration model: the value
+// types, defaults, validation rules and key lookup logic. It performs no I/O.
+package domain
 
 import "time"
 
@@ -61,14 +63,8 @@ func (e ConfigEntry) String() string {
 	return e.Value
 }
 
-type ResolveOptions struct {
-	ConfigPath       string
-	ServerFlag       string
-	StaffURLFlag     string
-	AssetsBucketFlag string
-	ScopeFlag        string
-}
-
+// ResolvedConfig is the effective configuration plus the entries that explain
+// where each value came from.
 type ResolvedConfig struct {
 	Config  *Config
 	Entries []ConfigEntry

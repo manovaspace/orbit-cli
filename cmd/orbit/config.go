@@ -2,18 +2,43 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
-	"github.com/manovaspace/orbit-cli/pkg/config"
+	"github.com/manovaspace/orbit-cli/pkg/config/application"
+	"github.com/manovaspace/orbit-cli/pkg/config/domain"
+	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
+	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
 var configFlag string
+
+// The config commands reach the filesystem and environment through these seams.
+var (
+	configStore application.Store       = osfile.New()
+	configEnv   application.Environment = osfile.NewEnv()
+)
+
+func newConfigService(out io.Writer) *application.Service {
+	return &application.Service{
+		Store: configStore,
+		Env:   configEnv,
+		Out:   out,
+		UI: application.UI{
+			OK:   iconOK,
+			Warn: iconWarn,
+			Info: iconInfo,
+
+			Bold:   func(text string) string { return boldStyle.Render(text) },
+			Subtle: func(text string) string { return subtleStyle.Render(text) },
+			Code:   func(text string) string { return codeStyle.Render(text) },
+		},
+	}
+}
 
 func getConfigPath(cmd *cobra.Command) string {
 	if cmd != nil {
@@ -24,16 +49,13 @@ func getConfigPath(cmd *cobra.Command) string {
 	if configFlag != "" {
 		return configFlag
 	}
-	return config.DefaultConfigPath()
+	return configStore.DefaultPath()
 }
 
-func isSecretKey(key string) bool {
-	k := strings.ToLower(key)
-	return strings.Contains(k, "pass") ||
-		strings.Contains(k, "secret") ||
-		strings.Contains(k, "key") ||
-		strings.Contains(k, "token") ||
-		strings.Contains(k, "auth")
+func writeConfigFailure(out io.Writer, jsonFlag bool, err error) {
+	if jsonFlag {
+		_ = output.Write(out, output.Failure(err))
+	}
 }
 
 func newConfigCmd() *cobra.Command {
@@ -58,7 +80,10 @@ Supports hierarchical resolution with environment variables and command-line fla
 }
 
 func newConfigShowCmd() *cobra.Command {
-	var formatFlag string
+	var (
+		formatFlag string
+		jsonFlag   bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -68,17 +93,22 @@ func newConfigShowCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
+			masked, err := newConfigService(io.Discard).Show(cfgPath)
 			if err != nil {
-				return fmt.Errorf("failed to resolve configuration: %w", err)
+				writeConfigFailure(out, jsonFlag, err)
+				return err
 			}
 
-			masked := res.Config.Masked()
+			if jsonFlag {
+				return output.Write(out, output.Success(masked))
+			}
 
 			if strings.ToLower(formatFlag) == "json" {
 				data, err := json.MarshalIndent(masked, "", "  ")
 				if err != nil {
-					return fmt.Errorf("failed to encode configuration JSON: %w", err)
+					encErr := fmt.Errorf("failed to encode configuration JSON: %w", err)
+					writeConfigFailure(out, jsonFlag, encErr)
+					return encErr
 				}
 				fmt.Fprintln(out, string(data))
 				return nil
@@ -86,7 +116,9 @@ func newConfigShowCmd() *cobra.Command {
 
 			data, err := yaml.Marshal(masked)
 			if err != nil {
-				return fmt.Errorf("failed to encode configuration YAML: %w", err)
+				encErr := fmt.Errorf("failed to encode configuration YAML: %w", err)
+				writeConfigFailure(out, jsonFlag, encErr)
+				return encErr
 			}
 			fmt.Fprint(out, string(data))
 			return nil
@@ -94,11 +126,15 @@ func newConfigShowCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "yaml", "Output format: yaml or json")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newConfigGetCmd() *cobra.Command {
-	var rawFlag bool
+	var (
+		rawFlag  bool
+		jsonFlag bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "get <key>",
@@ -109,30 +145,32 @@ func newConfigGetCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
+			entry, err := newConfigService(io.Discard).Get(cfgPath, args[0])
 			if err != nil {
+				writeConfigFailure(out, jsonFlag, err)
 				return err
 			}
 
-			val, err := res.Config.Get(args[0])
-			if err != nil {
-				return err
+			if jsonFlag {
+				return output.Write(out, output.Success(entry))
 			}
-
 			if rawFlag {
-				fmt.Fprint(out, val.Value)
+				fmt.Fprint(out, entry.Value)
 			} else {
-				fmt.Fprintln(out, val.Value)
+				fmt.Fprintln(out, entry.Value)
 			}
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&rawFlag, "raw", false, "Print raw value without trailing newline or formatting")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newConfigSetCmd() *cobra.Command {
+	var jsonFlag bool
+
 	cmd := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration key-value pair",
@@ -140,41 +178,31 @@ func newConfigSetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 			cfgPath := getConfigPath(cmd)
 
-			testCfg, err := config.Load(cfgPath)
+			res, err := newConfigService(uiOut).Set(cfgPath, args[0], args[1])
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					testCfg = config.DefaultConfig()
-				} else {
-					return fmt.Errorf("failed to load configuration: %w", err)
-				}
-			}
-
-			key := args[0]
-			val := args[1]
-
-			if err := testCfg.Set(key, val); err != nil {
+				writeConfigFailure(out, jsonFlag, err)
 				return err
 			}
-
-			if isSecretKey(key) {
-				fmt.Fprintf(out, "%s Warning: '%s' resembles a secret. Storing secrets in config.yaml is discouraged.\n", iconWarn, key)
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
-
-			if err := config.SetInFile(cfgPath, key, val); err != nil {
-				return fmt.Errorf("failed to persist configuration: %w", err)
-			}
-
-			fmt.Fprintf(out, "%s Set %s = %s (%s)\n", iconOK, boldStyle.Render(key), codeStyle.Render(val), subtleStyle.Render(cfgPath))
 			return nil
 		},
 	}
 
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newConfigUnsetCmd() *cobra.Command {
+	var jsonFlag bool
+
 	cmd := &cobra.Command{
 		Use:   "unset <key>",
 		Short: "Unset a configuration key",
@@ -182,58 +210,48 @@ func newConfigUnsetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 			cfgPath := getConfigPath(cmd)
 
-			testCfg, err := config.Load(cfgPath)
+			res, err := newConfigService(uiOut).Unset(cfgPath, args[0])
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					testCfg = config.DefaultConfig()
-				} else {
-					return fmt.Errorf("failed to load configuration: %w", err)
-				}
-			}
-
-			key := strings.TrimSpace(args[0])
-			if key == "" {
-				return errors.New("key cannot be empty")
-			}
-
-			if err := testCfg.Unset(key); err != nil {
+				writeConfigFailure(out, jsonFlag, err)
 				return err
 			}
-
-			if err := config.UnsetInFile(cfgPath, key); err != nil {
-				return fmt.Errorf("failed to unset %s in %q: %w", key, cfgPath, err)
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
-
-			fmt.Fprintf(out, "%s Unset %s (%s)\n", iconOK, boldStyle.Render(key), subtleStyle.Render(cfgPath))
 			return nil
 		},
 	}
 
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
-func formatSource(e config.ConfigEntry) string {
+func formatSource(e domain.ConfigEntry) string {
 	switch e.Source {
-	case config.SourceDefault:
+	case domain.SourceDefault:
 		return subtleStyle.Render("default")
-	case config.SourceUserFile:
+	case domain.SourceUserFile:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("user-config (%s)", subtleStyle.Render(e.SourceRef))
 		}
 		return "user-config"
-	case config.SourceWorkFile:
+	case domain.SourceWorkFile:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("workspace-config (%s)", subtleStyle.Render(e.SourceRef))
 		}
 		return "workspace-config"
-	case config.SourceEnv:
+	case domain.SourceEnv:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("env (%s)", codeStyle.Render(e.SourceRef))
 		}
 		return "env"
-	case config.SourceFlag:
+	case domain.SourceFlag:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("flag (%s)", boldStyle.Render(e.SourceRef))
 		}
@@ -246,26 +264,26 @@ func formatSource(e config.ConfigEntry) string {
 	}
 }
 
-func formatSourcePlainText(e config.ConfigEntry) string {
+func formatSourcePlainText(e domain.ConfigEntry) string {
 	switch e.Source {
-	case config.SourceDefault:
+	case domain.SourceDefault:
 		return "default"
-	case config.SourceUserFile:
+	case domain.SourceUserFile:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("user-config (%s)", e.SourceRef)
 		}
 		return "user-config"
-	case config.SourceWorkFile:
+	case domain.SourceWorkFile:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("workspace-config (%s)", e.SourceRef)
 		}
 		return "workspace-config"
-	case config.SourceEnv:
+	case domain.SourceEnv:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("env (%s)", e.SourceRef)
 		}
 		return "env"
-	case config.SourceFlag:
+	case domain.SourceFlag:
 		if e.SourceRef != "" {
 			return fmt.Sprintf("flag (%s)", e.SourceRef)
 		}
@@ -283,6 +301,7 @@ func newConfigListCmd() *cobra.Command {
 		formatFlag string
 		pageFlag   int
 		limitFlag  int
+		jsonFlag   bool
 	)
 
 	cmd := &cobra.Command{
@@ -293,17 +312,22 @@ func newConfigListCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			res, err := config.Resolve(config.ResolveOptions{ConfigPath: cfgPath})
+			entries, err := newConfigService(io.Discard).List(cfgPath)
 			if err != nil {
-				return fmt.Errorf("failed to resolve configuration: %w", err)
+				writeConfigFailure(out, jsonFlag, err)
+				return err
 			}
 
-			entries := res.ListEntries()
+			if jsonFlag {
+				return output.Write(out, output.Success(entries))
+			}
 
 			if strings.ToLower(formatFlag) == "json" {
 				data, err := json.MarshalIndent(entries, "", "  ")
 				if err != nil {
-					return fmt.Errorf("failed to encode entries JSON: %w", err)
+					encErr := fmt.Errorf("failed to encode entries JSON: %w", err)
+					writeConfigFailure(out, jsonFlag, encErr)
+					return encErr
 				}
 				fmt.Fprintln(out, string(data))
 				return nil
@@ -312,7 +336,9 @@ func newConfigListCmd() *cobra.Command {
 			if strings.ToLower(formatFlag) == "yaml" {
 				data, err := yaml.Marshal(entries)
 				if err != nil {
-					return fmt.Errorf("failed to encode entries YAML: %w", err)
+					encErr := fmt.Errorf("failed to encode entries YAML: %w", err)
+					writeConfigFailure(out, jsonFlag, encErr)
+					return encErr
 				}
 				fmt.Fprint(out, string(data))
 				return nil
@@ -349,11 +375,15 @@ func newConfigListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, or yaml")
 	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
 	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum rows per page (0 = all)")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
 func newConfigInitCmd() *cobra.Command {
-	var forceFlag bool
+	var (
+		forceFlag bool
+		jsonFlag  bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -361,34 +391,36 @@ func newConfigInitCmd() *cobra.Command {
 		Long:  "Creates the Orbit CLI configuration file (~/.config/orbit/config.yaml) with platform defaults.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 			cfgPath := getConfigPath(cmd)
 
-			if _, err := os.Stat(cfgPath); err == nil && !forceFlag {
-				fmt.Fprintf(out, "%s Configuration file already exists at %s (use --force to overwrite)\n",
-					iconInfo,
-					subtleStyle.Render(cfgPath),
-				)
-				return nil
+			res, err := newConfigService(uiOut).Init(cfgPath, forceFlag)
+			if err != nil {
+				writeConfigFailure(out, jsonFlag, err)
+				return err
 			}
-
-			cfg := config.DefaultConfig()
-			if err := cfg.Save(cfgPath); err != nil {
-				return fmt.Errorf("failed to initialize configuration file %q: %w", cfgPath, err)
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
-
-			fmt.Fprintf(out, "%s Configuration file initialized at %s (mode 0600)\n",
-				iconOK,
-				boldStyle.Render(cfgPath),
-			)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Overwrite existing configuration file with default values")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 
+type configPathResult struct {
+	Path string `json:"path"`
+}
+
 func newConfigPathCmd() *cobra.Command {
+	var jsonFlag bool
+
 	cmd := &cobra.Command{
 		Use:   "path",
 		Short: "Print path to the configuration file",
@@ -397,10 +429,14 @@ func newConfigPathCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
+			if jsonFlag {
+				return output.Write(out, output.Success(configPathResult{Path: cfgPath}))
+			}
 			fmt.Fprintln(out, cfgPath)
 			return nil
 		},
 	}
 
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }

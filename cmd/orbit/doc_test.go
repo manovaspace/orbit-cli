@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -75,5 +76,20 @@ func TestGeneratedMarkdownOmitsStaffResetTOTP(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "deprecated alias for the shared LLDAP password") {
 		t.Fatalf("staff reset documentation must explain the mailbox alias: %s", body)
+	}
+}
+
+func TestDocJSONEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	out := new(bytes.Buffer)
+	cmd := newRootCmdForTest(t)
+	cmd.SetOut(out)
+	cmd.SetArgs([]string{"doc", "-f", "markdown", "-o", dir, "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("doc --json: %v", err)
+	}
+	data := envelopeData(t, requireEnvelope(t, out))
+	if data["format"] != "markdown" || data["outputDir"] != dir {
+		t.Errorf("data = %v", data)
 	}
 }

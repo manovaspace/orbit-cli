@@ -2,17 +2,26 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 )
+
+type docResult struct {
+	Format    string `json:"format"`
+	OutputDir string `json:"outputDir"`
+}
 
 func newDocCmd() *cobra.Command {
 	var (
 		outputDir string
 		format    string
+		jsonFlag  bool
 	)
 
 	cmd := &cobra.Command{
@@ -21,11 +30,19 @@ func newDocCmd() *cobra.Command {
 		Long:  "Generates markdown documentation or unix man pages for all Orbit commands.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
+
 			if err := os.MkdirAll(outputDir, 0755); err != nil {
-				return fmt.Errorf("failed to create output directory: %w", err)
+				docErr := clierr.Wrap(err, clierr.Failed("failed to create output directory"))
+				writeDocFailure(out, jsonFlag, docErr)
+				return docErr
 			}
 
 			root := cmd.Root()
+			normalized := format
 			switch format {
 			case "man":
 				header := &doc.GenManHeader{
@@ -40,16 +57,27 @@ func newDocCmd() *cobra.Command {
 					header.Date = &publicationDate
 				}
 				if err := doc.GenManTree(root, header, outputDir); err != nil {
-					return fmt.Errorf("failed to generate man pages: %w", err)
+					docErr := clierr.Wrap(err, clierr.Failed("failed to generate man pages"))
+					writeDocFailure(out, jsonFlag, docErr)
+					return docErr
 				}
-				fmt.Fprintf(out, "  %s  Man pages generated at %s\n", iconOK, codeStyle.Render(outputDir))
+				fmt.Fprintf(uiOut, "  %s  Man pages generated at %s\n", iconOK, codeStyle.Render(outputDir))
 			case "markdown", "md":
+				normalized = "markdown"
 				if err := doc.GenMarkdownTree(root, outputDir); err != nil {
-					return fmt.Errorf("failed to generate markdown docs: %w", err)
+					docErr := clierr.Wrap(err, clierr.Failed("failed to generate markdown docs"))
+					writeDocFailure(out, jsonFlag, docErr)
+					return docErr
 				}
-				fmt.Fprintf(out, "  %s  Markdown documentation generated at %s\n", iconOK, codeStyle.Render(outputDir))
+				fmt.Fprintf(uiOut, "  %s  Markdown documentation generated at %s\n", iconOK, codeStyle.Render(outputDir))
 			default:
-				return fmt.Errorf("unsupported format %q, use 'man' or 'markdown'", format)
+				docErr := clierr.Usage(fmt.Sprintf("unsupported format %q, use 'man' or 'markdown'", format))
+				writeDocFailure(out, jsonFlag, docErr)
+				return docErr
+			}
+
+			if jsonFlag {
+				return output.Write(out, output.Success(docResult{Format: normalized, OutputDir: outputDir}))
 			}
 			return nil
 		},
@@ -57,6 +85,13 @@ func newDocCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&outputDir, "output", "o", "./docs/cli", "Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages)")
 	cmd.Flags().StringVarP(&format, "format", "f", "markdown", "Documentation format: markdown or man")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+func writeDocFailure(out io.Writer, jsonFlag bool, err error) {
+	if jsonFlag {
+		_ = output.Write(out, output.Failure(err))
+	}
 }

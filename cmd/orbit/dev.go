@@ -2,215 +2,66 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"net"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/dev/application"
+	"github.com/manovaspace/orbit-cli/pkg/dev/infrastructure/infracli"
+	"github.com/manovaspace/orbit-cli/pkg/dev/infrastructure/netprobe"
+	devosfs "github.com/manovaspace/orbit-cli/pkg/dev/infrastructure/osfs"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/spf13/cobra"
 )
 
-// ServiceStatus represents the connectivity and health state of a core local service.
-type ServiceStatus struct {
-	Name    string
-	Host    string
-	Port    int
-	URL     string
-	Ready   bool
-	Message string
+// The dev commands reach the infrastructure checkout, docker and TCP probes
+// through these seams.
+var (
+	devRunner runner.Runner     = runner.Exec{}
+	devFiles  application.Files = devosfs.New()
+	devProbe  application.Probe = netprobe.New()
+)
+
+func newDevService(out, errOut io.Writer) *application.Service {
+	return &application.Service{
+		Commands: infracli.New(devRunner, out, errOut),
+		Files:    devFiles,
+		Probe:    devProbe,
+		Out:      out,
+		ErrOut:   errOut,
+		UI: application.UI{
+			OK:    iconOK,
+			Warn:  iconWarn,
+			Info:  iconInfo,
+			Arrow: iconArrow,
+
+			Title:    func(text string) string { return titleStyle.Render(text) },
+			Bold:     func(text string) string { return boldStyle.Render(text) },
+			Subtle:   func(text string) string { return subtleStyle.Render(text) },
+			Success:  func(text string) string { return successStyle.Render(text) },
+			Warning:  func(text string) string { return warningStyle.Render(text) },
+			InfoText: func(text string) string { return infoStyle.Render(text) },
+			Card:     func(text string) string { return cardStyle.Render(text) },
+		},
+	}
 }
 
+func writeDevFailure(out io.Writer, jsonFlag bool, err error) {
+	if jsonFlag {
+		_ = output.Write(out, output.Failure(err))
+	}
+}
+
+// findOrbitInfraDir is kept for onboard, which launches the stack directly.
 func findOrbitInfraDir(workspaceRoot string) string {
-	if envDir := os.Getenv("ORBIT_INFRA_DIR"); envDir != "" {
-		if fi, err := os.Stat(envDir); err == nil && fi.IsDir() {
-			return envDir
-		}
-	}
-
-	candidates := []string{
-		filepath.Join(workspaceRoot, "orbit", "orbit-infra"),
-		filepath.Join(workspaceRoot, "orbit-infra"),
-		workspaceRoot,
-	}
-
-	for _, c := range candidates {
-		if _, err := os.Stat(filepath.Join(c, "compose.sh")); err == nil {
-			return c
-		}
-		if _, err := os.Stat(filepath.Join(c, "core", "docker-compose.yml")); err == nil {
-			return c
-		}
-	}
-
-	return filepath.Join(workspaceRoot, "orbit", "orbit-infra")
+	return devFiles.InfraDir(workspaceRoot)
 }
 
-var defaultInfraRunner = func(dir string, stdout, stderr io.Writer, cmdName string, args ...string) error {
-	cmd := exec.Command(cmdName, args...)
-	cmd.Dir = dir
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	cmd.Env = os.Environ()
-
-	return cmd.Run()
-}
-
-var infraRunner = defaultInfraRunner
-
+// runInInfra is kept for onboard. It streams the process to the terminal.
 func runInInfra(cmdName string, args ...string) error {
-	return runInInfraWithIO(os.Stdout, os.Stderr, cmdName, args...)
-}
-
-func runInInfraWithIO(out, errOut io.Writer, cmdName string, args ...string) error {
-	workspaceRoot := findWorkspaceRoot("")
-	infraDir := findOrbitInfraDir(workspaceRoot)
-
-	if fi, err := os.Stat(infraDir); err != nil || !fi.IsDir() {
-		return fmt.Errorf("orbit-infra directory not found at %s. Ensure orbit-infra is cloned", infraDir)
-	}
-
-	return infraRunner(infraDir, out, errOut, cmdName, args...)
-}
-
-// checkPortReady verifies if a TCP port is currently open and accepting connections.
-func checkPortReady(host string, port int, timeout time.Duration) bool {
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	dialer := &net.Dialer{Timeout: timeout}
-	conn, err := dialer.Dial("tcp", addr)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-// waitForServiceHealth repeatedly checks a TCP port until responsive or timeout/cancellation occurs.
-func waitForServiceHealth(ctx context.Context, host string, port int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
-
-	for {
-		if ctx.Err() != nil {
-			return false
-		}
-
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
-		if err == nil {
-			_ = conn.Close()
-			return true
-		}
-
-		if time.Now().After(deadline) {
-			return false
-		}
-
-		select {
-		case <-ctx.Done():
-			return false
-		case <-time.After(150 * time.Millisecond):
-		}
-	}
-}
-
-// probeServiceReadiness probes core services in parallel and returns their status.
-func probeServiceReadiness(ctx context.Context, timeout time.Duration) []ServiceStatus {
-	coreServices := []struct {
-		Name         string
-		Host         string
-		Port         int
-		FallbackPort int
-		URL          string
-	}{
-		{Name: "Postgres", Host: "127.0.0.1", Port: 10333, URL: "postgres://orbit@localhost:10333/orbit"},
-		{Name: "NATS", Host: "127.0.0.1", Port: 10422, URL: "nats://localhost:10422"},
-		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
-		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
-		{Name: "Mailpit", Host: "127.0.0.1", Port: 10825, URL: "http://localhost:10825"},
-	}
-
-	results := make([]ServiceStatus, len(coreServices))
-	var wg sync.WaitGroup
-
-	for i, svc := range coreServices {
-		wg.Add(1)
-		go func(idx int, s struct {
-			Name         string
-			Host         string
-			Port         int
-			FallbackPort int
-			URL          string
-		}) {
-			defer wg.Done()
-			ready := waitForServiceHealth(ctx, s.Host, s.Port, timeout)
-			effectivePort := s.Port
-			if !ready && s.FallbackPort > 0 {
-				if waitForServiceHealth(ctx, s.Host, s.FallbackPort, timeout) {
-					ready = true
-					effectivePort = s.FallbackPort
-				}
-			}
-			msg := "Ready"
-			if !ready {
-				msg = "Unresponsive / Offline"
-			}
-			results[idx] = ServiceStatus{
-				Name:    s.Name,
-				Host:    s.Host,
-				Port:    effectivePort,
-				URL:     s.URL,
-				Ready:   ready,
-				Message: msg,
-			}
-		}(i, svc)
-	}
-
-	wg.Wait()
-	return results
-}
-
-// renderEndpointsBanner renders a styled Lipgloss card listing dev portals and service readiness.
-func renderEndpointsBanner(out io.Writer, statuses []ServiceStatus) {
-	var sb strings.Builder
-
-	sb.WriteString(boldStyle.Render("Orbit Local Developer Endpoints") + "\n\n")
-
-	endpoints := []struct {
-		Name string
-		URL  string
-	}{
-		{Name: "Developer Portal", URL: "http://localhost:10007"},
-		{Name: "Authelia SSO", URL: "http://auth.internal.manova.space:10000"},
-		{Name: "Forgejo Git", URL: "http://git.internal.manova.space:10000"},
-		{Name: "Mailpit", URL: "http://mail.internal.manova.space:10000"},
-		{Name: "Grafana", URL: "http://grafana.internal.manova.space:10000"},
-	}
-
-	for _, ep := range endpoints {
-		fmt.Fprintf(&sb, "  %s %-18s %s\n", iconArrow, boldStyle.Render(ep.Name+":"), subtleStyle.Render(ep.URL))
-	}
-
-	if len(statuses) > 0 {
-		sb.WriteString("\n" + boldStyle.Render("Service Readiness:") + "\n")
-		for _, s := range statuses {
-			icon := iconOK
-			statusText := successStyle.Render("READY")
-			if !s.Ready {
-				icon = iconWarn
-				statusText = warningStyle.Render("NOT READY")
-			}
-			fmt.Fprintf(&sb, "  %s  %-16s %-12s (:%d)\n", icon, s.Name, statusText, s.Port)
-		}
-	}
-
-	fmt.Fprintln(out, cardStyle.Render(sb.String()))
+	infraDir := findOrbitInfraDir(findWorkspaceRoot(""))
+	return infracli.New(devRunner, os.Stdout, os.Stderr).Stream(context.Background(), infraDir, cmdName, args...)
 }
 
 func newDevCmd() *cobra.Command {
@@ -231,167 +82,203 @@ func newDevCmd() *cobra.Command {
 }
 
 func newDevUpCmd() *cobra.Command {
-	var waitFlag bool
-	var timeoutFlag time.Duration
+	var (
+		waitFlag bool
+		timeout  time.Duration
+		jsonFlag bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "up [modules...]",
 		Short: "Start local development stack containers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
 			errOut := cmd.ErrOrStderr()
-			workspaceRoot := findWorkspaceRoot("")
-			infraDir := findOrbitInfraDir(workspaceRoot)
-
-			fmt.Fprintln(out, titleStyle.Render("Starting Orbit Dev Stack..."))
-
-			startScript := filepath.Join(infraDir, "scripts", "start-dev-stack.sh")
-			var err error
-			if _, statErr := os.Stat(startScript); statErr == nil {
-				err = runInInfraWithIO(out, errOut, startScript, args...)
-			} else {
-				composeScript := filepath.Join(infraDir, "compose.sh")
-				if _, statErr := os.Stat(composeScript); statErr == nil {
-					err = runInInfraWithIO(out, errOut, composeScript, append([]string{"up", "-d"}, args...)...)
-				} else {
-					err = runInInfraWithIO(out, errOut, "docker", append([]string{"compose", "up", "-d"}, args...)...)
-				}
+			if jsonFlag {
+				uiOut = io.Discard
+				errOut = io.Discard
 			}
 
+			res, err := newDevService(uiOut, errOut).Up(cmd.Context(), application.UpInput{
+				WorkspaceRoot: findWorkspaceRoot(""),
+				Modules:       args,
+				Wait:          waitFlag,
+				Timeout:       timeout,
+			})
 			if err != nil {
+				writeDevFailure(out, jsonFlag, err)
 				return err
 			}
-
-			var statuses []ServiceStatus
-			if waitFlag {
-				fmt.Fprintln(out, infoStyle.Render(fmt.Sprintf("Probing service readiness (timeout: %s)...", timeoutFlag)))
-				statuses = probeServiceReadiness(cmd.Context(), timeoutFlag)
-			} else {
-				statuses = probeServiceReadiness(cmd.Context(), 500*time.Millisecond)
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
-
-			renderEndpointsBanner(out, statuses)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&waitFlag, "wait", "w", false, "Wait for core services to become responsive")
-	cmd.Flags().DurationVar(&timeoutFlag, "timeout", 15*time.Second, "Timeout when waiting for service readiness")
+	cmd.Flags().DurationVar(&timeout, "timeout", 15*time.Second, "Timeout when waiting for service readiness")
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
 }
 
 func newDevDownCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "down",
 		Short: "Stop local development stack containers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
 			errOut := cmd.ErrOrStderr()
-			workspaceRoot := findWorkspaceRoot("")
-			infraDir := findOrbitInfraDir(workspaceRoot)
-
-			fmt.Fprintln(out, titleStyle.Render("Stopping Orbit Dev Stack..."))
-
-			composeScript := filepath.Join(infraDir, "compose.sh")
-			if _, err := os.Stat(composeScript); err == nil {
-				return runInInfraWithIO(out, errOut, composeScript, "down")
+			if jsonFlag {
+				uiOut = io.Discard
+				errOut = io.Discard
 			}
 
-			return runInInfraWithIO(out, errOut, "docker", "compose", "down")
+			res, err := newDevService(uiOut, errOut).Down(cmd.Context(), findWorkspaceRoot(""))
+			if err != nil {
+				writeDevFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
+			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	return cmd
 }
 
 func newDevTier2Cmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "tier2",
 		Short: "Start Tier 2 Orbit services (orbit-auth, orbit-notifications, orbit-api-gateway)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
 			errOut := cmd.ErrOrStderr()
-			workspaceRoot := findWorkspaceRoot("")
-			infraDir := findOrbitInfraDir(workspaceRoot)
-
-			fmt.Fprintln(out, titleStyle.Render("Starting Orbit Tier 2 Services..."))
-
-			tier2Script := filepath.Join(infraDir, "scripts", "start-tier2.sh")
-			if _, err := os.Stat(tier2Script); err == nil {
-				return runInInfraWithIO(out, errOut, tier2Script, args...)
+			if jsonFlag {
+				uiOut = io.Discard
+				errOut = io.Discard
 			}
 
-			return fmt.Errorf("start-tier2.sh script not found at %s", tier2Script)
+			res, err := newDevService(uiOut, errOut).Tier2(cmd.Context(), findWorkspaceRoot(""), args)
+			if err != nil {
+				writeDevFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
+			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	return cmd
 }
 
 func newDevCaddyCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "caddy [reload|restart|logs]",
 		Short: "Manage local Caddy reverse proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
 			errOut := cmd.ErrOrStderr()
+			if jsonFlag {
+				uiOut = io.Discard
+				errOut = io.Discard
+			}
 			action := "reload"
 			if len(args) > 0 {
 				action = args[0]
 			}
 
-			workspaceRoot := findWorkspaceRoot("")
-			infraDir := findOrbitInfraDir(workspaceRoot)
-
-			switch action {
-			case "reload":
-				fmt.Fprintln(out, titleStyle.Render("Reloading Caddy configuration..."))
-				composeScript := filepath.Join(infraDir, "compose.sh")
-				if _, err := os.Stat(composeScript); err == nil {
-					return runInInfraWithIO(out, errOut, composeScript, "exec", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile")
-				}
-				return runInInfraWithIO(out, errOut, "docker", "compose", "exec", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile")
-			case "restart":
-				fmt.Fprintln(out, titleStyle.Render("Restarting Caddy container..."))
-				return runInInfraWithIO(out, errOut, "docker", "compose", "restart", "caddy")
-			case "logs":
-				return runInInfraWithIO(out, errOut, "docker", "compose", "logs", "-f", "caddy")
-			default:
-				return fmt.Errorf("unknown caddy action %q. Valid actions: reload, restart, logs", action)
+			res, err := newDevService(uiOut, errOut).Caddy(cmd.Context(), findWorkspaceRoot(""), action)
+			if err != nil {
+				writeDevFailure(out, jsonFlag, err)
+				return err
 			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
+			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	return cmd
 }
 
 func newDevPortalCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "portal",
 		Short: "Open or print the local developer portal URL",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			portalURL := "http://localhost:10007"
+			uiOut := io.Writer(out)
+			if jsonFlag {
+				uiOut = io.Discard
+			}
 
-			fmt.Fprintln(out, titleStyle.Render("Orbit Local Developer Portal"))
-			fmt.Fprintf(out, "  %s  Portal URL:     %s\n", iconOK, boldStyle.Render(portalURL))
-			fmt.Fprintf(out, "  %s  Authelia SSO:   %s\n", iconInfo, subtleStyle.Render("http://auth.internal.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Forgejo Git:    %s\n", iconInfo, subtleStyle.Render("http://git.internal.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Mailpit:        %s\n", iconInfo, subtleStyle.Render("http://mail.internal.manova.space:10000"))
-			fmt.Fprintf(out, "  %s  Grafana:        %s\n", iconInfo, subtleStyle.Render("http://grafana.internal.manova.space:10000"))
-
+			res := newDevService(uiOut, cmd.ErrOrStderr()).Portal(cmd.Context())
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	return cmd
 }
 
 func newDevLogsCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "logs [service]",
 		Short: "Stream logs from local dev stack containers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			uiOut := io.Writer(out)
 			errOut := cmd.ErrOrStderr()
-			cmdArgs := []string{"compose", "logs", "-f"}
-			if len(args) > 0 {
-				cmdArgs = append(cmdArgs, args...)
+			if jsonFlag {
+				uiOut = io.Discard
+				errOut = io.Discard
 			}
-			return runInInfraWithIO(out, errOut, "docker", cmdArgs...)
+
+			// JSON cannot carry an unbounded stream, so --json reports the
+			// command that would run instead of starting it.
+			res, err := newDevService(uiOut, errOut).Logs(cmd.Context(), application.LogsInput{
+				WorkspaceRoot: findWorkspaceRoot(""),
+				Services:      args,
+				Plan:          jsonFlag,
+			})
+			if err != nil {
+				writeDevFailure(out, jsonFlag, err)
+				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
+			}
+			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	return cmd
 }

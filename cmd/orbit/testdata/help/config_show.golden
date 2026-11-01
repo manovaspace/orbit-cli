@@ -6,6 +6,7 @@ Usage:
 Flags:
   -f, --format string   Output format: yaml or json (default "yaml")
   -h, --help            help for show
+      --json            Print the result as a JSON envelope
 
 Global Flags:
       --config string   Custom path to configuration file

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/manovaspace/orbit-cli/pkg/config"
+	configdomain "github.com/manovaspace/orbit-cli/pkg/config/domain"
 	"gopkg.in/yaml.v3"
 )
 
@@ -78,7 +78,7 @@ func TestConfigShowAndInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config show --format json failed: %v", err)
 	}
-	var jsonCfg config.Config
+	var jsonCfg configdomain.Config
 	if err := json.Unmarshal(buf.Bytes(), &jsonCfg); err != nil {
 		t.Fatalf("failed to parse JSON from config show: %v\nOutput: %s", err, buf.String())
 	}
@@ -307,7 +307,7 @@ func TestConfigListCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config list --format json failed: %v", err)
 	}
-	var jsonEntries []config.ConfigEntry
+	var jsonEntries []configdomain.ConfigEntry
 	if err := json.Unmarshal(buf.Bytes(), &jsonEntries); err != nil {
 		t.Fatalf("failed to parse JSON from config list: %v\nOutput: %s", err, buf.String())
 	}
@@ -322,7 +322,7 @@ func TestConfigListCommand(t *testing.T) {
 			if e.Value != "env-scoped" {
 				t.Errorf("expected defaults.scope = 'env-scoped', got %q", e.Value)
 			}
-			if e.Source != config.SourceEnv {
+			if e.Source != configdomain.SourceEnv {
 				t.Errorf("expected source == env, got %q", e.Source)
 			}
 		}
@@ -336,7 +336,7 @@ func TestConfigListCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config list --format yaml failed: %v", err)
 	}
-	var yamlEntries []config.ConfigEntry
+	var yamlEntries []configdomain.ConfigEntry
 	if err := yaml.Unmarshal(buf.Bytes(), &yamlEntries); err != nil {
 		t.Fatalf("failed to parse YAML from config list: %v\nOutput: %s", err, buf.String())
 	}
@@ -394,4 +394,90 @@ func TestConfigViaRootCmd(t *testing.T) {
 	if !strings.Contains(buf.String(), "https://orbit.manova.space") {
 		t.Errorf("expected default server url, got %s", buf.String())
 	}
+}
+
+func TestConfigJSONEnvelopes(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	t.Run("init", func(t *testing.T) {
+		out, err := execConfig(t, "init", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config init --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["created"] != true {
+			t.Errorf("created = %v", data["created"])
+		}
+	})
+
+	t.Run("show", func(t *testing.T) {
+		out, err := execConfig(t, "show", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config show --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		server, ok := data["server"].(map[string]any)
+		if !ok || server["url"] != "https://orbit.manova.space" {
+			t.Errorf("server = %v", data["server"])
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		out, err := execConfig(t, "get", "server.url", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config get --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["key"] != "server.url" || data["value"] != "https://orbit.manova.space" {
+			t.Errorf("data = %v", data)
+		}
+	})
+
+	t.Run("set", func(t *testing.T) {
+		out, err := execConfig(t, "set", "defaults.scope", "custom", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config set --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["key"] != "defaults.scope" || data["value"] != "custom" {
+			t.Errorf("data = %v", data)
+		}
+	})
+
+	t.Run("unset", func(t *testing.T) {
+		out, err := execConfig(t, "unset", "defaults.scope", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config unset --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["key"] != "defaults.scope" {
+			t.Errorf("data = %v", data)
+		}
+	})
+
+	t.Run("list", func(t *testing.T) {
+		out, err := execConfig(t, "list", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config list --json: %v", err)
+		}
+		env := requireEnvelope(t, out)
+		var entries []configdomain.ConfigEntry
+		if err := json.Unmarshal(env.Data, &entries); err != nil {
+			t.Fatalf("decode entries: %v", err)
+		}
+		if len(entries) == 0 {
+			t.Fatal("expected entries")
+		}
+	})
+
+	t.Run("path", func(t *testing.T) {
+		out, err := execConfig(t, "path", "--config", cfgPath, "--json")
+		if err != nil {
+			t.Fatalf("config path --json: %v", err)
+		}
+		data := envelopeData(t, requireEnvelope(t, out))
+		if data["path"] != cfgPath {
+			t.Errorf("path = %v, want %s", data["path"], cfgPath)
+		}
+	})
 }

@@ -16,7 +16,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/config"
+	"github.com/manovaspace/orbit-cli/pkg/config/application"
+	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
 	"github.com/manovaspace/orbit-cli/pkg/invite"
 	"github.com/manovaspace/orbit-cli/pkg/onboard"
 	"github.com/manovaspace/orbit-cli/pkg/owner"
@@ -246,7 +247,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	out := cmd.OutOrStdout()
 
 	// 1. Resolve workstation configuration from file
-	_, _ = config.Resolve(config.ResolveOptions{
+	_, _ = (&application.Service{Store: osfile.New(), Env: osfile.NewEnv()}).Resolve(application.ResolveOptions{
 		ConfigPath: opts.configPath,
 	})
 
