@@ -6,7 +6,7 @@ import "github.com/charmbracelet/lipgloss"
 // since the original cmd/orbit/ui.go so phase 1 changes no existing output.
 var (
 	// Title is the bold title style without a margin. The legacy title carried
-	// a bottom margin; TitleLegacy keeps it for the pre-ADR-046 call sites.
+	// a bottom margin; TitleLegacy keeps it for the pre-ADR-047 call sites.
 	Title = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("12"))

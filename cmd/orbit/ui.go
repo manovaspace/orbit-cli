@@ -14,7 +14,7 @@ import (
 )
 
 // Aliases for the shared render styles. They keep the historical unexported
-// names so existing call sites stay unchanged until ADR-046 phase 3.
+// names so existing call sites stay unchanged until ADR-047 phase 3.
 var (
 	titleStyle   = render.TitleLegacy
 	headerStyle  = render.Header
