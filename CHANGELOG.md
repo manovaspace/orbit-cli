@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/manovaspace/orbit-cli/compare/v0.11.0...v0.12.0) (2026-11-02)
+
+
+### Features
+
+* **pr:** list open PRs across workspace repos by name pattern ([a8a2341](https://github.com/manovaspace/orbit-cli/commit/a8a2341aff8132cff1907a952e2570653ef6ee29))
+* **pr:** list open PRs across workspace repos by name pattern ([f244cd2](https://github.com/manovaspace/orbit-cli/commit/f244cd26178e1270de7e11910d643aa6ab77c701))
+
 ## [0.11.0](https://github.com/manovaspace/orbit-cli/compare/v0.10.0...v0.11.0) (2026-11-02)
 
 
