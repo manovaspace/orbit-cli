@@ -1,5 +1,5 @@
 # Multi-stage build for orbit-server daemon
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 WORKDIR /src
 
@@ -15,7 +15,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/orbit-server ./cmd/orbit-server
 
 # Minimal runtime image
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata wget
 

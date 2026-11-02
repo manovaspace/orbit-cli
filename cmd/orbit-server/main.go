@@ -355,7 +355,9 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("failed to shut down server cleanly: %w", err)
 		}
-		<-errChan
+		if err := <-errChan; err != nil {
+			return fmt.Errorf("server error during shutdown: %w", err)
+		}
 		fmt.Fprintf(out, "  %s  Server shutdown complete.\n", iconOK)
 		return nil
 	case err := <-errChan:

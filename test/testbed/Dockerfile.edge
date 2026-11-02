@@ -1,5 +1,5 @@
 # Multi-stage build for Orbit Mock Edge Server Daemon
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 WORKDIR /src
 
@@ -18,7 +18,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/orbit-mockserver ./test/testbed/mockserver
 
 # Minimal runtime image
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata wget curl
 

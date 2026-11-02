@@ -1,7 +1,7 @@
 # Development & Scenario Testbed Container for Orbit CLI
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
-ARG GO_VERSION=1.26.0
+ARG GO_VERSION=1.27.3
 
 # Install core development tools, networking utilities, and scenario testing tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.26 toolchain matching workspace requirement
+# Install Go 1.27 toolchain matching workspace requirement
 RUN ARCH=$(dpkg --print-architecture) && \
     case "${ARCH}" in \
         amd64) GO_ARCH="amd64" ;; \
