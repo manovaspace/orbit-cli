@@ -17,7 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -538,12 +538,12 @@ func (m *IdentityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.parent.Session.Metadata["git_remote_base"] = msg.Response.Workspace.GitRemoteBase
 				}
 
-				m.parent.Session.CurrentStage = session.StageClaimSubmitted
+				m.parent.Session.CurrentStage = onboarddomain.StageClaimSubmitted
 				if m.parent.SessionManager != nil {
-					_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+					_ = m.parent.SessionManager.Save(m.parent.Session)
 				}
 			}
-			m.parent.SetStage(session.StageWorkspace)
+			m.parent.SetStage(onboarddomain.StageWorkspace)
 		}
 		return m, nil
 

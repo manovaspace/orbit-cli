@@ -15,10 +15,10 @@ import (
 	"time"
 
 	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sqlite"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
-	"github.com/manovaspace/orbit-cli/pkg/serverstore/sqlite"
 )
 
 func TestServerCmd_Flags(t *testing.T) {
@@ -406,7 +406,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 
 	// 4. Test HTTP claim with token
-	claimBody, _ := json.Marshal(provisioner.ClaimRequest{
+	claimBody, _ := json.Marshal(domain.ClaimRequest{
 		InviteToken:        tok1,
 		DesiredUID:         "alice",
 		SSHPublicKey:       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICustomAlicePublicKey alice@device",
@@ -421,7 +421,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("claim failed: code %d, body: %s", resp.StatusCode, string(body))
 	}
-	var claimResp provisioner.ClaimResponse
+	var claimResp domain.ClaimResponse
 	_ = json.NewDecoder(resp.Body).Decode(&claimResp)
 	_ = resp.Body.Close()
 
@@ -437,7 +437,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	if err != nil || respReplay.StatusCode != http.StatusOK {
 		t.Fatalf("replay failed: status %d", respReplay.StatusCode)
 	}
-	var claimRespReplay provisioner.ClaimResponse
+	var claimRespReplay domain.ClaimResponse
 	_ = json.NewDecoder(respReplay.Body).Decode(&claimRespReplay)
 	_ = respReplay.Body.Close()
 	if !claimRespReplay.IdempotentReplay {
@@ -463,7 +463,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 		t.Fatalf("failed to save revoked invite: %v", err)
 	}
 
-	claimRevBody, _ := json.Marshal(provisioner.ClaimRequest{
+	claimRevBody, _ := json.Marshal(domain.ClaimRequest{
 		InviteToken: revokedToken,
 		DesiredUID:  "revokeduser",
 	})

@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
 func TestWelcomeStageInputAndValidation(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -35,10 +36,10 @@ func TestWelcomeStageInputAndValidation(t *testing.T) {
 }
 
 func TestWelcomeStageExistingSessionPrompt(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
-	sess := sm.CreateSession("test@manova.space", "Test Engineer")
-	sess.CurrentStage = session.StageWorkspace
-	_ = sm.SaveCheckpoint(sess)
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
+	sess := sm.Create("test@manova.space", "Test Engineer")
+	sess.CurrentStage = onboarddomain.StageWorkspace
+	_ = sm.Save(sess)
 
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
@@ -54,7 +55,7 @@ func TestWelcomeStageExistingSessionPrompt(t *testing.T) {
 }
 
 func TestWelcomeStageEnterWithEmptyToken(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -65,7 +66,7 @@ func TestWelcomeStageEnterWithEmptyToken(t *testing.T) {
 	// Press Enter without entering token
 	welcome.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
-	if root.ActiveStage() != session.StageWelcome {
+	if root.ActiveStage() != onboarddomain.StageWelcome {
 		t.Errorf("expected stage to remain StageWelcome on empty token, got: %v", root.ActiveStage())
 	}
 	if root.ErrorMsg == "" {
@@ -74,7 +75,7 @@ func TestWelcomeStageEnterWithEmptyToken(t *testing.T) {
 }
 
 func TestWelcomeStageEnterWithValidToken(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -86,7 +87,7 @@ func TestWelcomeStageEnterWithValidToken(t *testing.T) {
 	// Submit token
 	welcome.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
-	if root.ActiveStage() != session.StageDoctor {
+	if root.ActiveStage() != onboarddomain.StageDoctor {
 		t.Errorf("expected transition to StageDoctor on valid token, got: %v", root.ActiveStage())
 	}
 	if root.Session.InviteToken != "inv_sec_valid_token_999" {
@@ -95,10 +96,10 @@ func TestWelcomeStageEnterWithValidToken(t *testing.T) {
 }
 
 func TestWelcomeStageResumeAction(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
-	sess := sm.CreateSession("resume@manova.space", "Resuming User")
-	sess.CurrentStage = session.StageWorkspace
-	_ = sm.SaveCheckpoint(sess)
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
+	sess := sm.Create("resume@manova.space", "Resuming User")
+	sess.CurrentStage = onboarddomain.StageWorkspace
+	_ = sm.Save(sess)
 
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
@@ -110,16 +111,16 @@ func TestWelcomeStageResumeAction(t *testing.T) {
 	// Press 'r' to resume
 	welcome.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 
-	if root.ActiveStage() != session.StageWorkspace {
+	if root.ActiveStage() != onboarddomain.StageWorkspace {
 		t.Errorf("expected active stage to be StageWorkspace after resume, got: %v", root.ActiveStage())
 	}
 }
 
 func TestWelcomeStageDiscardAction(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
-	sess := sm.CreateSession("discard@manova.space", "Discarding User")
-	sess.CurrentStage = session.StageWorkspace
-	_ = sm.SaveCheckpoint(sess)
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
+	sess := sm.Create("discard@manova.space", "Discarding User")
+	sess.CurrentStage = onboarddomain.StageWorkspace
+	_ = sm.Save(sess)
 
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
@@ -142,7 +143,7 @@ func TestWelcomeStageDiscardAction(t *testing.T) {
 }
 
 func TestWelcomeStagePreSetToken(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 		PreSetToken:    "orb_preset_tok_456",

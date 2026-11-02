@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"io"
-	"os"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/dev/application"
@@ -56,12 +54,6 @@ func writeDevFailure(out io.Writer, jsonFlag bool, err error) {
 // findOrbitInfraDir is kept for onboard, which launches the stack directly.
 func findOrbitInfraDir(workspaceRoot string) string {
 	return devFiles.InfraDir(workspaceRoot)
-}
-
-// runInInfra is kept for onboard. It streams the process to the terminal.
-func runInInfra(cmdName string, args ...string) error {
-	infraDir := findOrbitInfraDir(findWorkspaceRoot(""))
-	return infracli.New(devRunner, os.Stdout, os.Stderr).Stream(context.Background(), infraDir, cmdName, args...)
 }
 
 func newDevCmd() *cobra.Command {

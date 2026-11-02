@@ -29,7 +29,7 @@ orbit onboard [flags]
       --email string                     Developer email address
   -h, --help                             help for onboard
       --ignore-and-remove-checkpoint     Discard saved incomplete session checkpoint and start fresh
-      --json                             Output JSON progress event stream
+      --json                             Print the result as a JSON envelope
       --manifest string                  Path to workspace.yaml manifest
   -n, --name string                      Developer display name
       --non-interactive                  Run in non-interactive mode without prompting

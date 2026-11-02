@@ -24,8 +24,8 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
 
@@ -459,7 +459,7 @@ func (s *MockServer) handleOwnerVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *MockServer) handleOnboardClaim(w http.ResponseWriter, r *http.Request) {
-	var req provisioner.ClaimRequest
+	var req onboarddomain.ClaimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "malformed JSON payload")
 		return
@@ -509,21 +509,21 @@ func (s *MockServer) handleOnboardClaim(w http.ResponseWriter, r *http.Request) 
 	}
 	s.mu.Unlock()
 
-	resp := provisioner.ClaimResponse{
+	resp := onboarddomain.ClaimResponse{
 		Status:           "claimed",
 		IdempotentReplay: false,
-		User: provisioner.User{
+		User: onboarddomain.User{
 			UID:         uid,
 			Email:       email,
 			DisplayName: name,
 			Groups:      []string{"core", "dev"},
 		},
-		Credentials: provisioner.Credentials{
+		Credentials: onboarddomain.Credentials{
 			ForgejoUsername: uid,
 			ForgejoMCPToken: "mock-forgejo-token-" + uid,
 			WireGuardConfig: "[Interface]\nPrivateKey = mock-wg-key\nAddress = 10.0.0.2/32\n\n[Peer]\nPublicKey = mock-peer-key\nEndpoint = vpn.dev.manova.space:51820\nAllowedIPs = 10.0.0.0/16\n",
 		},
-		Workspace: provisioner.WorkspaceInfo{
+		Workspace: onboarddomain.WorkspaceInfo{
 			GitRemoteBase:        "http://git.internal.manova.space:3000",
 			DefaultManifestScope: "core",
 		},
