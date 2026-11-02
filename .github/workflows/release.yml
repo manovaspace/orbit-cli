@@ -108,10 +108,17 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if command -v gh >/dev/null 2>&1; then
-            gh release create "${TAG}" dist-merged/* \
-              --repo "manovaspace/orbit-cli" \
-              --title "Orbit ${TAG}" \
-              --notes-file RELEASE_NOTES.md
+            if gh release view "${TAG}" --repo "manovaspace/orbit-cli" >/dev/null 2>&1; then
+              # release-please created the release and its notes: attach assets only.
+              gh release upload "${TAG}" dist-merged/* \
+                --repo "manovaspace/orbit-cli" \
+                --clobber
+            else
+              gh release create "${TAG}" dist-merged/* \
+                --repo "manovaspace/orbit-cli" \
+                --title "Orbit ${TAG}" \
+                --notes-file RELEASE_NOTES.md
+            fi
           fi
 
   container:
