@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/manovaspace/orbit-cli/compare/v0.12.0...v0.13.0) (2026-11-02)
+
+
+### Features
+
+* **render:** add pkg/render shared output layer (ADR-046 phase 1) ([f3fdeaa](https://github.com/manovaspace/orbit-cli/commit/f3fdeaa7612c5d68a96785267d5500ad1f5bc4a9))
+* **render:** add pkg/render shared output layer (ADR-046 phase 1) ([f35d257](https://github.com/manovaspace/orbit-cli/commit/f35d2579166674a21b1ef024c07a0f003373100f))
+
 ## [0.12.0](https://github.com/manovaspace/orbit-cli/compare/v0.11.0...v0.12.0) (2026-11-02)
 
 
