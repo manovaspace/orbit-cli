@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/manovaspace/orbit-cli/pkg/pr/application"
 	"github.com/manovaspace/orbit-cli/pkg/pr/domain"
@@ -239,14 +244,40 @@ func newPRMergeCmd(dirFlag *string) *cobra.Command {
 }
 
 func newPRStatusCmd(dirFlag *string) *cobra.Command {
-	var jsonFlag bool
+	var (
+		jsonFlag     bool
+		manifestFlag string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "List open pull requests for the repository",
-		Long:  "Displays all open pull requests for the current repository on GitHub.",
+		Use:   "status [pattern]",
+		Short: "List open pull requests for one repository or matching workspace repositories",
+		Long: "Displays all open pull requests for the current repository on GitHub.\n\n" +
+			"With a pattern, selects workspace repositories by name instead. Only '*' is special and matches any run of characters; everything else is literal and matching is case-insensitive. Quote the pattern in the shell so it is not glob-expanded.",
+		Example: "  orbit pr status\n" +
+			"  orbit pr status fryto-ops\n" +
+			"  orbit pr status 'fryto*'\n" +
+			"  orbit pr status '*'",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+			if pattern != "" {
+				if cmd.Flags().Changed("dir") {
+					err := clierr.Usage("--dir cannot be combined with a repository pattern")
+					if jsonFlag {
+						prWriteFailure(out, err)
+					}
+					return err
+				}
+				workspaceRoot := findWorkspaceRoot("")
+				manifestPath := findManifestPath(workspaceRoot, manifestFlag)
+				return runWorkspacePRStatus(cmd.Context(), out, workspaceRoot, manifestPath, pattern, jsonFlag)
+			}
 
 			res, err := newPRService(out).Status(cmd.Context(), prDir(*dirFlag))
 			if err != nil {
@@ -266,23 +297,7 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 				return nil
 			}
 
-			tbl := table.New(
-				table.Column{Title: "#", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 6},
-				table.Column{Title: "TITLE", HeaderStyle: headerStyle, MinWidth: 20, Flexible: true},
-				table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 16},
-				table.Column{Title: "AUTHOR", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 12},
-				table.Column{Title: "URL", HeaderStyle: headerStyle, CellStyle: dimStyle, MinWidth: 30, Flexible: true},
-			)
-
-			for _, pullRequest := range res.PullRequests {
-				branch := pullRequest.Head
-				if pullRequest.Head != "" && pullRequest.Base != "" {
-					branch = fmt.Sprintf("%s -> %s", pullRequest.Head, pullRequest.Base)
-				}
-				tbl.AddRow(fmt.Sprintf("#%d", pullRequest.Number), pullRequest.Title, branch, pullRequest.Author, pullRequest.URL)
-			}
-
-			if err := tbl.Render(out); err != nil {
+			if err := renderPRTable(out, res.PullRequests); err != nil {
 				return err
 			}
 			fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(res.PullRequests))))
@@ -290,9 +305,239 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+// prStatusConcurrency bounds how many repositories are queried at once.
+const prStatusConcurrency = 4
+
+// prStatusRepoResult is one repository's outcome in a pattern run. Err carries
+// the original error for exit-code mapping and is not serialized.
+type prStatusRepoResult struct {
+	Repo         string               `json:"repo"`
+	PullRequests []domain.PullRequest `json:"pullRequests"`
+	Skipped      string               `json:"skipped"`
+	Error        string               `json:"error"`
+	Err          error                `json:"-"`
+}
+
+// prStatusWorkspaceResult is the --json data shape of a pattern run.
+type prStatusWorkspaceResult struct {
+	Repos []prStatusRepoResult `json:"repos"`
+	Total int                  `json:"total"`
+}
+
+// runWorkspacePRStatus lists open pull requests for every manifest repository
+// whose name matches pattern.
+func runWorkspacePRStatus(ctx context.Context, out io.Writer, workspaceRoot, manifestPath, pattern string, jsonFlag bool) error {
+	manifestFile, err := manifest.Load(manifestPath)
+	if err != nil {
+		failure := &clierr.Error{
+			Code:    clierr.CodeFailed,
+			Exit:    clierr.ExitFailed,
+			Message: fmt.Sprintf("failed to load workspace manifest %s", manifestPath),
+			Err:     err,
+		}
+		if jsonFlag {
+			prWriteFailure(out, failure)
+		}
+		return failure
+	}
+
+	targets := manifestFile.MatchRepos(pattern)
+	if len(targets) == 0 && pattern != "*" {
+		failure := clierr.Usage(fmt.Sprintf("no repositories match %q", pattern))
+		if jsonFlag {
+			prWriteFailure(out, failure)
+		}
+		return failure
+	}
+
+	results := statusAcrossRepos(ctx, workspaceRoot, targets)
+	data := prStatusWorkspaceResult{Repos: results, Total: 0}
+	for _, result := range results {
+		data.Total += len(result.PullRequests)
+	}
+	failure := firstRepoFailure(results)
+
+	if jsonFlag {
+		envelope := output.Success(data)
+		if failure != nil {
+			envelope = output.Failure(failure)
+			envelope.Data = data
+		}
+		if err := output.Write(out, envelope); err != nil {
+			return err
+		}
+		return failure
+	}
+
+	if err := renderWorkspacePRStatus(out, results, data.Total); err != nil {
+		return err
+	}
+	return failure
+}
+
+// statusAcrossRepos queries the repositories with bounded concurrency and
+// preserves their manifest order.
+func statusAcrossRepos(ctx context.Context, workspaceRoot string, targets []manifest.RepoTarget) []prStatusRepoResult {
+	results := make([]prStatusRepoResult, len(targets))
+	if len(targets) == 0 {
+		return results
+	}
+
+	concurrency := prStatusConcurrency
+	if len(targets) < concurrency {
+		concurrency = len(targets)
+	}
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for worker := 0; worker < concurrency; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				results[index] = inspectRepoPRs(ctx, workspaceRoot, targets[index])
+			}
+		}()
+	}
+	for index := range targets {
+		jobs <- index
+	}
+	close(jobs)
+	wg.Wait()
+	return results
+}
+
+// inspectRepoPRs queries one repository, reporting absent and gitless trees as
+// skipped rather than as failures.
+func inspectRepoPRs(ctx context.Context, workspaceRoot string, target manifest.RepoTarget) prStatusRepoResult {
+	result := prStatusRepoResult{Repo: target.Name, PullRequests: []domain.PullRequest{}}
+	dir := filepath.Join(workspaceRoot, target.Path)
+
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		result.Skipped = "not cloned"
+		return result
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		result.Skipped = "gitless — run orbit repair"
+		return result
+	}
+
+	status, err := newPRService(io.Discard).Status(ctx, dir)
+	if err != nil {
+		result.Error = err.Error()
+		result.Err = err
+		return result
+	}
+	if status.PullRequests != nil {
+		result.PullRequests = status.PullRequests
+	}
+	return result
+}
+
+// firstRepoFailure returns the highest-severity repository error, keeping the
+// first one on a tie. The returned error keeps the original exit code and names
+// the failing repository.
+func firstRepoFailure(results []prStatusRepoResult) error {
+	selected := -1
+	for index, result := range results {
+		if result.Err == nil {
+			continue
+		}
+		if selected >= 0 && clierr.ExitCode(result.Err) <= clierr.ExitCode(results[selected].Err) {
+			continue
+		}
+		selected = index
+	}
+	if selected < 0 {
+		return nil
+	}
+	result := results[selected]
+	return &clierr.Error{
+		Code:    clierr.Code(result.Err),
+		Exit:    clierr.ExitCode(result.Err),
+		Message: fmt.Sprintf("pr status failed for %s", result.Repo),
+		Err:     result.Err,
+	}
+}
+
+// renderWorkspacePRStatus prints one table per repository with open pull
+// requests, then collapses empty, skipped and failed repositories into summary
+// lines.
+func renderWorkspacePRStatus(out io.Writer, results []prStatusRepoResult, total int) error {
+	var (
+		noPRs   []string
+		skipped []string
+		failed  []string
+		queried int
+	)
+
+	first := true
+	for _, result := range results {
+		switch {
+		case result.Skipped != "":
+			skipped = append(skipped, fmt.Sprintf("%s (%s)", result.Repo, result.Skipped))
+			continue
+		case result.Err != nil:
+			failed = append(failed, fmt.Sprintf("%s (%s)", result.Repo, result.Error))
+			continue
+		}
+
+		queried++
+		if len(result.PullRequests) == 0 {
+			noPRs = append(noPRs, result.Repo)
+			continue
+		}
+
+		if !first {
+			fmt.Fprintln(out)
+		}
+		first = false
+		fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Open Pull Requests (GitHub) — %s", result.Repo)))
+		if err := renderPRTable(out, result.PullRequests); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(result.PullRequests))))
+	}
+
+	if len(noPRs) > 0 {
+		fmt.Fprintf(out, "\n%s\n", subtleStyle.Render("No open PRs in: "+strings.Join(noPRs, ", ")))
+	}
+	if len(skipped) > 0 {
+		fmt.Fprintf(out, "%s\n", warningStyle.Render("Skipped: "+strings.Join(skipped, ", ")))
+	}
+	if len(failed) > 0 {
+		fmt.Fprintf(out, "%s\n", errorStyle.Render("Failed: "+strings.Join(failed, ", ")))
+	}
+	fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s) across %d repo(s)", total, queried)))
+	return nil
+}
+
+// renderPRTable renders the shared open-pull-request table.
+func renderPRTable(out io.Writer, pullRequests []domain.PullRequest) error {
+	tbl := table.New(
+		table.Column{Title: "#", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 6},
+		table.Column{Title: "TITLE", HeaderStyle: headerStyle, MinWidth: 20, Flexible: true},
+		table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 16},
+		table.Column{Title: "AUTHOR", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 12},
+		table.Column{Title: "URL", HeaderStyle: headerStyle, CellStyle: dimStyle, MinWidth: 30, Flexible: true},
+	)
+
+	for _, pullRequest := range pullRequests {
+		branch := pullRequest.Head
+		if pullRequest.Head != "" && pullRequest.Base != "" {
+			branch = fmt.Sprintf("%s -> %s", pullRequest.Head, pullRequest.Base)
+		}
+		tbl.AddRow(fmt.Sprintf("#%d", pullRequest.Number), pullRequest.Title, branch, pullRequest.Author, pullRequest.URL)
+	}
+
+	return tbl.Render(out)
 }
 
 func newPRDeliverCmd(dirFlag *string) *cobra.Command {

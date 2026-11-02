@@ -1,11 +1,20 @@
 Displays all open pull requests for the current repository on GitHub.
 
+With a pattern, selects workspace repositories by name instead. Only '*' is special and matches any run of characters; everything else is literal and matching is case-insensitive. Quote the pattern in the shell so it is not glob-expanded.
+
 Usage:
-  orbit pr status [flags]
+  orbit pr status [pattern] [flags]
+
+Examples:
+  orbit pr status
+  orbit pr status fryto-ops
+  orbit pr status 'fryto*'
+  orbit pr status '*'
 
 Flags:
-  -h, --help   help for status
-      --json   Print the result as a JSON envelope
+  -h, --help              help for status
+      --json              Print the result as a JSON envelope
+      --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
