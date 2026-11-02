@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
 
@@ -451,7 +451,7 @@ func TestOnboardClaimAndValidate(t *testing.T) {
 	handler := srv.UnifiedHandler()
 
 	// 1. Claim
-	claimBody, _ := json.Marshal(provisioner.ClaimRequest{
+	claimBody, _ := json.Marshal(onboarddomain.ClaimRequest{
 		InviteToken:  "test-invite-token",
 		DesiredUID:   "charlie",
 		Email:        "charlie@example.com",
@@ -467,7 +467,7 @@ func TestOnboardClaimAndValidate(t *testing.T) {
 		t.Fatalf("POST /v1/onboard/claim failed with %d: %s", cRec.Code, cRec.Body.String())
 	}
 
-	var resp provisioner.ClaimResponse
+	var resp onboarddomain.ClaimResponse
 	if err := json.Unmarshal(cRec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode claim response: %v", err)
 	}

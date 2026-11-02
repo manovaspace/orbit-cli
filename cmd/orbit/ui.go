@@ -190,3 +190,43 @@ func promptConfirm(in io.Reader, out io.Writer, prompt string, defaultVal bool) 
 	}
 	return line == "y" || line == "yes"
 }
+
+// promptYesNo asks a yes/no question and returns defaultYes on an empty answer
+// or end of input.
+func promptYesNo(r io.Reader, w io.Writer, question string, defaultYes bool) bool {
+	var defStr string
+	if defaultYes {
+		defStr = "[Y/n]"
+	} else {
+		defStr = "[y/N]"
+	}
+	fmt.Fprintf(w, "%s %s: ", question, subtleStyle.Render(defStr))
+	scanner := bufio.NewScanner(r)
+	if scanner.Scan() {
+		text := strings.TrimSpace(strings.ToLower(scanner.Text()))
+		if text == "" {
+			return defaultYes
+		}
+		return text == "y" || text == "yes"
+	}
+	return defaultYes
+}
+
+// promptString asks for a line of input, returning defaultValue when the answer
+// is empty or input ends.
+func promptString(r io.Reader, w io.Writer, question, defaultValue string) string {
+	if defaultValue != "" {
+		fmt.Fprintf(w, "%s %s: ", question, subtleStyle.Render("("+defaultValue+")"))
+	} else {
+		fmt.Fprintf(w, "%s: ", question)
+	}
+	scanner := bufio.NewScanner(r)
+	if scanner.Scan() {
+		text := strings.TrimSpace(scanner.Text())
+		if text == "" {
+			return defaultValue
+		}
+		return text
+	}
+	return defaultValue
+}

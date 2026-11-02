@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/workspace"
 	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 )
@@ -379,7 +379,7 @@ func (m *WorkspaceModel) RunCloner() tea.Cmd {
 		m.isCloning = false
 		m.isComplete = true
 		if m.parent != nil {
-			m.parent.SetStage(session.StageEnvironment)
+			m.parent.SetStage(onboarddomain.StageEnvironment)
 		}
 		return nil
 	}
@@ -486,13 +486,13 @@ func (m *WorkspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.parent.Session.ClonedRepos = clonedList
-				m.parent.Session.CurrentStage = session.StageReposCloned
+				m.parent.Session.CurrentStage = onboarddomain.StageReposCloned
 
 				if m.parent.SessionManager != nil {
-					_ = m.parent.SessionManager.SaveCheckpoint(m.parent.Session)
+					_ = m.parent.SessionManager.Save(m.parent.Session)
 				}
 			}
-			m.parent.SetStage(session.StageEnvironment)
+			m.parent.SetStage(onboarddomain.StageEnvironment)
 		}
 		return m, nil
 

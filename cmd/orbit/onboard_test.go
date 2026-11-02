@@ -1,61 +1,125 @@
 package main
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
+	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
-	"github.com/manovaspace/orbit-cli/pkg/onboard"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/application"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/devprovisioner"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/hostfs"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/server"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
+	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/spf13/cobra"
 )
-
-func requireNode24(t *testing.T) {
-	t.Helper()
-	out, err := exec.Command("node", "-v").Output()
-	if err != nil {
-		t.Skipf("skipping: node not available (%v)", err)
-	}
-	ver := strings.TrimSpace(string(out))
-	trimmed := strings.TrimPrefix(ver, "v")
-	parts := strings.Split(trimmed, ".")
-	if len(parts) == 0 {
-		t.Skipf("skipping: could not parse node version %s", ver)
-	}
-	var major int
-	if _, err := fmt.Sscanf(parts[0], "%d", &major); err != nil || major < 24 {
-		t.Skipf("skipping: requires Node.js >= 24.x for live doctor checks (host has %s)", ver)
-	}
-}
 
 func testSigningSecret() []byte {
 	return []byte("test-super-secret-signing-key-32bytes-long!")
 }
 
-func TestOnboardFlagsAndResumePrompt(t *testing.T) {
-	cmd := newOnboardCmd()
+// fakeDiagnostics reports a clean machine and never heals anything.
+type fakeDiagnostics struct {
+	report *doctor.DoctorReport
+}
+
+func okDiagnostics() *fakeDiagnostics {
+	return &fakeDiagnostics{report: &doctor.DoctorReport{Results: []doctor.DiagnosticResult{
+		{Category: doctor.CategoryCore, Name: "Git", Status: doctor.StatusOK, Message: "git is installed"},
+	}}}
+}
+
+func (f *fakeDiagnostics) Run() *doctor.DoctorReport { return f.report }
+
+func (f *fakeDiagnostics) HealableCount([]doctor.DiagnosticResult) int { return 0 }
+
+func (f *fakeDiagnostics) Heal(context.Context, []doctor.DiagnosticResult, func(string, string)) error {
+	return nil
+}
+
+// fakeSSH returns a fixed public key.
+type fakeSSH struct{}
+
+func (fakeSSH) EnsureKey(string, string) (string, error) {
+	return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test@manova.space", nil
+}
+
+// fakeBundle records the requested bundle path.
+type fakeBundle struct {
+	path string
+}
+
+func (f *fakeBundle) Write(string, *onboarddomain.SessionState, string) (string, error) {
+	if f.path == "" {
+		f.path = "orbit-diag-test.tar.gz"
+	}
+	return f.path, nil
+}
+
+// withOnboardAdapters replaces the service adapters for one command test.
+func withOnboardAdapters(t *testing.T, mutate func(*application.Service)) {
+	t.Helper()
+	originalService := onboardService
+	originalTTY := onboardIsTTY
+	t.Cleanup(func() {
+		onboardService = originalService
+		onboardIsTTY = originalTTY
+	})
+	onboardService = func(cmd *cobra.Command, opts *onboardOptions, out io.Writer) (*application.Service, error) {
+		svc, err := newOnboardService(cmd, opts, out)
+		if err != nil {
+			return nil, err
+		}
+		svc.Diagnostics = okDiagnostics()
+		svc.SSH = fakeSSH{}
+		svc.Stack = nil
+		env := hostfs.New(nil)
+		env.LookPath = func(string) (string, error) { return "", errors.New("not installed") }
+		svc.Environment = env
+		if mutate != nil {
+			mutate(svc)
+		}
+		return svc, nil
+	}
+}
+
+func runOnboardCmd(t *testing.T, in string, args ...string) (string, error) {
+	t.Helper()
 	buf := new(bytes.Buffer)
+	cmd := newOnboardCmd()
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"--dry-run"})
-
-	err := cmd.Execute()
-	if err != nil {
-		t.Fatalf("onboard command dry-run failed: %v", err)
+	if in != "" {
+		cmd.SetIn(bytes.NewBufferString(in))
 	}
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return buf.String(), err
+}
 
-	out := buf.String()
+func TestOnboardFlagsAndResumePrompt(t *testing.T) {
+	withOnboardAdapters(t, nil)
+	t.Setenv("HOME", t.TempDir())
+
+	out, err := runOnboardCmd(t, "",
+		"--dry-run",
+		"--session-file", filepath.Join(t.TempDir(), "session.json"),
+	)
+	if err != nil {
+		t.Fatalf("onboard --dry-run failed: %v", err)
+	}
 	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
@@ -64,32 +128,90 @@ func TestOnboardFlagsAndResumePrompt(t *testing.T) {
 	}
 }
 
+func TestOnboardJSONEnvelope(t *testing.T) {
+	withOnboardAdapters(t, nil)
+	t.Setenv("HOME", t.TempDir())
+
+	out, err := runOnboardCmd(t, "",
+		"--json",
+		"--dry-run",
+		"--session-file", filepath.Join(t.TempDir(), "session.json"),
+	)
+	if err != nil {
+		t.Fatalf("onboard --json --dry-run failed: %v", err)
+	}
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		t.Fatalf("output is not one JSON envelope: %v\n%s", err, out)
+	}
+	if env.SchemaVersion != output.SchemaVersion {
+		t.Errorf("schemaVersion = %d, want %d", env.SchemaVersion, output.SchemaVersion)
+	}
+	if !env.OK {
+		t.Fatalf("expected ok envelope, got %+v", env)
+	}
+
+	data, ok := env.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data is not an object: %T", env.Data)
+	}
+	if data["dryRun"] != true {
+		t.Errorf("expected dryRun true, got %v", data["dryRun"])
+	}
+	events, ok := data["events"].([]any)
+	if !ok || len(events) == 0 {
+		t.Fatalf("expected progress events in the envelope, got %v", data["events"])
+	}
+	first := events[0].(map[string]any)
+	if first["stage"] == "" || first["status"] == "" {
+		t.Errorf("event missing stage/status: %v", first)
+	}
+	if strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
+		t.Errorf("human banner leaked into the JSON envelope: %s", out)
+	}
+}
+
+func TestOnboardJSONRejectsInteractiveWizard(t *testing.T) {
+	originalTTY := onboardIsTTY
+	t.Cleanup(func() { onboardIsTTY = originalTTY })
+	onboardIsTTY = func() bool { return true }
+
+	out, err := runOnboardCmd(t, "", "--json")
+	if err == nil {
+		t.Fatal("expected --json on a terminal to fail")
+	}
+	if exit := clierr.ExitCode(err); exit != 3 {
+		t.Errorf("exit code = %d, want 3", exit)
+	}
+	if !strings.Contains(err.Error(), "interactive wizard") {
+		t.Errorf("error should name the interactive wizard: %v", err)
+	}
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		t.Fatalf("expected a JSON failure envelope, got %q: %v", out, err)
+	}
+	if env.OK || env.Error == nil || env.Error.Code != "usage" {
+		t.Errorf("expected a usage failure envelope, got %+v", env)
+	}
+}
+
 func TestOnboardNonInteractiveFullProgression(t *testing.T) {
-	requireNode24(t)
-	setupOnboardPrerequisiteFixture(t)
+	withOnboardAdapters(t, nil)
+
 	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	sshDir := filepath.Join(tempDir, "ssh")
 	_ = os.MkdirAll(workspaceDir, 0755)
 	_ = os.MkdirAll(sshDir, 0700)
 
-	// 1. Setup mock onboard edge HTTP server
 	secret := testSigningSecret()
-	prov := provisioner.NewDevProvisioner()
-	srvConfig := onboard.ServerConfig{
-		Secret:           secret,
-		Provisioner:      prov,
-		DisableRateLimit: true,
-	}
-	srvHandler, err := onboard.NewServer(srvConfig)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-	server := httptest.NewServer(srvHandler.Handler())
+	server := newTestEdgeServer(t, secret)
 	defer server.Close()
 
-	// 2. Generate valid invite token
 	req := invitedomain.InviteRequest{
 		Email:       "test-dev@manova.space",
 		DisplayName: "Test Developer",
@@ -101,12 +223,7 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}
 
-	// 3. Execute onboard in non-interactive mode
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
 		"--non-interactive",
 		"--token", tokenStr,
 		"--edge-url", server.URL,
@@ -114,13 +231,10 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 		"--workspace", workspaceDir,
 		"--ssh-dir", sshDir,
 		"--skip-stack",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard command execution failed: %v\nOutput:\n%s", err, buf.String())
+	)
+	if err != nil {
+		t.Fatalf("onboard command execution failed: %v\nOutput:\n%s", err, out)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "ONBOARDING COMPLETE") {
 		t.Errorf("output missing completion card: %s", out)
 	}
@@ -128,66 +242,59 @@ func TestOnboardNonInteractiveFullProgression(t *testing.T) {
 		t.Errorf("output missing provisioned UID: %s", out)
 	}
 
-	// 4. Verify session is saved and completed
-	sm, err := session.NewSessionManager(sessionPath)
+	sm, err := sessionstore.New(sessionPath)
 	if err != nil {
-		t.Fatalf("NewSessionManager failed: %v", err)
+		t.Fatalf("sessionstore.New failed: %v", err)
 	}
-	s, err := sm.LoadSession()
+	s, err := sm.Load()
 	if err != nil || s == nil {
 		t.Fatalf("failed to load saved session: %v", err)
 	}
-	if s.CurrentStage != session.StageCompleted {
-		t.Errorf("expected stage %s, got %s", session.StageCompleted, s.CurrentStage)
+	if s.CurrentStage != onboarddomain.StageCompleted {
+		t.Errorf("expected completed stage, got %s", s.CurrentStage)
 	}
 	if s.UID != "test-dev" {
 		t.Errorf("expected UID test-dev, got %s", s.UID)
 	}
 	if s.ForgejoToken == "" {
-		t.Error("expected ForgejoToken to be saved in session")
+		t.Error("expected the git token to be saved in the session")
 	}
 
-	// 5. Verify .cursor/mcp.env was configured
-	mcpEnvFile := filepath.Join(workspaceDir, ".cursor", "mcp.env")
-	envData, err := os.ReadFile(mcpEnvFile)
+	envData, err := os.ReadFile(filepath.Join(workspaceDir, ".cursor", "mcp.env"))
 	if err != nil {
 		t.Fatalf("expected .cursor/mcp.env to exist: %v", err)
 	}
 	if !strings.Contains(string(envData), s.ForgejoToken) {
-		t.Errorf("expected .cursor/mcp.env to contain forgejo token, got:\n%s", string(envData))
+		t.Errorf("expected .cursor/mcp.env to contain the git token")
 	}
 }
 
 func TestOnboardSessionCheckpointAndResume(t *testing.T) {
+	withOnboardAdapters(t, nil)
+
 	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	sshDir := filepath.Join(tempDir, "ssh")
 	_ = os.MkdirAll(workspaceDir, 0755)
 	_ = os.MkdirAll(sshDir, 0700)
 
-	// 1. Setup HTTP edge server
 	secret := testSigningSecret()
-	prov := provisioner.NewDevProvisioner()
-	srvConfig := onboard.ServerConfig{
-		Secret:           secret,
-		Provisioner:      prov,
-		DisableRateLimit: true,
-	}
-	srvHandler, _ := onboard.NewServer(srvConfig)
-	server := httptest.NewServer(srvHandler.Handler())
+	server := newTestEdgeServer(t, secret)
 	defer server.Close()
 
-	// 2. Pre-populate a session at StageKeypairReady
-	sm, _ := session.NewSessionManager(sessionPath)
-	s := sm.CreateSession("resumed-dev@manova.space", "Resumed Dev")
-	s.CurrentStage = session.StageKeypairReady
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("resumed-dev@manova.space", "Resumed Dev")
+	s.CurrentStage = onboarddomain.StageKeypairReady
 	s.SSHPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICheckpointTestPubKey resumed-dev@manova.space"
-	if err := sm.SaveSession(s); err != nil {
-		t.Fatalf("SaveSession failed: %v", err)
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
 	}
 
-	// 3. Generate invite token
 	req := invitedomain.InviteRequest{
 		Email:       "resumed-dev@manova.space",
 		DisplayName: "Resumed Dev",
@@ -196,12 +303,7 @@ func TestOnboardSessionCheckpointAndResume(t *testing.T) {
 	}
 	tokenStr, _, _ := invitedomain.GenerateToken(req, secret)
 
-	// 4. Run with --resume flag
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
 		"--resume",
 		"--token", tokenStr,
 		"--edge-url", server.URL,
@@ -210,24 +312,20 @@ func TestOnboardSessionCheckpointAndResume(t *testing.T) {
 		"--ssh-dir", sshDir,
 		"--non-interactive",
 		"--skip-stack",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard --resume failed: %v\nOutput:\n%s", err, buf.String())
+	)
+	if err != nil {
+		t.Fatalf("onboard --resume failed: %v\nOutput:\n%s", err, out)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "Resuming existing session") && !strings.Contains(out, "cached checkpoint") {
 		t.Errorf("output missing resume indication: %s", out)
 	}
 
-	// 5. Verify session advanced to completed
-	loaded, err := sm.LoadSession()
+	loaded, err := sm.Load()
 	if err != nil || loaded == nil {
 		t.Fatalf("failed to reload session: %v", err)
 	}
-	if loaded.CurrentStage != session.StageCompleted {
-		t.Errorf("expected stage %s, got %s", session.StageCompleted, loaded.CurrentStage)
+	if loaded.CurrentStage != onboarddomain.StageCompleted {
+		t.Errorf("expected completed stage, got %s", loaded.CurrentStage)
 	}
 	if loaded.UID != "resumed-dev" {
 		t.Errorf("expected UID resumed-dev, got %s", loaded.UID)
@@ -236,43 +334,39 @@ func TestOnboardSessionCheckpointAndResume(t *testing.T) {
 
 func TestOnboardIgnoreAndRemoveCheckpointFlag(t *testing.T) {
 	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	sessionPath := filepath.Join(tempDir, "session.json")
 
-	// Pre-create pending session
-	sm, _ := session.NewSessionManager(sessionPath)
-	s := sm.CreateSession("reset-me@manova.space", "Reset Me")
-	s.CurrentStage = session.StageTokenClaimed
-	_ = sm.SaveSession(s)
-
-	if !sm.HasPendingSession() {
-		t.Fatal("expected pending session before reset")
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("reset-me@manova.space", "Reset Me")
+	s.CurrentStage = onboarddomain.StageTokenClaimed
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	if !sm.HasPending() {
+		t.Fatal("expected a pending session before reset")
 	}
 
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
 		"--ignore-and-remove-checkpoint",
 		"--session-file", sessionPath,
-	})
-
-	if err := cmd.Execute(); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("onboard --ignore-and-remove-checkpoint failed: %v", err)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "session cleared") {
 		t.Errorf("output missing reset confirmation: %s", out)
 	}
-
-	// Check file is removed
 	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
-		t.Errorf("expected session file to be removed after reset")
+		t.Errorf("expected the session file to be removed after reset")
 	}
 }
 
 func TestOnboardRollbackFlag(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
@@ -287,190 +381,116 @@ func TestOnboardRollbackFlag(t *testing.T) {
 	_ = os.MkdirAll(filepath.Dir(cursorEnv), 0755)
 	_ = os.WriteFile(cursorEnv, []byte("FORGEJO_TOKEN=test_tok"), 0600)
 
-	// Pre-populate session with cloned repos
-	sm, _ := session.NewSessionManager(sessionPath)
-	s := sm.CreateSession("rollback-user@manova.space", "Rollback User")
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("rollback-user@manova.space", "Rollback User")
 	s.UID = "rollback-user"
-	s.CurrentStage = session.StageReposCloned
+	s.CurrentStage = onboarddomain.StageReposCloned
 	s.ClonedRepos = []string{
 		filepath.Join("orbit", "orbit-toolkit"),
 		filepath.Join("clients", "client-a"),
 	}
-	_ = sm.SaveSession(s)
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
 		"--rollback",
 		"--session-file", sessionPath,
 		"--workspace", workspaceDir,
-	})
-
-	if err := cmd.Execute(); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("onboard --rollback failed: %v", err)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "Rollback completed successfully") {
 		t.Errorf("output missing rollback confirmation: %s", out)
 	}
-
-	// Verify cloned repos were removed
 	if _, err := os.Stat(repo1); !os.IsNotExist(err) {
 		t.Errorf("expected repo1 %s to be deleted by rollback", repo1)
 	}
 	if _, err := os.Stat(repo2); !os.IsNotExist(err) {
 		t.Errorf("expected repo2 %s to be deleted by rollback", repo2)
 	}
-
-	// Verify session file is removed
 	if _, err := os.Stat(sessionPath); !os.IsNotExist(err) {
-		t.Errorf("expected session file to be removed after rollback")
+		t.Errorf("expected the session file to be removed after rollback")
+	}
+}
+
+func TestOnboardJSONRollbackEnvelope(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+	sessionPath := filepath.Join(tempDir, "session.json")
+
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("rollback-user@manova.space", "Rollback User")
+	s.UID = "rollback-user"
+	s.CurrentStage = onboarddomain.StageKeypairReady
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	out, err := runOnboardCmd(t, "",
+		"--json",
+		"--rollback",
+		"--session-file", sessionPath,
+		"--workspace", filepath.Join(tempDir, "workspace"),
+	)
+	if err != nil {
+		t.Fatalf("onboard --json --rollback failed: %v", err)
+	}
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		t.Fatalf("output is not one JSON envelope: %v\n%s", err, out)
+	}
+	data, ok := env.Data.(map[string]any)
+	if !ok || data["rolledBack"] != true {
+		t.Fatalf("expected rolledBack true in %+v", env.Data)
 	}
 }
 
 func TestOnboardDiagBundle(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tempDir := t.TempDir()
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	bundlePath := filepath.Join(tempDir, "manova-diag-test.tar.gz")
 
-	_ = os.MkdirAll(filepath.Join(workspaceDir, ".cursor"), 0755)
-	_ = os.WriteFile(
-		filepath.Join(workspaceDir, ".cursor", "mcp.env"),
-		[]byte("FORGEJO_TOKEN=fjo_tok_super_secret_123456\nPORT=10000\n"),
-		0600,
-	)
+	withOnboardAdapters(t, func(svc *application.Service) {
+		svc.Bundle = &fakeBundle{path: bundlePath}
+	})
 
-	// Save session with secret data
-	sm, _ := session.NewSessionManager(sessionPath)
-	s := sm.CreateSession("diag-test@manova.space", "Diag Tester")
-	s.InviteToken = "orbit-inv.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sensitive-signature"
-	s.ForgejoToken = "fjo_tok_super_secret_forgejo_token"
-	s.WireGuardConfig = "[Interface]\nPrivateKey = sensitive_private_key_base64\nAddress = 10.8.0.5/24\n"
-	_ = sm.SaveSession(s)
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("diag-test@manova.space", "Diag Tester")
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
+		"--json",
 		"--diag-bundle", bundlePath,
 		"--session-file", sessionPath,
 		"--workspace", workspaceDir,
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard --diag-bundle failed: %v\nOutput: %s", err, buf.String())
-	}
-
-	if _, err := os.Stat(bundlePath); err != nil {
-		t.Fatalf("diagnostic bundle file was not created at %s: %v", bundlePath, err)
-	}
-
-	// Open and inspect tar.gz archive
-	f, err := os.Open(bundlePath)
+	)
 	if err != nil {
-		t.Fatalf("failed to open bundle: %v", err)
-	}
-	defer f.Close()
-
-	gr, err := gzip.NewReader(f)
-	if err != nil {
-		t.Fatalf("failed to create gzip reader: %v", err)
-	}
-	defer gr.Close()
-
-	tr := tar.NewReader(gr)
-	foundEntries := make(map[string][]byte)
-
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Fatalf("tar read error: %v", err)
-		}
-		content, err := io.ReadAll(tr)
-		if err != nil {
-			t.Fatalf("failed to read tar entry %s: %v", hdr.Name, err)
-		}
-		foundEntries[hdr.Name] = content
+		t.Fatalf("onboard --diag-bundle failed: %v\nOutput: %s", err, out)
 	}
 
-	// Verify expected files exist in archive
-	expectedFiles := []string{
-		"doctor_report.json",
-		"session_sanitized.json",
-		"system_info.json",
-		"mcp_env_sanitized.txt",
-		"summary.txt",
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		t.Fatalf("output is not one JSON envelope: %v\n%s", err, out)
 	}
-
-	for _, ef := range expectedFiles {
-		if _, ok := foundEntries[ef]; !ok {
-			t.Errorf("missing expected tar entry %s", ef)
-		}
-	}
-
-	// Verify sanitization of session
-	sanitizedSessionStr := string(foundEntries["session_sanitized.json"])
-	if strings.Contains(sanitizedSessionStr, "fjo_tok_super_secret_forgejo_token") {
-		t.Errorf("sensitive ForgejoToken was not sanitized in session: %s", sanitizedSessionStr)
-	}
-	if !strings.Contains(sanitizedSessionStr, "fjo_tok_***") {
-		t.Errorf("expected masked token in sanitized session: %s", sanitizedSessionStr)
-	}
-	if strings.Contains(sanitizedSessionStr, "sensitive_private_key_base64") {
-		t.Errorf("sensitive WireGuard private key was not sanitized: %s", sanitizedSessionStr)
-	}
-
-	// Verify sanitization of mcp.env
-	sanitizedEnvStr := string(foundEntries["mcp_env_sanitized.txt"])
-	if strings.Contains(sanitizedEnvStr, "fjo_tok_super_secret_123456") {
-		t.Errorf("sensitive MCP token was not sanitized in mcp.env: %s", sanitizedEnvStr)
-	}
-	if !strings.Contains(sanitizedEnvStr, "FORGEJO_TOKEN=[REDACTED]") {
-		t.Errorf("expected FORGEJO_TOKEN=[REDACTED] in sanitized mcp.env: %s", sanitizedEnvStr)
-	}
-	if !strings.Contains(sanitizedEnvStr, "PORT=10000") {
-		t.Errorf("expected non-sensitive variable PORT=10000 to be preserved: %s", sanitizedEnvStr)
-	}
-}
-
-func TestOnboardJsonProgressStream(t *testing.T) {
-	tempDir := t.TempDir()
-	sessionPath := filepath.Join(tempDir, "session.json")
-
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"--json", "--dry-run", "--session-file", sessionPath})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard --json --dry-run failed: %v", err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	if len(lines) == 0 {
-		t.Fatal("expected at least one JSON line emitted")
-	}
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		var evt OnboardProgressEvent
-		if err := json.Unmarshal([]byte(line), &evt); err != nil {
-			t.Fatalf("failed to parse JSON event %q: %v", line, err)
-		}
-		if evt.Stage == "" || evt.Status == "" {
-			t.Errorf("event missing required fields: %+v", evt)
-		}
+	data, ok := env.Data.(map[string]any)
+	if !ok || data["bundlePath"] != bundlePath {
+		t.Fatalf("expected bundlePath %q in %+v", bundlePath, env.Data)
 	}
 }
 
@@ -484,9 +504,7 @@ func TestOnboardAutoFixFlagRegistration(t *testing.T) {
 	if autoFixFlag.Shorthand != "f" {
 		t.Errorf("expected shorthand for --auto-fix to be 'f', got %q", autoFixFlag.Shorthand)
 	}
-
-	fixFlag := cmd.Flags().Lookup("fix")
-	if fixFlag == nil {
+	if cmd.Flags().Lookup("fix") == nil {
 		t.Fatal("expected --fix flag alias to be registered")
 	}
 
@@ -497,26 +515,26 @@ func TestOnboardAutoFixFlagRegistration(t *testing.T) {
 	if yesFlag.Shorthand != "y" {
 		t.Errorf("expected shorthand for --yes to be 'y', got %q", yesFlag.Shorthand)
 	}
-
-	nonInteractiveFlag := cmd.Flags().Lookup("non-interactive")
-	if nonInteractiveFlag == nil {
+	if cmd.Flags().Lookup("non-interactive") == nil {
 		t.Fatal("expected --non-interactive flag to be registered")
+	}
+	if cmd.Flags().Lookup("json") == nil {
+		t.Fatal("expected --json flag to be registered")
 	}
 }
 
 func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{"--auto-fix", "--dry-run"})
+	withOnboardAdapters(t, nil)
+	t.Setenv("HOME", t.TempDir())
 
-	err := cmd.Execute()
+	out, err := runOnboardCmd(t, "",
+		"--auto-fix",
+		"--dry-run",
+		"--session-file", filepath.Join(t.TempDir(), "session.json"),
+	)
 	if err != nil {
 		t.Fatalf("onboard --auto-fix --dry-run failed: %v", err)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
@@ -525,190 +543,74 @@ func TestOnboardAutoFixExecutionWithDryRun(t *testing.T) {
 	}
 }
 
-func TestOnboardAutoFixFullProgression(t *testing.T) {
-	requireNode24(t)
-	setupOnboardPrerequisiteFixture(t)
-	tempDir := t.TempDir()
-	sessionPath := filepath.Join(tempDir, "session.json")
-	workspaceDir := filepath.Join(tempDir, "workspace")
-	sshDir := filepath.Join(tempDir, "ssh")
-	_ = os.MkdirAll(workspaceDir, 0755)
-	_ = os.MkdirAll(sshDir, 0700)
-
-	// Setup mock onboard edge HTTP server
-	secret := testSigningSecret()
-	prov := provisioner.NewDevProvisioner()
-	srvConfig := onboard.ServerConfig{
-		Secret:           secret,
-		Provisioner:      prov,
-		DisableRateLimit: true,
-	}
-	srvHandler, err := onboard.NewServer(srvConfig)
-	if err != nil {
-		t.Fatalf("NewServer failed: %v", err)
-	}
-	server := httptest.NewServer(srvHandler.Handler())
-	defer server.Close()
-
-	// Generate valid invite token
-	req := invitedomain.InviteRequest{
-		Email:       "autofix-dev@manova.space",
-		DisplayName: "Autofix Developer",
-		Scope:       "core",
-		TTL:         24 * time.Hour,
-	}
-	tokenStr, _, err := invitedomain.GenerateToken(req, secret)
-	if err != nil {
-		t.Fatalf("GenerateToken failed: %v", err)
-	}
-
-	// Execute onboard with --auto-fix and -y
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"--auto-fix",
-		"-y",
-		"--token", tokenStr,
-		"--edge-url", server.URL,
-		"--session-file", sessionPath,
-		"--workspace", workspaceDir,
-		"--ssh-dir", sshDir,
-		"--skip-stack",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard command execution failed: %v\nOutput:\n%s", err, buf.String())
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "ONBOARDING COMPLETE") {
-		t.Errorf("output missing completion card: %s", out)
-	}
-
-	// Verify session stage is completed
-	sm, err := session.NewSessionManager(sessionPath)
-	if err != nil {
-		t.Fatalf("NewSessionManager failed: %v", err)
-	}
-	s, err := sm.LoadSession()
-	if err != nil || s == nil {
-		t.Fatalf("failed to load saved session: %v", err)
-	}
-	if s.CurrentStage != session.StageCompleted {
-		t.Errorf("expected stage %s, got %s", session.StageCompleted, s.CurrentStage)
-	}
-}
-
 func TestOnboardInteractivePromptDecline(t *testing.T) {
+	withOnboardAdapters(t, nil)
 	tempDir := t.TempDir()
-	sessionPath := filepath.Join(tempDir, "session.json")
-	workspaceDir := filepath.Join(tempDir, "workspace")
-	sshDir := filepath.Join(tempDir, "ssh")
-	_ = os.MkdirAll(workspaceDir, 0755)
-	_ = os.MkdirAll(sshDir, 0700)
+	t.Setenv("HOME", tempDir)
 
-	in := bytes.NewBufferString("n\nn\n")
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetIn(in)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
-		"--session-file", sessionPath,
-		"--workspace", workspaceDir,
-		"--ssh-dir", sshDir,
-	})
-
-	_ = cmd.Execute()
-
-	out := buf.String()
+	out, _ := runOnboardCmd(t, "n\nn\n",
+		"--session-file", filepath.Join(tempDir, "session.json"),
+		"--workspace", filepath.Join(tempDir, "workspace"),
+		"--ssh-dir", filepath.Join(tempDir, "ssh"),
+	)
 	if !strings.Contains(out, "ORBIT DEVELOPER WIZARD") {
 		t.Errorf("output missing onboarding banner: %s", out)
 	}
 }
 
-func TestConfigureShellEnvironment(t *testing.T) {
-	tempHome := t.TempDir()
-
-	if err := configureShellEnvironment(tempHome); err != nil {
-		t.Fatalf("configureShellEnvironment failed: %v", err)
-	}
-
-	for _, rc := range []string{".zshrc", ".bashrc"} {
-		path := filepath.Join(tempHome, rc)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("failed to read %s: %v", rc, err)
-		}
-		content := string(data)
-		if !strings.Contains(content, `export GOPRIVATE="git.internal.manova.space/*"`) {
-			t.Errorf("expected GOPRIVATE in %s, got: %s", rc, content)
-		}
-		if !strings.Contains(content, `export GOPROXY="https://proxy.golang.org,direct"`) {
-			t.Errorf("expected GOPROXY in %s, got: %s", rc, content)
-		}
-	}
-
-	// Idempotency check: running again should not duplicate
-	if err := configureShellEnvironment(tempHome); err != nil {
-		t.Fatalf("second configureShellEnvironment call failed: %v", err)
-	}
-
-	for _, rc := range []string{".zshrc", ".bashrc"} {
-		path := filepath.Join(tempHome, rc)
-		data, _ := os.ReadFile(path)
-		content := string(data)
-		if strings.Count(content, "git.internal.manova.space") != 1 {
-			t.Errorf("expected exactly 1 GOPRIVATE in %s, got %d", rc, strings.Count(content, "git.internal.manova.space"))
-		}
-		if strings.Count(content, "proxy.golang.org") != 1 {
-			t.Errorf("expected exactly 1 GOPROXY in %s, got %d", rc, strings.Count(content, "proxy.golang.org"))
-		}
-	}
-}
-
 func TestOnboardTOTPPresentation(t *testing.T) {
 	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	sessionPath := filepath.Join(tempDir, "session.json")
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	sshDir := filepath.Join(tempDir, "ssh")
 	_ = os.MkdirAll(workspaceDir, 0755)
 	_ = os.MkdirAll(sshDir, 0700)
 
-	// Pre-create session with metadata containing TOTP
-	sm, _ := session.NewSessionManager(sessionPath)
-	s := sm.CreateSession("totp-dev@manova.space", "TOTP Dev")
+	sm, err := sessionstore.New(sessionPath)
+	if err != nil {
+		t.Fatalf("sessionstore.New failed: %v", err)
+	}
+	s := sm.Create("totp-dev@manova.space", "TOTP Dev")
 	s.UID = "totp-dev"
-	s.CurrentStage = session.StageDevStackReady
+	s.CurrentStage = onboarddomain.StageDevStackReady
 	s.Metadata = map[string]string{
 		"totp_uri": "otpauth://totp/Orbit:totp-dev?secret=JBSWY3DPEHPK3PXP&issuer=Orbit",
 	}
-	_ = sm.SaveSession(s)
+	if err := sm.Save(s); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
-	buf := new(bytes.Buffer)
-	cmd := newOnboardCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs([]string{
+	out, err := runOnboardCmd(t, "",
 		"--resume",
 		"--session-file", sessionPath,
 		"--workspace", workspaceDir,
 		"--ssh-dir", sshDir,
 		"--skip-stack",
 		"--non-interactive",
-	})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("onboard failed: %v\nOutput: %s", err, buf.String())
+	)
+	if err != nil {
+		t.Fatalf("onboard failed: %v\nOutput: %s", err, out)
 	}
-
-	out := buf.String()
 	if !strings.Contains(out, "Authelia 2FA") {
 		t.Errorf("expected Authelia 2FA in summary card: %s", out)
 	}
 	if !strings.Contains(out, "otpauth://totp/Orbit:totp-dev") {
 		t.Errorf("expected TOTP URI in summary card: %s", out)
 	}
+}
+
+// newTestEdgeServer starts the real onboarding edge handler over an in-memory
+// listener.
+func newTestEdgeServer(t *testing.T, secret []byte) *httptest.Server {
+	t.Helper()
+	handler, err := server.NewServer(server.ServerConfig{
+		Secret:           secret,
+		Provisioner:      devprovisioner.NewDevProvisioner(),
+		DisableRateLimit: true,
+	})
+	if err != nil {
+		t.Fatalf("server.NewServer failed: %v", err)
+	}
+	return httptest.NewServer(handler.Handler())
 }

@@ -6,7 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 )
@@ -108,7 +109,7 @@ func TestBuildRepoTreeItemsWithNilManifestDefaults(t *testing.T) {
 }
 
 func TestWorkspaceModelKeyboardNavigation(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -153,7 +154,7 @@ func TestWorkspaceModelKeyboardNavigation(t *testing.T) {
 }
 
 func TestWorkspaceModelSelectionToggles(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -229,11 +230,11 @@ func TestWorkspaceModelSelectionToggles(t *testing.T) {
 
 func TestWorkspaceModelParallelCloningSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
-	root.SetStage(session.StageWorkspace)
+	root.SetStage(onboarddomain.StageWorkspace)
 
 	wsModel := tuiOnboard.NewWorkspaceModel(root)
 	wsModel.SetWorkspaceRoot(tmpDir)
@@ -314,18 +315,18 @@ func TestWorkspaceModelParallelCloningSuccess(t *testing.T) {
 	}
 
 	// Verify wizard transitioned to StageEnvironment
-	if root.ActiveStage() != session.StageEnvironment {
+	if root.ActiveStage() != onboarddomain.StageEnvironment {
 		t.Errorf("expected transition to StageEnvironment, got %v", root.ActiveStage())
 	}
 }
 
 func TestWorkspaceModelCloningFailureAndRetry(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
-	root.SetStage(session.StageWorkspace)
+	root.SetStage(onboarddomain.StageWorkspace)
 
 	wsModel := tuiOnboard.NewWorkspaceModel(root)
 	wsModel.SetWorkspaceRoot(tmpDir)
@@ -402,13 +403,13 @@ func TestWorkspaceModelCloningFailureAndRetry(t *testing.T) {
 	if wsModel.HasError() {
 		t.Errorf("expected workspace model error to be cleared after successful retry")
 	}
-	if root.ActiveStage() != session.StageEnvironment {
+	if root.ActiveStage() != onboarddomain.StageEnvironment {
 		t.Errorf("expected transition to StageEnvironment after retry success, got %v", root.ActiveStage())
 	}
 }
 
 func TestWorkspaceModelViewRendering(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -443,12 +444,12 @@ func TestWorkspaceModelViewRendering(t *testing.T) {
 
 func TestWorkspaceModelWizardIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
-	sm, _ := session.NewSessionManager(tmpDir + "/session.json")
+	sm, _ := sessionstore.New(tmpDir + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
 
-	root.SetStage(session.StageWorkspace)
+	root.SetStage(onboarddomain.StageWorkspace)
 	view := root.View()
 
 	if !strings.Contains(view, "Workspace") && !strings.Contains(view, "Repositories") {

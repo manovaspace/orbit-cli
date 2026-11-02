@@ -8,12 +8,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
 func TestDoctorStageAllPassing(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -37,13 +38,13 @@ func TestDoctorStageAllPassing(t *testing.T) {
 
 	// [Enter] when all passed transitions to StageIdentity
 	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if root.ActiveStage() != session.StageIdentity {
+	if root.ActiveStage() != onboarddomain.StageIdentity {
 		t.Errorf("expected transition to StageIdentity, got: %v", root.ActiveStage())
 	}
 }
 
 func TestDoctorStageHealableErrors(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -68,7 +69,7 @@ func TestDoctorStageHealableErrors(t *testing.T) {
 }
 
 func TestDoctorStageCriticalUnhealableErrorBlocksAdvance(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -88,7 +89,7 @@ func TestDoctorStageCriticalUnhealableErrorBlocksAdvance(t *testing.T) {
 
 	// Press [Enter] - should NOT advance to StageIdentity
 	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if root.ActiveStage() == session.StageIdentity {
+	if root.ActiveStage() == onboarddomain.StageIdentity {
 		t.Errorf("expected stage not to transition to StageIdentity on critical error, got: %v", root.ActiveStage())
 	}
 
@@ -99,7 +100,7 @@ func TestDoctorStageCriticalUnhealableErrorBlocksAdvance(t *testing.T) {
 }
 
 func TestDoctorStageWarningAllowsAdvance(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -124,13 +125,13 @@ func TestDoctorStageWarningAllowsAdvance(t *testing.T) {
 
 	// Press [Enter] - should advance to StageIdentity even with warnings
 	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if root.ActiveStage() != session.StageIdentity {
+	if root.ActiveStage() != onboarddomain.StageIdentity {
 		t.Errorf("expected transition to StageIdentity with warnings, got: %v", root.ActiveStage())
 	}
 }
 
 func TestDoctorStageAsyncDiagnostics(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -174,7 +175,7 @@ func TestDoctorStageAsyncDiagnostics(t *testing.T) {
 }
 
 func TestDoctorStageAutoHealExecution(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -224,7 +225,7 @@ func TestDoctorStageAutoHealExecution(t *testing.T) {
 }
 
 func TestDoctorStageCategoryGrouping(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -261,7 +262,7 @@ func TestDoctorStageCategoryGrouping(t *testing.T) {
 }
 
 func TestDoctorStageRetryKey(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -279,7 +280,7 @@ func TestDoctorStageRetryKey(t *testing.T) {
 }
 
 func TestDoctorStageRunningAndHealingViews(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
@@ -302,13 +303,13 @@ func TestDoctorStageRunningAndHealingViews(t *testing.T) {
 }
 
 func TestDoctorStageWizardIntegration(t *testing.T) {
-	sm, _ := session.NewSessionManager(t.TempDir() + "/session.json")
+	sm, _ := sessionstore.New(t.TempDir() + "/session.json")
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{
 		SessionManager: sm,
 	})
 
 	// Set stage to Doctor
-	root.SetStage(session.StageDoctor)
+	root.SetStage(onboarddomain.StageDoctor)
 
 	view := root.View()
 	if !strings.Contains(view, "Pre-Flight System Diagnostics") {

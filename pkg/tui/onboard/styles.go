@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/manovaspace/orbit-cli/pkg/session"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
 // Orbit Brand Colors
@@ -103,35 +103,35 @@ var (
 type StepInfo struct {
 	Index int
 	Title string
-	Stage session.Stage
+	Stage onboarddomain.Stage
 }
 
 // WizardSteps defines the 6 primary stages of the onboarding pipeline.
 var WizardSteps = []StepInfo{
-	{Index: 1, Title: "Welcome", Stage: session.StageWelcome},
-	{Index: 2, Title: "Pre-flight", Stage: session.StageDoctor},
-	{Index: 3, Title: "Identity", Stage: session.StageIdentity},
-	{Index: 4, Title: "Workspaces", Stage: session.StageWorkspace},
-	{Index: 5, Title: "Environment", Stage: session.StageEnvironment},
-	{Index: 6, Title: "Dev Stack", Stage: session.StageStack},
+	{Index: 1, Title: "Welcome", Stage: onboarddomain.StageWelcome},
+	{Index: 2, Title: "Pre-flight", Stage: onboarddomain.StageDoctor},
+	{Index: 3, Title: "Identity", Stage: onboarddomain.StageIdentity},
+	{Index: 4, Title: "Workspaces", Stage: onboarddomain.StageWorkspace},
+	{Index: 5, Title: "Environment", Stage: onboarddomain.StageEnvironment},
+	{Index: 6, Title: "Dev Stack", Stage: onboarddomain.StageStack},
 }
 
-// StepIndexForStage maps any session.Stage to a 0-indexed primary wizard step (0 to 5).
-func StepIndexForStage(st session.Stage) int {
+// StepIndexForStage maps any onboarddomain.Stage to a 0-indexed primary wizard step (0 to 5).
+func StepIndexForStage(st onboarddomain.Stage) int {
 	switch st {
-	case session.StageInit, session.StageWelcome:
+	case onboarddomain.StageInit, onboarddomain.StageWelcome:
 		return 0
-	case session.StageDoctor, session.StageDoctorPassed:
+	case onboarddomain.StageDoctor, onboarddomain.StageDoctorPassed:
 		return 1
-	case session.StageIdentity, session.StageKeypairReady, session.StageTokenClaimed, session.StageClaimSubmitted, session.StageNetworkConfigured:
+	case onboarddomain.StageIdentity, onboarddomain.StageKeypairReady, onboarddomain.StageTokenClaimed, onboarddomain.StageClaimSubmitted, onboarddomain.StageNetworkConfigured:
 		return 2
-	case session.StageWorkspace, session.StageReposCloned:
+	case onboarddomain.StageWorkspace, onboarddomain.StageReposCloned:
 		return 3
-	case session.StageEnvironment, session.StageEnvironmentReady, session.StageMCPConfigured:
+	case onboarddomain.StageEnvironment, onboarddomain.StageEnvironmentReady, onboarddomain.StageMCPConfigured:
 		return 4
-	case session.StageStack, session.StageStackReady, session.StageDevStackReady:
+	case onboarddomain.StageStack, onboarddomain.StageStackReady, onboarddomain.StageDevStackReady:
 		return 5
-	case session.StageComplete:
+	case onboarddomain.StageComplete:
 		return 6 // all completed
 	default:
 		return 0
@@ -139,9 +139,9 @@ func StepIndexForStage(st session.Stage) int {
 }
 
 // RenderHeaderStepper generates the top horizontal progress stepper bar.
-func RenderHeaderStepper(activeStage session.Stage, termWidth int) string {
+func RenderHeaderStepper(activeStage onboarddomain.Stage, termWidth int) string {
 	currentStepIdx := StepIndexForStage(activeStage)
-	isFullyComplete := (activeStage == session.StageComplete || activeStage == session.StageCompleted)
+	isFullyComplete := (activeStage == onboarddomain.StageComplete || activeStage == onboarddomain.StageCompleted)
 
 	var stepStrings []string
 	isCompact := termWidth > 0 && termWidth < 120
@@ -198,7 +198,7 @@ func RenderHeaderStepper(activeStage session.Stage, termWidth int) string {
 }
 
 // RenderFooterStatusBar generates the bottom key navigation hints bar.
-func RenderFooterStatusBar(stage session.Stage, termWidth int, extraHints ...string) string {
+func RenderFooterStatusBar(stage onboarddomain.Stage, termWidth int, extraHints ...string) string {
 	hints := []string{
 		fmt.Sprintf("%s %s", KeyStyle.Render("[Enter]"), KeyDescStyle.Render("Advance")),
 		fmt.Sprintf("%s %s", KeyStyle.Render("[Tab]"), KeyDescStyle.Render("Focus")),

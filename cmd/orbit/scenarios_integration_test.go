@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/client"
+	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
-	"github.com/manovaspace/orbit-cli/pkg/provisioner"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
 
@@ -251,7 +251,7 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 
 	// Onboarding Claim & Validate
 	handleClaim := func(w http.ResponseWriter, r *http.Request) {
-		var req provisioner.ClaimRequest
+		var req onboarddomain.ClaimRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		token := req.InviteToken
 
@@ -262,20 +262,20 @@ func setupMockHTTPHandler(state *mockServerState) http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(provisioner.ClaimResponse{
+		_ = json.NewEncoder(w).Encode(onboarddomain.ClaimResponse{
 			Status: "claimed",
-			User: provisioner.User{
+			User: onboarddomain.User{
 				UID:         "testuser",
 				Email:       "testuser@manova.space",
 				DisplayName: "Test Developer",
 				Groups:      []string{"core"},
 			},
-			Credentials: provisioner.Credentials{
+			Credentials: onboarddomain.Credentials{
 				ForgejoUsername: "testuser",
 				ForgejoMCPToken: "mock-mcp-token",
 				WireGuardConfig: "mock-wg-config",
 			},
-			Workspace: provisioner.WorkspaceInfo{
+			Workspace: onboarddomain.WorkspaceInfo{
 				GitRemoteBase:        "http://git.internal.manova.space:3000",
 				DefaultManifestScope: "core",
 			},
