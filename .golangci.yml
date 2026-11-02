@@ -447,3 +447,29 @@ linters:
               desc: "pkg/onboard/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/onboard/application writes through its injected UI"
+        # The release domain is pure release, gate and demo rules: no process
+        # execution and no dependency on the layers above it.
+        release-domain:
+          files:
+            - "**/pkg/release/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/release/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/release/application"
+              desc: "pkg/release/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/release/infrastructure"
+              desc: "pkg/release/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/release/domain is pure and must not style output"
+        # The release application reaches gh, git, psql and the dev services
+        # only through its ports.
+        release-application:
+          files:
+            - "**/pkg/release/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/release/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/release/infrastructure"
+              desc: "pkg/release/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/release/application writes through its injected UI"

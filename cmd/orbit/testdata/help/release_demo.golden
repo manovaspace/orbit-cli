@@ -1,0 +1,14 @@
+Opens a pull request from main to demo, creating demo from main when it is missing, and merges it after the main commit's checks pass. The gate reads the checks of the main commit being promoted, not the pull request's checks.
+
+Usage:
+  orbit release demo <repo> [flags]
+
+Flags:
+  -h, --help              help for demo
+      --json              Print the result as a JSON envelope
+      --method string     Merge method (merge, squash, rebase, rebase-merge) (default "merge")
+      --override string   Merge despite failing checks and record the reason as a PR comment
+
+Global Flags:
+      --config string     Custom path to Orbit CLI configuration file
+      --manifest string   Path to workspace.yaml
