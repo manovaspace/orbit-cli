@@ -25,26 +25,34 @@ var auditNewService = func(root, manifestPath string) *auditapp.Service {
 }
 
 func newAuditCmd() *cobra.Command {
-	var jsonOutput bool
+	var (
+		jsonOutput bool
+		remote     bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "audit",
-		Short: "Audit workspace versions, dependencies and design-system usage",
-		Long: "Report drift between the workspace and manovaspace/ci/ci/versions.env, resolved dependency versions and kit exports shadowed by local code. " +
-			"The audit is read-only: it never edits a repository and reads the network only with 'audit deps --remote'. " +
+		Short: "Audit workspace versions, dependencies, agents and delivery",
+		Long: "Report drift between the workspace and manovaspace/ci/ci/versions.env, resolved dependency versions, kit exports shadowed by local code, agent configuration, repositories without tests, upstream toolchain lag and merge-gate bypasses. " +
+			"The audit is read-only: it never edits a repository and reads the network only with --remote on the checks that support it. " +
 			"Exit codes: 0 no ERROR findings, 1 at least one ERROR, 2 something could not be verified.",
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAudit(cmd, jsonOutput, func(ctx context.Context, service *auditapp.Service) audit.Result {
-				return service.All(ctx)
+				return service.All(ctx, remote)
 			})
 		},
 	}
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Print the report as a JSON envelope")
+	cmd.Flags().BoolVar(&remote, "remote", false, "Also run the network checks (registry, OSV, releases, merges, Actions billing)")
 	cmd.AddCommand(newAuditVersionsCmd(&jsonOutput))
 	cmd.AddCommand(newAuditDepsCmd(&jsonOutput))
 	cmd.AddCommand(newAuditUsageCmd(&jsonOutput))
+	cmd.AddCommand(newAuditUpstreamCmd(&jsonOutput))
+	cmd.AddCommand(newAuditAgentsCmd(&jsonOutput))
+	cmd.AddCommand(newAuditMergesCmd(&jsonOutput))
+	cmd.AddCommand(newAuditTestsCmd(&jsonOutput))
 	return cmd
 }
 
@@ -101,6 +109,78 @@ func newAuditUsageCmd(jsonOutput *bool) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&unused, "unused", false, "List kit exports nothing imports")
+	return cmd
+}
+
+func newAuditUpstreamCmd(jsonOutput *bool) *cobra.Command {
+	var remote bool
+	cmd := &cobra.Command{
+		Use:          "upstream",
+		Short:        "Report OSV advisories and toolchain versions behind upstream",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runAudit(cmd, *jsonOutput, func(ctx context.Context, service *auditapp.Service) audit.Result {
+				return service.Upstream(ctx, remote)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&remote, "remote", false, "Read OSV, the npm registry and GitHub releases")
+	return cmd
+}
+
+func newAuditAgentsCmd(jsonOutput *bool) *cobra.Command {
+	return &cobra.Command{
+		Use:          "agents",
+		Short:        "Check handbook gates, editor configuration and agent runtimes",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runAudit(cmd, *jsonOutput, func(ctx context.Context, service *auditapp.Service) audit.Result {
+				return service.Agents(ctx)
+			})
+		},
+	}
+}
+
+func newAuditMergesCmd(jsonOutput *bool) *cobra.Command {
+	var (
+		remote bool
+		days   int
+	)
+	cmd := &cobra.Command{
+		Use:          "merges",
+		Short:        "Report merged pull requests that bypassed the merge gate",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if days < 1 {
+				return clierr.Usage("--days must be a positive number of days")
+			}
+			return runAudit(cmd, *jsonOutput, func(ctx context.Context, service *auditapp.Service) audit.Result {
+				return service.Merges(ctx, days, remote)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&remote, "remote", false, "Read merged pull requests through gh")
+	cmd.Flags().IntVar(&days, "days", auditapp.DefaultMergedDays, "Days of merged pull requests to inspect")
+	return cmd
+}
+
+func newAuditTestsCmd(jsonOutput *bool) *cobra.Command {
+	var remote bool
+	cmd := &cobra.Command{
+		Use:          "tests",
+		Short:        "Report repositories with no tests and GitHub Actions usage",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runAudit(cmd, *jsonOutput, func(ctx context.Context, service *auditapp.Service) audit.Result {
+				return service.Tests(ctx, remote)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&remote, "remote", false, "Read GitHub Actions billing through gh")
 	return cmd
 }
 

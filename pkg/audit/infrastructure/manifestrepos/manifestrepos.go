@@ -37,6 +37,7 @@ func (r *Repos) Repos(root, manifestPath string) ([]application.Repo, error) {
 			Path:          strings.ReplaceAll(filepath.ToSlash(target.Path), "\\", "/"),
 			Dir:           filepath.Clean(dir),
 			DefaultBranch: target.DefaultBranch,
+			RemoteURL:     target.RemoteURL,
 		})
 	}
 	return out, nil

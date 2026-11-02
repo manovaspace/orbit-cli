@@ -3,16 +3,24 @@
 package audit
 
 import (
+	"time"
+
 	"github.com/manovaspace/orbit-cli/pkg/audit/application"
 	"github.com/manovaspace/orbit-cli/pkg/audit/domain"
+	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/ghapi"
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/gitrefs"
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/manifestrepos"
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/npmhttp"
+	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/osvhttp"
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/workspacefs"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 )
 
 // DefaultRegistryURL is the public npm registry the audit may read.
 const DefaultRegistryURL = "https://registry.npmjs.org"
+
+// DefaultOSVURL is the public OSV API the advisory check reads.
+const DefaultOSVURL = "https://api.osv.dev"
 
 // Finding is one audit problem.
 type Finding = domain.Finding
@@ -36,6 +44,7 @@ func NewReport() Report { return domain.NewReport() }
 // NewService wires the audit service to the real adapters. The registry is
 // only read when a caller asks for remote dependency checks.
 func NewService(root, manifestPath string) *application.Service {
+	commands := runnerCommands{runner: runner.Exec{}}
 	return &application.Service{
 		Root:         root,
 		ManifestPath: manifestPath,
@@ -43,5 +52,9 @@ func NewService(root, manifestPath string) *application.Service {
 		Files:        workspacefs.New(),
 		VCS:          gitrefs.New(),
 		Registry:     npmhttp.New(DefaultRegistryURL),
+		Advisories:   osvhttp.New(DefaultOSVURL),
+		GitHub:       ghapi.New(runner.Exec{}),
+		Commands:     commands,
+		Now:          time.Now,
 	}
 }

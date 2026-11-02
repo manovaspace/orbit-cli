@@ -1,0 +1,12 @@
+Report OSV advisories and toolchain versions behind upstream
+
+Usage:
+  orbit audit upstream [flags]
+
+Flags:
+  -h, --help     help for upstream
+      --remote   Read OSV, the npm registry and GitHub releases
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+      --json            Print the report as a JSON envelope

@@ -1,0 +1,12 @@
+Report repositories with no tests and GitHub Actions usage
+
+Usage:
+  orbit audit tests [flags]
+
+Flags:
+  -h, --help     help for tests
+      --remote   Read GitHub Actions billing through gh
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+      --json            Print the report as a JSON envelope

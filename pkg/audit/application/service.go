@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/audit/domain"
 )
@@ -36,6 +37,11 @@ type Service struct {
 	Files        Files
 	VCS          VCS
 	Registry     Registry
+	Advisories   Advisories
+	GitHub       GitHub
+	Commands     Commands
+	// Now is the clock the merge lookback uses; nil means time.Now.
+	Now func() time.Time
 }
 
 // repoScan is the shared repository view every audit command starts from.
@@ -44,20 +50,25 @@ type repoScan struct {
 	report domain.Report
 }
 
-// All runs versions, deps and usage in one report.
-func (s *Service) All(ctx context.Context) Result {
-	versions := s.Versions(ctx)
-	deps := s.Deps(ctx, DefaultPackage, false)
-	usage := s.Usage(ctx, "", false)
+// All runs every local check, plus the remote checks when remote is true.
+func (s *Service) All(ctx context.Context, remote bool) Result {
+	results := []Result{
+		s.Versions(ctx),
+		s.Deps(ctx, DefaultPackage, remote),
+		s.Usage(ctx, "", false),
+		s.Agents(ctx),
+		s.Tests(ctx, remote),
+	}
+	if remote {
+		results = append(results, s.Upstream(ctx, true), s.Merges(ctx, DefaultMergedDays, true))
+	}
 
-	report := versions.Report
-	report.Merge(deps.Report)
-	report.Merge(usage.Report)
-
+	report := domain.NewReport()
 	var details []string
-	for _, detail := range []string{versions.Detail, deps.Detail, usage.Detail} {
-		if detail != "" {
-			details = append(details, detail)
+	for _, result := range results {
+		report.Merge(result.Report)
+		if result.Detail != "" {
+			details = append(details, result.Detail)
 		}
 	}
 	return Result{Report: report, Detail: strings.Join(details, "; ")}
