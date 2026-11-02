@@ -58,14 +58,15 @@ func (p *fakeProbe) called(prefix string) bool {
 
 // fakeHost is an in-memory machine.
 type fakeHost struct {
-	report   host.Report
-	cwd      string
-	env      map[string]string
-	files    map[string][]byte
-	dirs     map[string]bool
-	gitDirs  map[string]bool
-	lookPath map[string]string
-	lookErr  error
+	report    host.Report
+	cwd       string
+	env       map[string]string
+	files     map[string][]byte
+	dirs      map[string]bool
+	gitDirs   map[string]bool
+	lookPath  map[string]string
+	lookErr   error
+	resources domain.Resources
 }
 
 func newFakeHost(cwd string) *fakeHost {
@@ -81,6 +82,8 @@ func newFakeHost(cwd string) *fakeHost {
 }
 
 func (h *fakeHost) Report() host.Report { return h.report }
+
+func (h *fakeHost) Resources() domain.Resources { return h.resources }
 
 func (h *fakeHost) LookPath(name string) (string, error) {
 	if h.lookErr != nil {
@@ -379,3 +382,113 @@ func TestAcceptHostKeysOnlyChangesStrictHostKeyChecking(t *testing.T) {
 
 var _ Probe = (*fakeProbe)(nil)
 var _ Host = (*fakeHost)(nil)
+
+func TestToolchainReadsWorkspaceVersionPins(t *testing.T) {
+	root := t.TempDir()
+	machine := newFakeHost(root)
+	machine.gitDirs[filepath.Join(root, ".git")] = true
+	machine.files[filepath.Join(root, "package.json")] = []byte(`{"name":"fixture"}`)
+	machine.files[filepath.Join(root, "workspace.yaml")] = []byte("version: '1'\n")
+	machine.files[filepath.Join(root, "manovaspace", "ci", "ci", "versions.env")] = []byte("BUN_VERSION=1.4.0\nNODE_VERSION=24.18.0\nGO_VERSION=1.26.7\n")
+	machine.files[filepath.Join(root, "go.mod")] = []byte("module fixture\ngo 1.26.0\n")
+
+	probe := healthyProbe()
+	probe.On("node -v", ProbeResult{Output: "v24.18.0"}, nil)
+
+	results := (toolchainCheck{probe: probe, host: machine}).Run(context.Background())
+	wanted := map[string]struct {
+		contains []string
+	}{
+		"Bun requirement":     {[]string{">=1.4.0", "versions.env"}},
+		"Node.js requirement": {[]string{">=24.18.0", "versions.env"}},
+		"Go Compiler requirement": {
+			[]string{">=1.26.0", "go.mod"},
+		},
+	}
+	for name, want := range wanted {
+		found := false
+		for _, result := range results {
+			if result.Name != name {
+				continue
+			}
+			found = true
+			if result.Status != domain.StatusOK {
+				t.Errorf("%s status = %s, want OK: %+v", name, result.Status, result)
+			}
+			for _, text := range want.contains {
+				if !strings.Contains(result.Message, text) {
+					t.Errorf("%s message = %q, want %q", name, result.Message, text)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("missing %s in %+v", name, results)
+		}
+	}
+	for _, result := range results {
+		if (result.Name == "Bun" || result.Name == "Node.js" || result.Name == "Go Compiler") && result.Status != domain.StatusOK {
+			t.Errorf("%s v does not satisfy the workspace pin: %+v", result.Name, result)
+		}
+	}
+}
+
+func TestResourcesWarnOnLowDiskAndMemory(t *testing.T) {
+	machine := newFakeHost(t.TempDir())
+	machine.resources = domain.Resources{
+		Disks:             []domain.Volume{{Path: "/", FreeBytes: 4_000_000_000}},
+		MemAvailableBytes: 800_000_000,
+	}
+
+	results := (resourcesCheck{host: machine}).Run(context.Background())
+	if len(results) != 2 {
+		t.Fatalf("results = %+v", results)
+	}
+	for _, result := range results {
+		if result.Status != domain.StatusWarning {
+			t.Errorf("%s status = %s, want WARN", result.Name, result.Status)
+		}
+		if result.FixSuggestion == "" {
+			t.Errorf("%s has no fix suggestion", result.Name)
+		}
+	}
+}
+
+func TestResourcesReportHealthyValues(t *testing.T) {
+	machine := newFakeHost(t.TempDir())
+	machine.resources = domain.Resources{
+		Disks:             []domain.Volume{{Path: "/", FreeBytes: 50_000_000_000}},
+		MemAvailableBytes: 8_000_000_000,
+	}
+
+	results := (resourcesCheck{host: machine}).Run(context.Background())
+	if len(results) != 2 {
+		t.Fatalf("results = %+v", results)
+	}
+	for _, result := range results {
+		if result.Status != domain.StatusOK {
+			t.Errorf("%s status = %s, want OK", result.Name, result.Status)
+		}
+	}
+}
+
+func TestDevToolsWarnOnMissingRTKHook(t *testing.T) {
+	probe := newFakeProbe()
+	probe.On("rtk --version", ProbeResult{Output: "rtk 0.49.0"}, nil)
+	probe.On("rtk gain", ProbeResult{Output: "RTK Token Savings\n[warn] No hook installed — run `rtk init -g` for automatic token savings"}, nil)
+	probe.On("opencode --version", ProbeResult{Output: "v2.2.1"}, nil)
+
+	results := (devToolsCheck{probe: probe}).Run(context.Background())
+	byName := map[string]domain.DiagnosticResult{}
+	for _, result := range results {
+		byName[result.Name] = result
+	}
+	if rtk := byName["RTK"]; rtk.Status != domain.StatusOK {
+		t.Errorf("RTK = %+v, want OK", rtk)
+	}
+	if hook := byName["RTK hook"]; hook.Status != domain.StatusWarning || hook.FixSuggestion != "rtk init -g" {
+		t.Errorf("RTK hook = %+v, want a warning with the init command", hook)
+	}
+	if opencode := byName["opencode"]; opencode.Status != domain.StatusOK {
+		t.Errorf("opencode = %+v, want OK", opencode)
+	}
+}

@@ -1,0 +1,9 @@
+{
+	"name": "forbidden",
+	"packageManager": "bun@1.4.0",
+	"dependencies": {
+		"@manovaspace/ui": "file:../ui",
+		"react": "*",
+		"next": "latest"
+	}
+}

@@ -1,0 +1,19 @@
+Report drift between the workspace and manovaspace/ci/ci/versions.env, resolved dependency versions and kit exports shadowed by local code. The audit is read-only: it never edits a repository and reads the network only with 'audit deps --remote'. Exit codes: 0 no ERROR findings, 1 at least one ERROR, 2 something could not be verified.
+
+Usage:
+  orbit audit [flags]
+  orbit audit [command]
+
+Available Commands:
+  deps        Report resolved dependency versions, forbidden ranges and shadowed exports
+  usage       Verify kit imports against the installed package exports
+  versions    Compare tool versions with manovaspace/ci/ci/versions.env
+
+Flags:
+  -h, --help   help for audit
+      --json   Print the report as a JSON envelope
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit audit [command] --help" for more information about a command.

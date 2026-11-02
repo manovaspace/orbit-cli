@@ -1,0 +1,33 @@
+version: "1"
+workspace: "audit-fixture"
+
+groups:
+  handbook:
+    path: "handbook"
+
+  manovaspace:
+    path: "manovaspace"
+    repositories:
+      - name: "ci"
+
+  orbit:
+    path: "orbit"
+    repositories:
+      - name: "go-drift"
+      - name: "clean"
+      - name: "ghost"
+
+  clients:
+    path: "clients"
+    clients:
+      demo:
+        path: "clients/demo"
+        repositories:
+          - name: "bun-drift"
+          - name: "next-caret"
+          - name: "react-caret"
+          - name: "multi-lock"
+          - name: "forbidden"
+          - name: "shadow"
+          - name: "usage-ns"
+          - name: "usage-named"

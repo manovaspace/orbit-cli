@@ -57,6 +57,19 @@ type DoctorReport struct {
 // Report is an alias for DoctorReport.
 type Report = DoctorReport
 
+// Volume is free space on one path the diagnostics inspect.
+type Volume struct {
+	Path      string
+	FreeBytes uint64
+}
+
+// Resources is the host's free disk and available memory. Zero values mean the
+// value could not be read, not that the host is full.
+type Resources struct {
+	Disks             []Volume
+	MemAvailableBytes uint64
+}
+
 // NewReport creates and initializes an empty DoctorReport.
 func NewReport() *DoctorReport {
 	return &DoctorReport{Results: make([]DiagnosticResult, 0)}

@@ -1,0 +1,7 @@
+{
+	"name": "usage-ns",
+	"packageManager": "bun@1.4.0",
+	"dependencies": {
+		"@manovaspace/ui": "^0.11.1"
+	}
+}

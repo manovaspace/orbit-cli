@@ -1,0 +1,11 @@
+Compare tool versions with manovaspace/ci/ci/versions.env
+
+Usage:
+  orbit audit versions [flags]
+
+Flags:
+  -h, --help   help for versions
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+      --json            Print the report as a JSON envelope

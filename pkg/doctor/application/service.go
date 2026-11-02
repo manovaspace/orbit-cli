@@ -31,9 +31,10 @@ type FileInfo struct {
 }
 
 // Host is the local machine the checks inspect: host readiness, paths,
-// environment and files.
+// environment, files and free resources.
 type Host interface {
 	Report() host.Report
+	Resources() domain.Resources
 	LookPath(name string) (string, error)
 	Getwd() (string, error)
 	ReadFile(path string) ([]byte, error)
@@ -98,6 +99,7 @@ type Service struct {
 func (s *Service) Diagnose(ctx context.Context, opts Options) Result {
 	registry := domain.NewRegistry()
 	registry.Register(hostCheck{host: s.Host})
+	registry.Register(resourcesCheck{host: s.Host})
 	registry.Register(gitCheck{probe: s.Probe})
 	registry.Register(toolchainCheck{probe: s.Probe, host: s.Host})
 	if opts.Remote {
@@ -115,6 +117,7 @@ func (s *Service) Diagnose(ctx context.Context, opts Options) Result {
 		}})
 	}
 	registry.Register(optionalToolsCheck{probe: s.Probe})
+	registry.Register(devToolsCheck{probe: s.Probe})
 	if opts.ManifestPath != "" {
 		registry.Register(workspaceCheck{host: s.Host, manifest: s.Manifest, root: opts.WorkspaceRoot, path: opts.ManifestPath})
 	}

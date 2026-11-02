@@ -1,0 +1,7 @@
+{
+	"name": "bun-drift",
+	"packageManager": "bun@1.3.0",
+	"engines": {
+		"node": ">=24"
+	}
+}
