@@ -7,6 +7,7 @@ Usage:
 Available Commands:
   admin       Manage platform ownership verification and root cryptographic secrets
   assets      Sync gitignored media with private Cloudflare R2
+  audit       Audit workspace versions, dependencies and design-system usage
   ci          Switch the CI runner and sync GitHub Actions secrets
   completion  Generate zsh autocompletion
   config      Manage Orbit CLI configuration

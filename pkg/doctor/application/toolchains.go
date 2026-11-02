@@ -29,6 +29,7 @@ func (c toolchainCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 		return []domain.DiagnosticResult{{Category: "Toolchain", Name: "Manifest requirements", Status: domain.StatusError, Message: "Cannot resolve project directory"}}
 	}
 	requirements := map[string]string{}
+	sources := map[string]string{}
 	var results []domain.DiagnosticResult
 	foundPackage, foundModule := false, false
 	foundBunPin := false
@@ -43,14 +44,17 @@ func (c toolchainCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 				if err := json.Unmarshal(data, &pkg); err != nil {
 					results = append(results, domain.DiagnosticResult{Category: "Runtime", Name: "package.json", Status: domain.StatusError, Message: "Cannot parse project runtime requirements"})
 				} else {
-					if requirements["node"] == "" {
+					if requirements["node"] == "" && pkg.Engines["node"] != "" {
 						requirements["node"] = pkg.Engines["node"]
+						sources["node"] = "package.json engines"
 					}
-					if requirements["bun"] == "" {
+					if requirements["bun"] == "" && pkg.Engines["bun"] != "" {
 						requirements["bun"] = pkg.Engines["bun"]
+						sources["bun"] = "package.json engines"
 					}
 					if !foundBunPin && strings.HasPrefix(pkg.PackageManager, "bun@") {
 						foundBunPin = true
+						sources["bun"] = "packageManager"
 						pin := strings.Split(strings.TrimPrefix(pkg.PackageManager, "bun@"), "+")[0]
 						if v, err := semver.NewVersion(pin); err == nil {
 							if engine := requirements["bun"]; engine != "" {
@@ -87,6 +91,7 @@ func (c toolchainCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 				for _, line := range strings.Split(string(data), "\n") {
 					fields := strings.Fields(line)
 					if len(fields) >= 2 && (fields[0] == "go" || fields[0] == "toolchain") {
+						sources["go"] = name
 						floor := strings.TrimPrefix(fields[1], "go")
 						if _, err := semver.NewVersion(floor); err != nil {
 							results = append(results, domain.DiagnosticResult{Category: "Toolchain", Name: name, Status: domain.StatusError, Message: "Cannot parse Go toolchain requirement"})
@@ -114,6 +119,16 @@ func (c toolchainCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 			break
 		}
 	}
+	// The workspace pin fills runtimes no project manifest requires, so Bun and
+	// Node requirements report a real result instead of "not found".
+	for tool, pin := range workspaceVersionPins(c.host, root) {
+		if requirements[tool] != "" || pin == "" {
+			continue
+		}
+		requirements[tool] = ">=" + pin
+		sources[tool] = "manovaspace/ci/ci/versions.env"
+	}
+
 	for _, tool := range []struct {
 		name, label, category string
 		args                  []string
@@ -125,11 +140,69 @@ func (c toolchainCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 		out, err := c.probe.Run(ctx, DefaultCommandTimeout, tool.name, tool.args...)
 		result := evaluateRequirement(out.Output, err, tool.name, tool.label, tool.category, requirements[tool.name])
 		results = append(results, result)
-		if requirements[tool.name] == "" {
-			results = append(results, domain.DiagnosticResult{Category: tool.category, Name: tool.label + " requirement", Status: domain.StatusUnverified, Message: "Version compatibility unverified: no project manifest requirement"})
-		}
+		results = append(results, requirementResult(tool.label, tool.category, requirements[tool.name], sources[tool.name]))
 	}
 	return results
+}
+
+// requirementResult states which pin governs the toolchain and where it came
+// from. An unknown requirement stays explicitly unverified.
+func requirementResult(label, category, requirement, source string) domain.DiagnosticResult {
+	result := domain.DiagnosticResult{Category: category, Name: label + " requirement"}
+	if requirement == "" {
+		result.Status = domain.StatusUnverified
+		result.Message = "Version compatibility unverified: no project manifest requirement or workspace pin"
+		return result
+	}
+	result.Status = domain.StatusOK
+	if source == "" {
+		source = "project manifest"
+	}
+	result.Message = fmt.Sprintf("Requirement %s from %s", requirement, source)
+	return result
+}
+
+// workspaceVersionPins reads versions.env from the nearest workspace root.
+func workspaceVersionPins(host Host, start string) map[string]string {
+	for dir := start; ; dir = filepath.Dir(dir) {
+		if _, err := host.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
+			data, err := host.ReadFile(filepath.Join(dir, "manovaspace", "ci", "ci", "versions.env"))
+			if err != nil {
+				return nil
+			}
+			return parseVersionPins(string(data))
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+	}
+}
+
+// parseVersionPins reads the plain KEY=value lines of versions.env.
+func parseVersionPins(text string) map[string]string {
+	pins := map[string]string{}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), "\"'")
+		switch key {
+		case "GO_VERSION":
+			pins["go"] = value
+		case "BUN_VERSION":
+			pins["bun"] = value
+		case "NODE_VERSION":
+			pins["node"] = value
+		}
+	}
+	return pins
 }
 
 func evaluateRequirement(output string, probeErr error, tool, label, category, requirement string) domain.DiagnosticResult {

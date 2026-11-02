@@ -149,6 +149,32 @@ linters:
               desc: "pkg/doctor/application must not depend on the adapters"
             - pkg: "github.com/charmbracelet/lipgloss"
               desc: "pkg/doctor/application writes through its injected UI"
+        # The audit domain is pure findings and manifest parsers: no process
+        # execution and no dependency on the layers above it.
+        audit-domain:
+          files:
+            - "**/pkg/audit/domain/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/audit/domain is pure and must not run commands"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/audit/application"
+              desc: "pkg/audit/domain must not depend on the application layer"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/audit/infrastructure"
+              desc: "pkg/audit/domain must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/audit/domain is pure and must not style output"
+        # The audit application reaches files, git refs and the registry only
+        # through its ports.
+        audit-application:
+          files:
+            - "**/pkg/audit/application/**"
+          deny:
+            - pkg: "os/exec"
+              desc: "pkg/audit/application reaches external commands through its ports"
+            - pkg: "github.com/manovaspace/orbit-cli/pkg/audit/infrastructure"
+              desc: "pkg/audit/application must not depend on the adapters"
+            - pkg: "github.com/charmbracelet/lipgloss"
+              desc: "pkg/audit/application writes through its injected writer"
         # The environment domain is pure schema and value rules.
         env-domain:
           files:

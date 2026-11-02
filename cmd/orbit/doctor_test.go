@@ -49,6 +49,9 @@ func (p stubProbe) Run(_ context.Context, _ time.Duration, name string, args ...
 type stubHost struct{}
 
 func (stubHost) Report() host.Report { return host.Report{OK: true} }
+func (stubHost) Resources() domain.Resources {
+	return domain.Resources{}
+}
 func (stubHost) LookPath(string) (string, error) {
 	return "/usr/bin/tool", nil
 }

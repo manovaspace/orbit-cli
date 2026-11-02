@@ -1,0 +1,5 @@
+exceptions:
+  - subject: react
+    allowed: "^19.3.0"
+    reason: "deliberate caret while the design system ships patches"
+    expires_when: "react 19.4 lands in versions.env"

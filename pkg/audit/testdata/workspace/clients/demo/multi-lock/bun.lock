@@ -1,0 +1,11 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": { "name": "multi-lock", "dependencies": { "@manovaspace/ui": "^0.11.1" } },
+    "packages/legacy": { "name": "legacy", "dependencies": { "@manovaspace/ui": "^0.8.0" } },
+  },
+  "packages": {
+    "@manovaspace/ui": ["@manovaspace/ui@0.11.1", "", {}],
+    "@manovaspace/legacy/@manovaspace/ui": ["@manovaspace/ui@0.8.0", "", {}],
+  }
+}

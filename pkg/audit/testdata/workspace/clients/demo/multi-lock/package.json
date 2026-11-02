@@ -1,0 +1,6 @@
+{
+	"name": "multi-lock",
+	"dependencies": {
+		"@manovaspace/ui": "^0.11.1"
+	}
+}
