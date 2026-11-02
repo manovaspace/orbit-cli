@@ -174,7 +174,7 @@ func (s *Service) Agents(ctx context.Context) (result Result) {
 	}
 
 	if s.Files.Exists(filepath.Join(s.Root, filepath.FromSlash(handbookEval))) {
-		res, err := s.Commands.Run(ctx, s.Root, "bun", handbookEval)
+		res, err := s.Commands.RunIsolated(ctx, s.Root, "bun", handbookEval)
 		recall, mrr, ok := domain.ParseEvalSummary(res.Stdout)
 		if ok {
 			report.Add(domain.Finding{
@@ -204,6 +204,8 @@ func (s *Service) Agents(ctx context.Context) (result Result) {
 	} else {
 		report.AddUnverified("agents: " + handbookEval + " not found (handbook-mcp recall unverified)")
 	}
+
+	s.addRetiredNameFindings(&report)
 
 	return Result{Report: report, Detail: fmt.Sprintf("%d agent checks ran", ran)}
 }
@@ -536,6 +538,46 @@ func (s *Service) rtkHookPresent() bool {
 	}
 	data, err := s.Files.ReadFile(filepath.Join(s.Root, filepath.FromSlash(agentInstallArtifact)))
 	return err == nil && strings.Contains(string(data), "rtk")
+}
+
+// addRetiredNameFindings warns about retired names still mentioned by active
+// handbook docs. Archived, planning and review folders are history, not
+// guidance, and an ADR may keep naming the retired forge.
+func (s *Service) addRetiredNameFindings(report *domain.Report) {
+	for _, dir := range []string{"handbook/docs", "handbook/agents"} {
+		root := filepath.Join(s.Root, filepath.FromSlash(dir))
+		if !s.Files.Exists(root) {
+			continue
+		}
+		err := s.Files.WalkAll(root, func(path string) error {
+			relative, err := filepath.Rel(s.Root, path)
+			if err != nil {
+				return nil
+			}
+			relative = filepath.ToSlash(relative)
+			if !domain.ActiveDocPath(relative) {
+				return nil
+			}
+			data, err := s.Files.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			for _, hit := range domain.RetiredHits(relative, data) {
+				report.Add(domain.Finding{
+					ID:       "agents.retired-name",
+					Severity: domain.SeverityWarn,
+					Subject:  fmt.Sprintf("%s:%d", hit.File, hit.Line),
+					Actual:   hit.Text,
+					Expected: hit.Expected,
+					Fix:      hit.Fix,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			report.AddUnverified(dir + ": cannot walk docs (retired names unverified)")
+		}
+	}
 }
 
 func (s *Service) workspaceRepos() ([]Repo, []string) {

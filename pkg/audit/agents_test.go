@@ -141,3 +141,72 @@ func TestAgentsSkipsMissingEvalAsUnverified(t *testing.T) {
 		t.Errorf("missing eval not unverified: %q", joined)
 	}
 }
+
+func TestAgentsFlagsRetiredCursorPathInGuide(t *testing.T) {
+	root := agentWorkspace(t)
+	writeFixtureFile(t, root, "handbook/docs/orbit/guides/example.md",
+		"Routing uses handbook/cursor/workspace today.\n")
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	f := findFinding(result.Report, "agents.retired-name", "handbook/docs/orbit/guides/example.md:1")
+	if f == nil {
+		t.Fatalf("no agents.retired-name finding for the guide: %+v", result.Findings)
+	}
+	if f.Severity != audit.SeverityWarn {
+		t.Errorf("severity = %s, want WARN", f.Severity)
+	}
+	if !strings.Contains(f.Fix, "handbook/agents") {
+		t.Errorf("fix = %q, want the replacement path", f.Fix)
+	}
+}
+
+func TestAgentsAllowsForgejoInADR(t *testing.T) {
+	root := agentWorkspace(t)
+	writeFixtureFile(t, root, "handbook/docs/orbit/decisions/001-self-hosted-forgejo.md",
+		"Forgejo was retired in favour of GitHub.\n")
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	if f := findFinding(result.Report, "agents.retired-name", "decisions/001-self-hosted-forgejo.md"); f != nil {
+		t.Errorf("Forgejo mention in an ADR reported: %+v", f)
+	}
+}
+
+func TestAgentsFlagsForgejoInGuide(t *testing.T) {
+	root := agentWorkspace(t)
+	writeFixtureFile(t, root, "handbook/docs/orbit/guides/example.md",
+		"The mirror still lives on Forgejo.\n")
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	f := findFinding(result.Report, "agents.retired-name", "handbook/docs/orbit/guides/example.md:1")
+	if f == nil {
+		t.Fatalf("no agents.retired-name finding for Forgejo: %+v", result.Findings)
+	}
+	if !strings.Contains(f.Expected, "ADR") {
+		t.Errorf("expected = %q, want the ADR-only hint", f.Expected)
+	}
+}
+
+func TestAgentsSkipsRetiredNamesInInactiveDocs(t *testing.T) {
+	root := agentWorkspace(t)
+	for name, content := range map[string]string{
+		"handbook/docs/superpowers/plans/2026-11-02-legacy.md":        "handbook/cursor and Forgejo\n",
+		"handbook/docs/archive/root-docs-2026-10/README.md":           "handbook/cursor and Forgejo\n",
+		"handbook/docs/orbit/reviews/2026-10-manova/agent-tooling.md": "handbook/cursor and Forgejo\n",
+		"handbook/agents/CHANGELOG.md":                                "handbook/cursor and Forgejo\n",
+	} {
+		writeFixtureFile(t, root, name, content)
+	}
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	if got := countFindings(result.Report, "agents.retired-name"); got != 0 {
+		t.Fatalf("agents.retired-name findings = %d, want none: %+v", got, result.Findings)
+	}
+}

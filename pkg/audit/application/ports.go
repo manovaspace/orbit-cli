@@ -71,5 +71,9 @@ type CommandResult struct {
 // Commands runs the handbook agent scripts and resolves editor binaries.
 type Commands interface {
 	Run(ctx context.Context, dir, name string, args ...string) (CommandResult, error)
+	// RunIsolated runs a root-relative script from a disposable copy of its
+	// directory, so any relative write the script makes stays outside the
+	// checkout. The copy is removed before RunIsolated returns.
+	RunIsolated(ctx context.Context, root, name, script string, args ...string) (CommandResult, error)
 	LookPath(name string) (string, error)
 }

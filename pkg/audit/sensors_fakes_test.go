@@ -101,6 +101,12 @@ func (c *fakeCommands) Run(_ context.Context, _ string, name string, args ...str
 	return application.CommandResult{}, errors.New("fake command: unexpected " + line)
 }
 
+// RunIsolated answers like Run; the fake never executes the script, so there
+// is no side effect to isolate.
+func (c *fakeCommands) RunIsolated(ctx context.Context, root, name, script string, args ...string) (application.CommandResult, error) {
+	return c.Run(ctx, root, name, append([]string{script}, args...)...)
+}
+
 func (c *fakeCommands) LookPath(name string) (string, error) {
 	if c.lookErr != nil {
 		return "", c.lookErr
