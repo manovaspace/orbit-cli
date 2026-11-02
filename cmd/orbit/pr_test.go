@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -252,6 +255,245 @@ func TestPRStatusHumanOutputHasAuthorColumn(t *testing.T) {
 	}
 	if strings.Contains(out, "schemaVersion") {
 		t.Errorf("human output must not be a JSON envelope: %s", out)
+	}
+}
+
+// setupPRWorkspace writes a three-repository manifest: repo-a has one open PR,
+// repo-b has none, and repo-c is gitless and must be skipped.
+func setupPRWorkspace(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("ORBIT_WORKSPACE", root)
+
+	for _, name := range []string{"repo-a", "repo-b"} {
+		if err := os.MkdirAll(filepath.Join(root, name, ".git"), 0o755); err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "repo-c"), 0o755); err != nil {
+		t.Fatalf("create repo-c: %v", err)
+	}
+
+	manifestContent := `version: "1"
+workspace: "test"
+groups:
+  test:
+    path: ""
+    repositories:
+      - name: "repo-a"
+        path: "repo-a"
+      - name: "repo-b"
+        path: "repo-b"
+      - name: "repo-c"
+        path: "repo-c"
+`
+	if err := os.WriteFile(filepath.Join(root, "workspace.yaml"), []byte(manifestContent), 0o600); err != nil {
+		t.Fatalf("write workspace.yaml: %v", err)
+	}
+	return root
+}
+
+func expectWorkspacePRAnswers(t *testing.T, fake *runnertest.Fake) {
+	t.Helper()
+	root := os.Getenv("ORBIT_WORKSPACE")
+	repoA := filepath.Join(root, "repo-a")
+	repoB := filepath.Join(root, "repo-b")
+
+	fake.On("git -C "+repoA+" config --get remote.origin.url", runner.Result{Stdout: "git@github.com:manovaspace/repo-a.git\n"}, nil)
+	fake.On("git -C "+repoA+" rev-parse --abbrev-ref HEAD", runner.Result{Stdout: "main\n"}, nil)
+	fake.On("gh pr list -R manovaspace/repo-a", runner.Result{Stdout: `[{"number":21,"title":"feat: a","headRefName":"feat/a","baseRefName":"main","author":{"login":"opmc"},"url":"https://github.com/manovaspace/repo-a/pull/21"}]`}, nil)
+
+	fake.On("git -C "+repoB+" config --get remote.origin.url", runner.Result{Stdout: "git@github.com:manovaspace/repo-b.git\n"}, nil)
+	fake.On("git -C "+repoB+" rev-parse --abbrev-ref HEAD", runner.Result{Stdout: "main\n"}, nil)
+	fake.On("gh pr list -R manovaspace/repo-b", runner.Result{Stdout: `[]`}, nil)
+}
+
+func TestPRStatusPatternJSON(t *testing.T) {
+	setupPRWorkspace(t)
+	fake := setupPRFake(t)
+	expectWorkspacePRAnswers(t, fake)
+
+	out, err := runPRCmd(t, "pr", "status", "repo-*", "--json")
+	if err != nil {
+		t.Fatalf("pr status repo-* --json: %v\nOutput: %s", err, out)
+	}
+
+	env := decodeEnvelope(t, out)
+	if env.SchemaVersion != 1 || !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Repos []struct {
+			Repo         string `json:"repo"`
+			PullRequests []struct {
+				Number int64 `json:"number"`
+			} `json:"pullRequests"`
+			Skipped string `json:"skipped"`
+			Error   string `json:"error"`
+		} `json:"repos"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if len(data.Repos) != 3 {
+		t.Fatalf("got %d repositories, want 3: %+v", len(data.Repos), data.Repos)
+	}
+	if data.Repos[0].Repo != "repo-a" || len(data.Repos[0].PullRequests) != 1 || data.Repos[0].PullRequests[0].Number != 21 {
+		t.Errorf("unexpected repo-a result: %+v", data.Repos[0])
+	}
+	if data.Repos[1].Repo != "repo-b" || len(data.Repos[1].PullRequests) != 0 {
+		t.Errorf("unexpected repo-b result: %+v", data.Repos[1])
+	}
+	if data.Repos[2].Repo != "repo-c" || data.Repos[2].Skipped == "" || data.Repos[2].Error != "" {
+		t.Errorf("unexpected repo-c result: %+v", data.Repos[2])
+	}
+	if data.Total != 1 {
+		t.Errorf("total = %d, want 1", data.Total)
+	}
+}
+
+func TestPRStatusPatternHumanOutput(t *testing.T) {
+	setupPRWorkspace(t)
+	fake := setupPRFake(t)
+	expectWorkspacePRAnswers(t, fake)
+
+	out, err := runPRCmd(t, "pr", "status", "repo-*")
+	if err != nil {
+		t.Fatalf("pr status repo-*: %v\nOutput: %s", err, out)
+	}
+	for _, want := range []string{
+		"Open Pull Requests (GitHub) — repo-a",
+		"No open PRs in: repo-b",
+		"Skipped: repo-c",
+		"1 open pull request(s) across 2 repo(s)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output, got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "schemaVersion") {
+		t.Errorf("human output must not be a JSON envelope: %s", out)
+	}
+}
+
+func TestPRStatusPatternContinuesAfterRepoError(t *testing.T) {
+	setupPRWorkspace(t)
+	fake := setupPRFake(t)
+	root := os.Getenv("ORBIT_WORKSPACE")
+	repoA := filepath.Join(root, "repo-a")
+	repoB := filepath.Join(root, "repo-b")
+
+	fake.On("git -C "+repoA+" config --get remote.origin.url", runner.Result{Stdout: "git@github.com:manovaspace/repo-a.git\n"}, nil)
+	fake.On("git -C "+repoA+" rev-parse --abbrev-ref HEAD", runner.Result{Stdout: "main\n"}, nil)
+	fake.On("gh pr list -R manovaspace/repo-a", runner.Result{Stdout: `[{"number":21,"title":"feat: a","headRefName":"feat/a","baseRefName":"main","author":{"login":"opmc"},"url":"https://github.com/manovaspace/repo-a/pull/21"}]`}, nil)
+
+	fake.On("git -C "+repoB+" config --get remote.origin.url", runner.Result{Stdout: "git@github.com:manovaspace/repo-b.git\n"}, nil)
+	fake.On("git -C "+repoB+" rev-parse --abbrev-ref HEAD", runner.Result{Stdout: "main\n"}, nil)
+	fake.On("gh pr list -R manovaspace/repo-b", runner.Result{Stderr: "gh: could not reach GitHub\n"}, errors.New("exit status 1"))
+
+	out, err := runPRCmd(t, "pr", "status", "repo-*", "--json")
+	if err == nil {
+		t.Fatalf("expected a per-repository failure, got nil\nOutput: %s", out)
+	}
+
+	env := decodeEnvelope(t, out)
+	if env.OK {
+		t.Fatalf("unexpected success envelope: %+v", env)
+	}
+	var data struct {
+		Repos []struct {
+			Repo         string `json:"repo"`
+			PullRequests []struct {
+				Number int64 `json:"number"`
+			} `json:"pullRequests"`
+			Skipped string `json:"skipped"`
+			Error   string `json:"error"`
+		} `json:"repos"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if len(data.Repos) != 3 {
+		t.Fatalf("got %d repositories, want 3: %+v", len(data.Repos), data.Repos)
+	}
+	if len(data.Repos[0].PullRequests) != 1 {
+		t.Errorf("repo-a result was lost: %+v", data.Repos[0])
+	}
+	if data.Repos[1].Error == "" {
+		t.Errorf("expected repo-b error, got: %+v", data.Repos[1])
+	}
+	if data.Repos[2].Skipped == "" {
+		t.Errorf("expected repo-c skipped, got: %+v", data.Repos[2])
+	}
+	if data.Total != 1 {
+		t.Errorf("total = %d, want 1", data.Total)
+	}
+}
+
+func TestPRStatusPatternNoMatchIsUsageError(t *testing.T) {
+	setupPRWorkspace(t)
+
+	out, err := runPRCmd(t, "pr", "status", "nope*", "--json")
+	if err == nil {
+		t.Fatalf("expected a usage error, got nil\nOutput: %s", out)
+	}
+	if got := exitCodeFor(err); got != 3 {
+		t.Errorf("exit code = %d, want 3\nOutput: %s", got, out)
+	}
+	env := decodeEnvelope(t, out)
+	if env.OK || env.Error == nil || env.Error.Code != "usage" {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if !strings.Contains(env.Error.Message, "no repositories match") {
+		t.Errorf("unexpected error message: %s", env.Error.Message)
+	}
+}
+
+func TestPRStatusPatternRejectsDir(t *testing.T) {
+	setupPRWorkspace(t)
+
+	out, err := runPRCmd(t, "pr", "status", "repo-*", "--dir", "/repo", "--json")
+	if err == nil {
+		t.Fatalf("expected a usage error, got nil\nOutput: %s", out)
+	}
+	if got := exitCodeFor(err); got != 3 {
+		t.Errorf("exit code = %d, want 3\nOutput: %s", got, out)
+	}
+	env := decodeEnvelope(t, out)
+	if env.OK || env.Error == nil || env.Error.Code != "usage" {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	if !strings.Contains(env.Error.Message, "--dir") {
+		t.Errorf("unexpected error message: %s", env.Error.Message)
+	}
+}
+
+func TestPRStatusEmptyManifestWildcardJSON(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ORBIT_WORKSPACE", root)
+	if err := os.WriteFile(filepath.Join(root, "workspace.yaml"), []byte("version: \"1\"\nworkspace: test\ngroups: {}\n"), 0o600); err != nil {
+		t.Fatalf("write workspace.yaml: %v", err)
+	}
+
+	out, err := runPRCmd(t, "pr", "status", "*", "--json")
+	if err != nil {
+		t.Fatalf("pr status '*' on an empty manifest: %v\nOutput: %s", err, out)
+	}
+	env := decodeEnvelope(t, out)
+	if !env.OK {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	var data struct {
+		Repos []struct{} `json:"repos"`
+		Total int        `json:"total"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decoding data: %v", err)
+	}
+	if len(data.Repos) != 0 || data.Total != 0 {
+		t.Errorf("unexpected empty result: %+v", data)
 	}
 }
 

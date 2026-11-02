@@ -7,7 +7,7 @@ Available Commands:
   create      Create a new pull request on GitHub
   deliver     Deliver branch end-to-end: push, PR, merge, checkout base, fast-forward, and prune
   merge       Merge a pull request on GitHub
-  status      List open pull requests for the repository
+  status      List open pull requests for one repository or matching workspace repositories
 
 Flags:
       --dir string   Path to repository directory (default: current directory) (default ".")
