@@ -1,0 +1,11 @@
+Check handbook gates, editor configuration and agent runtimes
+
+Usage:
+  orbit audit agents [flags]
+
+Flags:
+  -h, --help   help for agents
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+      --json            Print the report as a JSON envelope

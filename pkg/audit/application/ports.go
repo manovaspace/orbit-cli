@@ -1,9 +1,14 @@
 // Package application implements the audit use cases over workspace, file,
-// version-control and registry ports. It performs no process execution and
-// reaches the network only through the registry port.
+// version-control, registry, advisory and GitHub ports. It performs no
+// process execution and reaches the network only through those ports.
 package application
 
-import "context"
+import (
+	"context"
+	"time"
+
+	"github.com/manovaspace/orbit-cli/pkg/audit/domain"
+)
 
 // Repo is one workspace repository resolved from workspace.yaml.
 type Repo struct {
@@ -11,6 +16,7 @@ type Repo struct {
 	Path          string // slash-separated path relative to the workspace root
 	Dir           string // absolute directory
 	DefaultBranch string
+	RemoteURL     string // resolved remote, used to derive the GitHub slug
 }
 
 // Workspace resolves the repositories declared by workspace.yaml.
@@ -24,6 +30,8 @@ type Files interface {
 	ReadFile(path string) ([]byte, error)
 	Exists(path string) bool
 	WalkFiles(root string, fn func(path string) error) error
+	// WalkAll visits every non-vendored file, including test files.
+	WalkAll(root string, fn func(path string) error) error
 	// InstalledExports returns the installed package's dist/index.d.ts.
 	InstalledExports(repoDir, pkg string) (string, bool)
 }
@@ -38,4 +46,29 @@ type VCS interface {
 // Registry reads the latest published version of a package.
 type Registry interface {
 	Latest(ctx context.Context, pkg string) (string, error)
+}
+
+// Advisories queries the OSV database for resolved package versions.
+type Advisories interface {
+	Query(ctx context.Context, packages []domain.PackageRef) ([]domain.AdvisoryHit, error)
+}
+
+// GitHub reads releases, merged pull requests and Actions billing through gh.
+type GitHub interface {
+	Releases(ctx context.Context, owner, repo string) (string, error)
+	MergedPullRequests(ctx context.Context, slug string, since time.Time) ([]domain.MergedPullRequest, error)
+	ActionsUsage(ctx context.Context, owner string) (domain.ActionsUsage, error)
+}
+
+// CommandResult is the outcome of one external agent command.
+type CommandResult struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+// Commands runs the handbook agent scripts and resolves editor binaries.
+type Commands interface {
+	Run(ctx context.Context, dir, name string, args ...string) (CommandResult, error)
+	LookPath(name string) (string, error)
 }

@@ -127,6 +127,33 @@ func TestAuditFindingsExitOne(t *testing.T) {
 	}
 }
 
+func TestAuditUpstreamWithoutRemoteExitsTwo(t *testing.T) {
+	stubAuditService(t, nil)
+
+	out, err := executeAudit(t, "upstream")
+	if err == nil {
+		t.Fatalf("upstream without --remote exited 0:\n%s", out)
+	}
+	if got := exitCodeFor(err); got != 2 {
+		t.Errorf("exit code = %d, want 2\n%s", got, out)
+	}
+	if !strings.Contains(out.String(), "remote checks need --remote") {
+		t.Errorf("output does not carry the named reason:\n%s", out)
+	}
+}
+
+func TestAuditMergesRejectsNonPositiveDays(t *testing.T) {
+	stubAuditService(t, nil)
+
+	_, err := executeAudit(t, "merges", "--days", "0")
+	if err == nil {
+		t.Fatal("merges --days 0 exited 0")
+	}
+	if got := exitCodeFor(err); got != 3 {
+		t.Errorf("exit code = %d, want 3", got)
+	}
+}
+
 func TestAuditJSONFindingsCarryData(t *testing.T) {
 	root := auditFixtureRoot(t)
 	stubAuditService(t, []application.Repo{{

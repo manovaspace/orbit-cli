@@ -50,6 +50,40 @@ func (f *Files) WalkFiles(root string, fn func(path string) error) error {
 	})
 }
 
+// WalkAll visits every file under root, skipping vendored trees, build output,
+// generated sites, worktrees and the temporary -wt- copies. Unlike WalkFiles
+// it also visits tests and non-source files.
+func (f *Files) WalkAll(root string, fn func(path string) error) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.IsDir() {
+			if path == root {
+				return nil
+			}
+			if skipAllDir(entry.Name()) || strings.Contains(filepath.ToSlash(path), "-wt-") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		return fn(path)
+	})
+}
+
+func skipAllDir(name string) bool {
+	switch name {
+	case "node_modules", ".git", ".next", ".worktrees", ".docusaurus", ".cache",
+		"dist", "build", "coverage", "vendor", "target", "out", "bin", "testdata",
+		"__pycache__", ".venv", "venv":
+		return true
+	}
+	return false
+}
+
 // InstalledExports finds the installed package's declaration file. module may
 // carry a subpath export such as "@manovaspace/ui/motion". Workspace members
 // keep their own node_modules, so the search descends into packages but never
