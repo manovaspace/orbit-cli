@@ -243,12 +243,15 @@ func renderAuditReport(out io.Writer, result audit.Result) {
 		}
 		fmt.Fprintln(out, line)
 	}
+	for _, item := range result.Accepted {
+		fmt.Fprintf(out, "ACCEPTED %s (%s)\n", item.Message, item.Reason)
+	}
 	for _, message := range result.Unverified {
 		fmt.Fprintln(out, "UNVERIFIED "+message)
 	}
 	errorsCount, warnings := result.Counts()
-	summary := fmt.Sprintf("summary: %d findings (%d errors, %d warnings), %d unverified",
-		len(result.Findings), errorsCount, warnings, len(result.Unverified))
+	summary := fmt.Sprintf("summary: %d findings (%d errors, %d warnings), %d unverified, %d accepted",
+		len(result.Findings), errorsCount, warnings, len(result.Unverified), len(result.Accepted))
 	if result.Detail != "" {
 		summary += " — " + result.Detail
 	}

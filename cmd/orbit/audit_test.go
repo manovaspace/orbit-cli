@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,7 +36,12 @@ func (quietVCS) Head(string, string) (string, string, error) { return "", "", ni
 // stubAuditService replaces the wiring for one command test run.
 func stubAuditService(t *testing.T, repos []application.Repo) {
 	t.Helper()
-	root := auditFixtureRoot(t)
+	stubAuditServiceAt(t, auditFixtureRoot(t), repos)
+}
+
+// stubAuditServiceAt replaces the wiring and pins the workspace root.
+func stubAuditServiceAt(t *testing.T, root string, repos []application.Repo) {
+	t.Helper()
 	previousService, previousPaths := auditNewService, auditWorkspacePaths
 	t.Cleanup(func() { auditNewService, auditWorkspacePaths = previousService, previousPaths })
 
@@ -173,5 +179,73 @@ func TestAuditJSONFindingsCarryData(t *testing.T) {
 	}
 	if envelope.OK || envelope.SchemaVersion != 1 || envelope.Data == nil {
 		t.Fatalf("failure envelope = %+v", envelope)
+	}
+}
+
+// acceptedWorkspace writes a minimal accepted-unverified file under root.
+func acceptedWorkspace(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	path := filepath.Join(root, "handbook", "agents", "workspace", "audit-accepted.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create accepted dir: %v", err)
+	}
+	content := `accepted:
+  - check: versions
+    match: versions.env
+    reason: pins absent on this host
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write accepted file: %v", err)
+	}
+	return root
+}
+
+func TestAuditAcceptedUnverifiedRendersAndExitsZero(t *testing.T) {
+	stubAuditServiceAt(t, acceptedWorkspace(t), nil)
+
+	out, err := executeAudit(t, "versions")
+	if err != nil {
+		t.Fatalf("accepted unverified exited with %v:\n%s", err, out)
+	}
+	text := out.String()
+	if !strings.Contains(text, "ACCEPTED ") || !strings.Contains(text, "(pins absent on this host)") {
+		t.Errorf("accepted line missing:\n%s", text)
+	}
+	if strings.Contains(text, "UNVERIFIED ") {
+		t.Errorf("accepted item still printed as unverified:\n%s", text)
+	}
+	if !strings.Contains(text, "1 accepted") {
+		t.Errorf("summary does not count accepted items:\n%s", text)
+	}
+}
+
+func TestAuditAcceptedJSONCarriesItems(t *testing.T) {
+	stubAuditServiceAt(t, acceptedWorkspace(t), nil)
+
+	out, err := executeAudit(t, "versions", "--json")
+	if err != nil {
+		t.Fatalf("accepted unverified exited with %v:\n%s", err, out)
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v\n%s", err, out)
+	}
+	if !envelope.OK {
+		t.Fatalf("envelope = %+v", envelope)
+	}
+	data, err := json.Marshal(envelope.Data)
+	if err != nil {
+		t.Fatalf("re-encode data: %v", err)
+	}
+	var report audit.Report
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("decode report: %v\n%s", err, data)
+	}
+	if len(report.Accepted) != 1 || report.Accepted[0].Check != "versions" {
+		t.Errorf("accepted = %+v, want the versions entry", report.Accepted)
+	}
+	if len(report.Unverified) != 0 {
+		t.Errorf("unverified = %+v, want none", report.Unverified)
 	}
 }

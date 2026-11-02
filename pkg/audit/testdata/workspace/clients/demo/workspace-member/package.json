@@ -1,0 +1,14 @@
+{
+	"name": "workspace-member",
+	"private": true,
+	"packageManager": "bun@1.4.0",
+	"workspaces": {
+		"packages": [
+			"apps/*",
+			"packages/*"
+		]
+	},
+	"dependencies": {
+		"@manovaspace/versioning": "workspace:*"
+	}
+}

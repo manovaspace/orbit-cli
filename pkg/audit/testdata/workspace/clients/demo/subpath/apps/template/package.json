@@ -1,0 +1,7 @@
+{
+	"name": "@demo/template",
+	"private": true,
+	"dependencies": {
+		"@manovaspace/pwa": "^1.0.6"
+	}
+}
