@@ -1,5 +1,5 @@
 // Package render is the shared output layer for Orbit commands. It implements
-// ADR-046 phase 1 and encodes the contract later phases migrate commands onto.
+// ADR-047 phase 1 and encodes the contract later phases migrate commands onto.
 //
 // One result path (D1): a command computes its result once, then renders either
 // the JSON envelope or the text form from that same value. It never builds the
@@ -17,5 +17,5 @@
 // Standard output only (D5): results go to stdout and diagnostics or progress
 // go to stderr. A JSON run prints exactly one line.
 //
-// The package follows ADR-046; existing commands migrate onto it in phase 3.
+// The package follows ADR-047; existing commands migrate onto it in phase 3.
 package render
