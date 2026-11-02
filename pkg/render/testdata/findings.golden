@@ -1,0 +1,10 @@
+── Agents ──────────────────────────────────────────────────
+  [ok]  claude CLI present
+  [warn]  cursor CLI not installed
+  [fail]  opencode CLI missing
+
+── Environment ─────────────────────────────────────────────
+  Workspace  /home/orbit
+  Contracts  3 checked
+
+[ok] 1 ok  [warn] 1 warn  [fail] 1 fail  [skipped] 0 skipped  [unverified] 2 unverified

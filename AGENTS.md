@@ -54,6 +54,7 @@ Orbit CLI follows a dual-binary architecture:
 - **`--resume` vs `--reset` in `orbit onboard`:** `--resume` continues from checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it entirely.
 - **Mail templates are owned by `orbit-notifications`:** `pkg/mailtemplates` is the canonical source. Never duplicate or inline mail templates in orbit-cli.
 - **Exit codes and output:** commands exit `0` ok, `1` failed, `2` could not check, `3` usage, `4` auth, `5` network, `6` external tool. New commands return `pkg/clierr` errors and write machine-readable results through `pkg/output`; external commands go through `pkg/runner` (tests use `pkg/runner/runnertest.Fake`). `cmd/orbit/main.go` maps every error to its exit code, and plain errors still exit `1`.
+- **Results go through `pkg/render`:** new commands print their text result through `render.Emit`, never `fmt.Fprint*`. Existing commands migrate in ADR-046 phase 3; until then the `cmd/orbit/ui.go` style aliases stay.
 - **Help goldens:** `cmd/orbit/testdata/help/` captures every command's `--help`. Run `go test ./cmd/orbit -run TestHelpGolden -update` after intentionally changing flags or help text. The test pins `HOME`, `COLUMNS` and `NO_COLOR` so goldens never depend on the machine.
 
 ## Commands
@@ -83,7 +84,7 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 
 ## Structure & Packages
 
-`cmd/orbit/` (Cobra tree), `cmd/orbit-server/` (edge daemon, mail gateway), `pkg/<name>/` one package per command area (`doctor`, `manifest`, `migrate`, `ports`, `pr`, `onboard`, `invite`, `owner`, `updater`, `client`, `staffhmac`, `config`, `env`, `provisioner`, `orchestrator`, `assets`, `tui`). `ls pkg/` and each package doc comment give the role.
+`cmd/orbit/` (Cobra tree), `cmd/orbit-server/` (edge daemon, mail gateway), `pkg/<name>/` one package per command area (`doctor`, `manifest`, `migrate`, `ports`, `pr`, `onboard`, `invite`, `owner`, `updater`, `client`, `staffhmac`, `config`, `env`, `provisioner`, `orchestrator`, `assets`, `render`, `tui`). `ls pkg/` and each package doc comment give the role.
 
 ## Documentation
 
