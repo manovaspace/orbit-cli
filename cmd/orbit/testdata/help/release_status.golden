@@ -1,0 +1,12 @@
+Reads the default branch SHA, latest tag, open release pull request and its checks, the demo branch's distance from main, and the last publish or deploy workflow run. With no repository it checks every repository that has a release setup. Exit 2 means something could not be read.
+
+Usage:
+  orbit release status [repo] [flags]
+
+Flags:
+  -h, --help   help for status
+      --json   Print the result as a JSON envelope
+
+Global Flags:
+      --config string     Custom path to Orbit CLI configuration file
+      --manifest string   Path to workspace.yaml

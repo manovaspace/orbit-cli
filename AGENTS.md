@@ -1,3 +1,16 @@
+---
+read_with:
+  - handbook/docs/orbit/architecture/contracts.md
+  - handbook/docs/orbit/architecture/module-catalog.md
+  - handbook/docs/orbit/architecture/orbit-dev-ports.md
+  - handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md
+  - handbook/docs/orbit/guides/development-workflow.md
+  - handbook/docs/orbit/guides/gitignored-assets-r2.md
+  - handbook/docs/orbit/guides/manova-workspace.md
+  - handbook/docs/orbit/guides/orbit-admin-init.md
+  - handbook/docs/orbit/guides/staff-lifecycle.md
+---
+
 # orbit-cli — Agent Guide
 
 Orbit developer platform, workspace orchestrator, and infrastructure daemon (`orbit` and `orbit-server`).
@@ -21,6 +34,7 @@ Orbit CLI follows a dual-binary architecture:
 - **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
 - **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
 - **Pull Request & Delivery Lifecycle**: `orbit pr create`, `orbit pr merge`, `orbit pr status`, `orbit pr deliver` — automated branch pushing, Forgejo PR creation, PR status listing, merging, and full end-to-end branch delivery with fast-forward trunk re-sync per ADR-026. GitHub merges refuse unless checks pass; `--override "reason"` records an override comment, `--allow-no-checks` permits merging with no reported checks, and deliver (plus `create --merge`) waits for pending checks up to `--wait-timeout`.
+- **Release & Demo Promotion**: `orbit release status|check|demo|prod` — reads the bot release PR and its release-tier check, promotes `main` to `demo` through a PR after the `main` commit's checks pass, and merges the release PR. Library repos (`.changeset/config.json`) dispatch `publish.yml`; the owner still approves the `npm-publish` environment. `release check --local` runs the release tier against the existing dev Postgres, Redis and NATS with a throwaway database and starts no containers ([ADR-044](../../handbook/docs/orbit/decisions/044-release-and-demo.md)).
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
 
 ## Non-negotiables

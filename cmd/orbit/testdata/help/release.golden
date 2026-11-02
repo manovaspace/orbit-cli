@@ -1,0 +1,19 @@
+Watch the release-tier check of the bot release pull request, promote main to demo, and merge the release pull request. There is no long-lived release branch: changesets and release-please open one pull request into main per repository.
+
+Usage:
+  orbit release [command]
+
+Available Commands:
+  check       Watch the release-tier check, or run the release tier against the local dev services
+  demo        Promote main to demo through a pull request
+  prod        Merge the open release pull request through the merge gate
+  status      Report the release pull request, demo branch and last publish or deploy run
+
+Flags:
+  -h, --help              help for release
+      --manifest string   Path to workspace.yaml
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file
+
+Use "orbit release [command] --help" for more information about a command.
