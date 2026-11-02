@@ -9,57 +9,31 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/manovaspace/orbit-cli/pkg/render"
 )
 
+// Aliases for the shared render styles. They keep the historical unexported
+// names so existing call sites stay unchanged until ADR-046 phase 3.
 var (
-	// Lipgloss styles for CLI rendering
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			MarginBottom(1)
-
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("14"))
-
-	boldStyle = lipgloss.NewStyle().
-			Bold(true)
-
-	successStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("10"))
-
-	warningStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("11"))
-
-	errorStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("9"))
-
-	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14"))
-
-	subtleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
-
-	dimStyle = subtleStyle
-
-	codeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("13"))
-
-	cardStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("8")).
-			Padding(0, 1).
-			MarginTop(1)
+	titleStyle   = render.TitleLegacy
+	headerStyle  = render.Header
+	boldStyle    = render.Bold
+	successStyle = render.Success
+	warningStyle = render.Warning
+	errorStyle   = render.Error
+	infoStyle    = render.Info
+	subtleStyle  = render.Subtle
+	dimStyle     = render.Subtle
+	codeStyle    = render.Code
+	cardStyle    = render.Card
 
 	// Unicode status icons
-	iconOK    = successStyle.Render("✔")
-	iconWarn  = warningStyle.Render("⚠")
-	iconError = errorStyle.Render("✖")
-	iconInfo  = infoStyle.Render("ℹ")
-	iconArrow = subtleStyle.Render("→")
+	iconOK    = render.IconOK
+	iconWarn  = render.IconWarn
+	iconError = render.IconError
+	iconInfo  = render.IconInfo
+	iconArrow = render.IconArrow
 )
 
 // findWorkspaceRoot locates the root of the workspace.

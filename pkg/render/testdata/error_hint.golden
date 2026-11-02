@@ -1,0 +1,4 @@
+Apply migrations
+
+  [fail]  migration 0042 failed: relation already exists
+  hint: run orbit migrate status, then orbit doctor --fix
