@@ -200,6 +200,56 @@ func TestDepsShadow(t *testing.T) {
 	}
 }
 
+func TestDepsShadowOnlyForDeclaredKit(t *testing.T) {
+	result := fixtureService(t).Deps(context.Background(), "@manovaspace/ui", false)
+
+	joined := strings.Join(result.Unverified, "\n")
+	if strings.Contains(joined, "clients/demo/ui-mention") {
+		t.Errorf("repository that only mentions the kit is unverified: %q", joined)
+	}
+	if f := findFinding(result.Report, "deps.shadow", "clients/demo/ui-mention"); f != nil {
+		t.Errorf("repository that only mentions the kit reported as shadowing: %+v", f)
+	}
+}
+
+func TestDepsShadowSkipsCommonsLibraries(t *testing.T) {
+	result := fixtureService(t).Deps(context.Background(), "@manovaspace/ui", false)
+
+	for _, repoPath := range []string{"manovaspace/ts", "manovaspace/design-system"} {
+		if f := findFinding(result.Report, "deps.shadow", repoPath); f != nil {
+			t.Errorf("commons library %s reported as shadowing: %+v", repoPath, f)
+		}
+	}
+}
+
+func TestUsageResolvesWorkspaceMember(t *testing.T) {
+	result := fixtureService(t).Usage(context.Background(), "", false)
+
+	joined := strings.Join(result.Unverified, "\n")
+	for _, unwanted := range []string{"workspace-member", "@manovaspace/versioning"} {
+		if strings.Contains(joined, unwanted) {
+			t.Errorf("%s still unverified: %q", unwanted, joined)
+		}
+	}
+	if f := findFinding(result.Report, "usage.unknown", "workspace-member"); f != nil {
+		t.Errorf("workspace member exports not resolved: %+v", f)
+	}
+}
+
+func TestUsageResolvesSubpathExport(t *testing.T) {
+	result := fixtureService(t).Usage(context.Background(), "", false)
+
+	joined := strings.Join(result.Unverified, "\n")
+	for _, unwanted := range []string{"clients/demo/subpath", "@manovaspace/pwa/react"} {
+		if strings.Contains(joined, unwanted) {
+			t.Errorf("%s still unverified: %q", unwanted, joined)
+		}
+	}
+	if f := findFinding(result.Report, "usage.unknown", "persistent-providers"); f != nil {
+		t.Errorf("subpath exports not resolved: %+v", f)
+	}
+}
+
 func TestMissingRepoIsUnverified(t *testing.T) {
 	root := fixtureRoot(t)
 	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))

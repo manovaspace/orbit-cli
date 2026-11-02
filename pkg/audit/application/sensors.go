@@ -33,8 +33,12 @@ var editorCLIs = []string{"claude", "opencode", "cursor", "codex", "gemini"}
 
 // Upstream reports OSV advisories on resolved lockfile versions and toolchain
 // pins that lag their upstream release. Without remote it makes no request.
-func (s *Service) Upstream(ctx context.Context, remote bool) Result {
+func (s *Service) Upstream(ctx context.Context, remote bool) (result Result) {
 	report := domain.NewReport()
+	defer func() {
+		s.applyAccepted(&report, "upstream")
+		result.Report = report
+	}()
 	if !remote {
 		report.AddUnverified(RemoteRequired)
 		return Result{Report: report, Detail: "upstream checks skipped"}
@@ -89,8 +93,12 @@ func (s *Service) Upstream(ctx context.Context, remote bool) Result {
 
 // Agents checks the handbook gates, the generated editor configuration and
 // the agent runtimes.
-func (s *Service) Agents(ctx context.Context) Result {
+func (s *Service) Agents(ctx context.Context) (result Result) {
 	report := domain.NewReport()
+	defer func() {
+		s.applyAccepted(&report, "agents")
+		result.Report = report
+	}()
 	if s.Files == nil || s.Commands == nil {
 		report.AddUnverified("agents: wiring missing")
 		return Result{Report: report}
@@ -202,8 +210,12 @@ func (s *Service) Agents(ctx context.Context) Result {
 
 // Merges flags merged pull requests whose checks failed or were absent and
 // that carry no override comment.
-func (s *Service) Merges(ctx context.Context, days int, remote bool) Result {
+func (s *Service) Merges(ctx context.Context, days int, remote bool) (result Result) {
 	report := domain.NewReport()
+	defer func() {
+		s.applyAccepted(&report, "merges")
+		result.Report = report
+	}()
 	if !remote {
 		report.AddUnverified(RemoteRequired)
 		return Result{Report: report}
@@ -260,8 +272,12 @@ func (s *Service) Merges(ctx context.Context, days int, remote bool) Result {
 
 // Tests reports repositories with no test files, excluding the static-only
 // sites, and reads Actions billing on remote runs.
-func (s *Service) Tests(ctx context.Context, remote bool) Result {
+func (s *Service) Tests(ctx context.Context, remote bool) (result Result) {
 	report := domain.NewReport()
+	defer func() {
+		s.applyAccepted(&report, "tests")
+		result.Report = report
+	}()
 	if s.Files == nil {
 		report.AddUnverified("tests: files wiring missing")
 		return Result{Report: report}

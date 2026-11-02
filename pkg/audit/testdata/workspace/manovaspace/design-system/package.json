@@ -1,0 +1,8 @@
+{
+	"name": "manovaspace-design-system",
+	"private": true,
+	"packageManager": "bun@1.4.0",
+	"dependencies": {
+		"@manovaspace/ui": "^1.0.0"
+	}
+}

@@ -35,14 +35,20 @@ type Finding struct {
 
 // Report is one audit run.
 type Report struct {
-	SchemaVersion int       `json:"schemaVersion" yaml:"schemaVersion"`
-	Findings      []Finding `json:"findings" yaml:"findings"`
-	Unverified    []string  `json:"unverified" yaml:"unverified"`
+	SchemaVersion int        `json:"schemaVersion" yaml:"schemaVersion"`
+	Findings      []Finding  `json:"findings" yaml:"findings"`
+	Unverified    []string   `json:"unverified" yaml:"unverified"`
+	Accepted      []Accepted `json:"accepted" yaml:"accepted"`
 }
 
 // NewReport creates an empty report stamped with the schema version.
 func NewReport() Report {
-	return Report{SchemaVersion: SchemaVersion, Findings: []Finding{}, Unverified: []string{}}
+	return Report{
+		SchemaVersion: SchemaVersion,
+		Findings:      []Finding{},
+		Unverified:    []string{},
+		Accepted:      []Accepted{},
+	}
 }
 
 // Add appends one finding.
@@ -74,6 +80,26 @@ func (r Report) HasErrors() bool {
 		}
 	}
 	return false
+}
+
+// HasFinding reports whether a finding with the ID and subject already exists.
+func (r Report) HasFinding(id, subject string) bool {
+	for _, f := range r.Findings {
+		if f.ID == id && f.Subject == subject {
+			return true
+		}
+	}
+	return false
+}
+
+// AddAccepted records one UNVERIFIED message covered by an accepted entry.
+func (r *Report) AddAccepted(item Accepted) {
+	for _, existing := range r.Accepted {
+		if existing.Check == item.Check && existing.Message == item.Message {
+			return
+		}
+	}
+	r.Accepted = append(r.Accepted, item)
 }
 
 // Counts returns the number of ERROR and WARN findings.
@@ -118,6 +144,9 @@ func (r *Report) Merge(other Report) {
 	}
 	for _, u := range other.Unverified {
 		r.AddUnverified(u)
+	}
+	for _, item := range other.Accepted {
+		r.AddAccepted(item)
 	}
 }
 

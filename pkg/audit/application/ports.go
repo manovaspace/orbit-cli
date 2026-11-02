@@ -32,8 +32,9 @@ type Files interface {
 	WalkFiles(root string, fn func(path string) error) error
 	// WalkAll visits every non-vendored file, including test files.
 	WalkAll(root string, fn func(path string) error) error
-	// InstalledExports returns the installed package's dist/index.d.ts.
-	InstalledExports(repoDir, pkg string) (string, bool)
+	// InstalledExports returns the declaration file of pkg as installed for
+	// fromFile, preferring the importing package's own node_modules.
+	InstalledExports(repoDir, fromFile, pkg string) (string, bool)
 }
 
 // VCS reads local git refs without running git and without network access.

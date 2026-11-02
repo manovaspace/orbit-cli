@@ -22,6 +22,10 @@ const PinsPath = "manovaspace/ci/ci/versions.env"
 // Absent means no exceptions.
 const ExceptionsPath = "handbook/agents/workspace/version-exceptions.yaml"
 
+// AcceptedPath is the workspace-relative accepted-unverified file the audit
+// reads. Absent means every UNVERIFIED item still needs attention.
+const AcceptedPath = "handbook/agents/workspace/audit-accepted.yaml"
+
 // Result is one audit run: the report plus a human summary detail. The report
 // embeds so the JSON data keeps findings and unverified at its top level.
 type Result struct {
@@ -75,9 +79,13 @@ func (s *Service) All(ctx context.Context, remote bool) Result {
 }
 
 // Versions compares each repository against the versions.env pins.
-func (s *Service) Versions(ctx context.Context) Result {
+func (s *Service) Versions(ctx context.Context) (result Result) {
 	scan := s.scan()
 	report := scan.report
+	defer func() {
+		s.applyAccepted(&report, "versions")
+		result.Report = report
+	}()
 
 	pins, err := s.loadPins()
 	if err != nil {
@@ -98,12 +106,16 @@ func (s *Service) Versions(ctx context.Context) Result {
 
 // Deps reports resolved versions, shadowed kit exports and forbidden
 // dependency specs. It reads the npm registry only when remote is true.
-func (s *Service) Deps(ctx context.Context, pkg string, remote bool) Result {
+func (s *Service) Deps(ctx context.Context, pkg string, remote bool) (result Result) {
 	if strings.TrimSpace(pkg) == "" {
 		pkg = DefaultPackage
 	}
 	scan := s.scan()
 	report := scan.report
+	defer func() {
+		s.applyAccepted(&report, "deps")
+		result.Report = report
+	}()
 
 	var allResolved []string
 	for _, repo := range scan.repos {
@@ -144,8 +156,7 @@ func (s *Service) Deps(ctx context.Context, pkg string, remote bool) Result {
 		}
 		versions = domain.Versions(versions)
 
-		_, declaredKit := declared.Spec(pkg)
-		if !localKit && (declaredKit || s.importsPackage(repo, pkg)) {
+		if !localKit && s.declaresDependency(repo, pkg) && !domain.CommonsLibraryRepo(repo.Path) {
 			findings, unverified := s.shadowFindings(repo, pkg)
 			report.AddAll(findings)
 			report.AddUnverified(unverified)
@@ -198,9 +209,13 @@ func (s *Service) Deps(ctx context.Context, pkg string, remote bool) Result {
 
 // Usage verifies that named kit imports exist in the installed package and,
 // with unused, lists kit exports nothing imports.
-func (s *Service) Usage(ctx context.Context, symbol string, unused bool) Result {
+func (s *Service) Usage(ctx context.Context, symbol string, unused bool) (result Result) {
 	scan := s.scan()
 	report := scan.report
+	defer func() {
+		s.applyAccepted(&report, "usage")
+		result.Report = report
+	}()
 
 	cache := map[string][]string{}
 	used := map[string]map[string]bool{}
@@ -223,7 +238,7 @@ func (s *Service) Usage(ctx context.Context, symbol string, unused bool) Result 
 				if !strings.HasPrefix(imported.Path, "@manovaspace/") {
 					continue
 				}
-				exports, ok := s.exports(cache, repo, imported.Path)
+				exports, ok := s.exports(cache, repo, path, imported.Path)
 				if !ok {
 					key := repo.Path + "\x00" + imported.Path
 					if !unverified[key] {
@@ -476,16 +491,31 @@ func (s *Service) addVersionFindings(report *domain.Report, repo Repo, pins doma
 	}
 }
 
-// importsPackage reports whether any source file references the module path.
-func (s *Service) importsPackage(repo Repo, pkg string) bool {
-	quoted := "\"" + pkg + "\""
+// declaresDependency reports whether the repository or any of its workspace
+// members declares pkg in a dependency section. A repository that only
+// mentions the kit in source or docs has nothing to shadow.
+func (s *Service) declaresDependency(repo Repo, pkg string) bool {
+	if data, err := s.Files.ReadFile(filepath.Join(repo.Dir, "package.json")); err == nil {
+		if manifest, parseErr := domain.ParsePackageJSON(data); parseErr == nil {
+			if _, ok := manifest.Spec(pkg); ok {
+				return true
+			}
+		}
+	}
 	found := false
-	_ = s.Files.WalkFiles(repo.Dir, func(path string) error {
+	_ = s.Files.WalkAll(repo.Dir, func(path string) error {
+		if filepath.Base(path) != "package.json" {
+			return nil
+		}
 		data, err := s.Files.ReadFile(path)
 		if err != nil {
 			return nil
 		}
-		if strings.Contains(string(data), quoted) {
+		manifest, err := domain.ParsePackageJSON(data)
+		if err != nil {
+			return nil
+		}
+		if _, ok := manifest.Spec(pkg); ok {
 			found = true
 			return filepath.SkipAll
 		}
@@ -496,7 +526,7 @@ func (s *Service) importsPackage(repo Repo, pkg string) bool {
 
 // shadowFindings reports local exports that reuse a kit export name.
 func (s *Service) shadowFindings(repo Repo, pkg string) ([]domain.Finding, string) {
-	exportsFile, ok := s.Files.InstalledExports(repo.Dir, pkg)
+	exportsFile, ok := s.Files.InstalledExports(repo.Dir, "", pkg)
 	if !ok {
 		return nil, repo.Path + ": " + pkg + " is not installed (shadowed exports unverified)"
 	}
@@ -581,6 +611,46 @@ func (s *Service) loadExceptions() []domain.Exception {
 	return exceptions
 }
 
+func (s *Service) loadAccepted() []domain.AcceptedEntry {
+	if s.Files == nil {
+		return nil
+	}
+	data, err := s.Files.ReadFile(filepath.Join(s.Root, filepath.FromSlash(AcceptedPath)))
+	if err != nil {
+		return nil
+	}
+	entries, err := domain.ParseAccepted(data)
+	if err != nil {
+		return nil
+	}
+	return entries
+}
+
+// applyAccepted moves named UNVERIFIED messages to the accepted list and warns
+// about accepted entries whose until date has passed. Accepted and expired
+// items never change the check's exit code by themselves.
+func (s *Service) applyAccepted(report *domain.Report, check string) {
+	remaining, accepted, expired := domain.ApplyAccepted(check, report.Unverified, s.loadAccepted(), s.now())
+	report.Unverified = remaining
+	for _, item := range accepted {
+		report.AddAccepted(item)
+	}
+	for _, entry := range expired {
+		subject := check + " " + entry.Match
+		if report.HasFinding("audit.accepted-expired", subject) {
+			continue
+		}
+		report.Add(domain.Finding{
+			ID:       "audit.accepted-expired",
+			Severity: domain.SeverityWarn,
+			Subject:  subject,
+			Actual:   "accepted until " + entry.Until,
+			Expected: "renewed or removed before the until date",
+			Fix:      "update or remove the entry in " + AcceptedPath,
+		})
+	}
+}
+
 func (s *Service) packageJSON(repo Repo) (domain.PackageJSON, error) {
 	data, err := s.Files.ReadFile(filepath.Join(repo.Dir, "package.json"))
 	if err != nil {
@@ -589,12 +659,12 @@ func (s *Service) packageJSON(repo Repo) (domain.PackageJSON, error) {
 	return domain.ParsePackageJSON(data)
 }
 
-func (s *Service) exports(cache map[string][]string, repo Repo, pkg string) ([]string, bool) {
+func (s *Service) exports(cache map[string][]string, repo Repo, fromFile, pkg string) ([]string, bool) {
 	key := repo.Path + "\x00" + pkg
 	if exports, ok := cache[key]; ok {
 		return exports, len(exports) > 0
 	}
-	file, ok := s.Files.InstalledExports(repo.Dir, pkg)
+	file, ok := s.Files.InstalledExports(repo.Dir, fromFile, pkg)
 	if !ok {
 		cache[key] = nil
 		return nil, false

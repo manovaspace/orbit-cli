@@ -9,6 +9,8 @@ groups:
     path: "manovaspace"
     repositories:
       - name: "ci"
+      - name: "ts"
+      - name: "design-system"
 
   orbit:
     path: "orbit"
@@ -31,3 +33,6 @@ groups:
           - name: "shadow"
           - name: "usage-ns"
           - name: "usage-named"
+          - name: "workspace-member"
+          - name: "subpath"
+          - name: "ui-mention"

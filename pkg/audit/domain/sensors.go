@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// CommonsLibraryRepos are the open-commons library repositories. Their own
+// source defines the kit; it never shadows it.
+var CommonsLibraryRepos = []string{
+	"manovaspace/ts",
+	"manovaspace/design-system",
+}
+
+// CommonsLibraryRepo reports whether path is one of the commons libraries.
+func CommonsLibraryRepo(path string) bool {
+	path = strings.Trim(strings.ReplaceAll(path, "\\", "/"), "/")
+	for _, candidate := range CommonsLibraryRepos {
+		if path == candidate {
+			return true
+		}
+	}
+	return false
+}
+
 // StaticOnlyRepos are repositories whose deliverable is static content: they
 // have no test suite by design and `o audit tests` never reports them.
 var StaticOnlyRepos = []string{
