@@ -296,10 +296,10 @@ func NewIdentityModel(parent *WizardModel) *IdentityModel {
 	// Pre-fill profile from session if available
 	if parent != nil && parent.Session != nil {
 		if parent.Session.DisplayName != "" {
-			nameTi.SetValue(parent.Session.DisplayName)
+			m.nameInput.SetValue(parent.Session.DisplayName)
 		}
 		if parent.Session.UID != "" {
-			uidTi.SetValue(parent.Session.UID)
+			m.uidInput.SetValue(parent.Session.UID)
 		}
 		if parent.Session.SSHPublicKey != "" {
 			m.pubKey = parent.Session.SSHPublicKey
