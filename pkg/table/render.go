@@ -22,8 +22,8 @@ func (t *Table) CalculateWidths() []int {
 	}
 
 	for _, row := range t.rows {
-		for i := 0; i < numCols && i < len(row); i++ {
-			w := StringWidth(row[i].Text)
+		for i := 0; i < numCols && i < len(row.Cells); i++ {
+			w := StringWidth(row.Cells[i].Text)
 			if w > naturalWidths[i] {
 				naturalWidths[i] = w
 			}
@@ -184,12 +184,12 @@ func (t *Table) Render(w io.Writer) error {
 		for i, col := range t.columns {
 			cellText := ""
 			cellStyled := ""
-			if i < len(row) {
-				cellText = row[i].Text
-				cellStyled = row[i].Styled
+			if i < len(row.Cells) {
+				cellText = row.Cells[i].Text
+				cellStyled = row.Cells[i].Styled
 				if cellStyled == "" {
-					if row[i].Style != nil {
-						cellStyled = row[i].Style.Render(cellText)
+					if row.Cells[i].Style != nil {
+						cellStyled = row.Cells[i].Style.Render(cellText)
 					} else {
 						cellStyled = col.CellStyle.Render(cellText)
 					}
@@ -198,13 +198,13 @@ func (t *Table) Render(w io.Writer) error {
 
 			cellW := widths[i]
 			if StringWidth(cellText) > cellW {
-				if col.Flexible && strings.Contains(cellText, "/") {
+				if col.Flexible && !col.EndTruncate && strings.Contains(cellText, "/") {
 					cellText = TruncatePath(cellText, cellW)
 				} else {
 					cellText = TruncateString(cellText, cellW)
 				}
-				if i < len(row) && row[i].Style != nil {
-					cellStyled = row[i].Style.Render(cellText)
+				if i < len(row.Cells) && row.Cells[i].Style != nil {
+					cellStyled = row.Cells[i].Style.Render(cellText)
 				} else {
 					cellStyled = col.CellStyle.Render(cellText)
 				}
@@ -214,6 +214,10 @@ func (t *Table) Render(w io.Writer) error {
 			rowParts = append(rowParts, padded)
 		}
 		fmt.Fprintf(w, "%s%s\n", t.indent, strings.Join(rowParts, padStr))
+
+		if row.Detail != "" {
+			fmt.Fprintf(w, "%s%s%s\n", t.indent, t.detailOffset(widths), t.detailStyle.Render(row.Detail))
+		}
 	}
 
 	// Render Pagination Footer
@@ -237,6 +241,19 @@ func (t *Table) String() string {
 	var buf strings.Builder
 	_ = t.Render(&buf)
 	return buf.String()
+}
+
+// detailOffset returns the spaces that align a detail line with the table's
+// detail column.
+func (t *Table) detailOffset(widths []int) string {
+	offset := 0
+	for i := 0; i < t.detailColumn && i < len(widths); i++ {
+		offset += widths[i] + t.padding
+	}
+	if offset <= 0 {
+		return ""
+	}
+	return strings.Repeat(" ", offset)
 }
 
 func padCell(plain string, styled string, targetWidth int, align Alignment) string {

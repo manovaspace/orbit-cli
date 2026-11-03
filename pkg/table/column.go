@@ -17,6 +17,9 @@ type Column struct {
 	MinWidth    int
 	MaxWidth    int
 	Flexible    bool
+	// EndTruncate truncates an overlong flexible cell at the end ("abc…")
+	// instead of middle-truncating values that contain a slash like a path.
+	EndTruncate bool
 	Align       Alignment
 }
 
@@ -26,7 +29,12 @@ type Cell struct {
 	Style  *lipgloss.Style
 }
 
-type Row []Cell
+// Row is one table line. Detail, when set, prints on its own line directly
+// below the row and is aligned with the table's detail column.
+type Row struct {
+	Cells  []Cell
+	Detail string
+}
 
 func PlainCell(text string) Cell {
 	return Cell{Text: text}

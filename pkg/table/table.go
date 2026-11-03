@@ -14,6 +14,8 @@ type Table struct {
 	showDivider  bool
 	page         int
 	limit        int
+	detailColumn int
+	detailStyle  lipgloss.Style
 }
 
 func New(columns ...Column) *Table {
@@ -28,18 +30,45 @@ func New(columns ...Column) *Table {
 }
 
 func (t *Table) AddRow(values ...string) *Table {
-	row := make(Row, len(values))
+	row := Row{Cells: make([]Cell, len(values))}
 	for i, v := range values {
-		row[i] = PlainCell(v)
+		row.Cells[i] = PlainCell(v)
+	}
+	t.rows = append(t.rows, row)
+	return t
+}
+
+// AddDetailRow adds a row whose detail prints on the line below it. Rows that
+// pass no detail render exactly like AddRow.
+func (t *Table) AddDetailRow(detail string, values ...string) *Table {
+	row := Row{Cells: make([]Cell, len(values)), Detail: detail}
+	for i, v := range values {
+		row.Cells[i] = PlainCell(v)
 	}
 	t.rows = append(t.rows, row)
 	return t
 }
 
 func (t *Table) AddStyledRow(cells ...Cell) *Table {
-	row := make(Row, len(cells))
-	copy(row, cells)
+	row := Row{Cells: make([]Cell, len(cells))}
+	copy(row.Cells, cells)
 	t.rows = append(t.rows, row)
+	return t
+}
+
+// WithDetailColumn aligns each row's detail line with the given zero-based
+// column. The default, 0, aligns it with the first column.
+func (t *Table) WithDetailColumn(column int) *Table {
+	if column < 0 {
+		column = 0
+	}
+	t.detailColumn = column
+	return t
+}
+
+// WithDetailStyle styles each row's detail line. The default is unstyled text.
+func (t *Table) WithDetailStyle(style lipgloss.Style) *Table {
+	t.detailStyle = style
 	return t
 }
 
