@@ -3,13 +3,17 @@ package gitcli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/pr/domain"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 )
+
+const repoOriginHint = "run inside a repository, pass --dir <repo>, or give a name pattern to pr status"
 
 // Git calls `git -C <dir>` through a runner.Runner.
 type Git struct {
@@ -38,7 +42,7 @@ func (g *Git) Repo(ctx context.Context, dir string) (domain.RepoInfo, error) {
 	if err != nil {
 		fallback, fallbackErr := g.run(ctx, dir, "remote", "get-url", "origin")
 		if fallbackErr != nil {
-			return domain.RepoInfo{}, fmt.Errorf("failed to get git remote origin in %s: %w", dir, fallbackErr)
+			return domain.RepoInfo{}, repoOriginError(dir, fallback, fallbackErr)
 		}
 		res = fallback
 	}
@@ -69,6 +73,36 @@ func (g *Git) Repo(ctx context.Context, dir string) (domain.RepoInfo, error) {
 		RemoteURL:     remoteURL,
 		IsGitHub:      strings.Contains(strings.ToLower(remoteURL), "github.com"),
 	}, nil
+}
+
+// repoOriginError maps a failed origin lookup to a clierr error with a hint.
+// A directory that is not a repository is a usage error, a missing git binary
+// keeps the tool exit code, and every other origin failure keeps the tool class
+// when the runner already reported one. The cause stays wrapped for errors.Is
+// and errors.As but is not rendered in the user-facing message.
+func repoOriginError(dir string, res runner.Result, cause error) error {
+	msg := fmt.Sprintf("not a git repository with an origin remote: %s", dir)
+
+	var mapped *clierr.Error
+	switch {
+	case errors.Is(cause, exec.ErrNotFound):
+		mapped = clierr.Tool(msg)
+	case isNotARepository(res, cause):
+		mapped = clierr.Usage(msg)
+	case clierr.Code(cause) == clierr.CodeTool:
+		mapped = clierr.Tool(msg)
+	default:
+		mapped = clierr.Failed(msg)
+	}
+	return clierr.WithHint(clierr.WrapClean(cause, mapped), repoOriginHint)
+}
+
+func isNotARepository(res runner.Result, cause error) bool {
+	text := res.Stderr + "\n" + res.Stdout
+	if cause != nil {
+		text += "\n" + cause.Error()
+	}
+	return strings.Contains(text, "not a git repository")
 }
 
 // IsClean reports whether the working tree has no uncommitted changes.

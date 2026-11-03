@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
 
@@ -119,6 +121,35 @@ func TestStaffClientResetPasswordTargets(t *testing.T) {
 	}
 	if res.LDAPPassword != "rotated" {
 		t.Fatalf("ldap password = %q", res.LDAPPassword)
+	}
+}
+
+func TestStaffClientHTMLResponseIsNetworkError(t *testing.T) {
+	secret := "test-hmac-secret-for-staff-client"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = io.WriteString(w, "<!doctype html><html><body>login</body></html>")
+	}))
+	defer srv.Close()
+
+	c := NewStaffClient(srv.URL, secret)
+	_, err := c.List(context.Background())
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	var cErr *clierr.Error
+	if !errors.As(err, &cErr) {
+		t.Fatalf("error is not a *clierr.Error: %v", err)
+	}
+	if cErr.Code != clierr.CodeNetwork || cErr.Exit != clierr.ExitNetwork {
+		t.Errorf("code/exit = %q/%d, want %q/%d", cErr.Code, cErr.Exit, clierr.CodeNetwork, clierr.ExitNetwork)
+	}
+	if cErr.Message != "staff server returned HTML instead of JSON" {
+		t.Errorf("Message = %q", cErr.Message)
+	}
+	if cErr.Hint != staffHTMLHint {
+		t.Errorf("Hint = %q, want %q", cErr.Hint, staffHTMLHint)
 	}
 }
 

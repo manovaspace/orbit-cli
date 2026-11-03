@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -9,7 +11,9 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
+	"github.com/manovaspace/orbit-cli/pkg/output"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
 )
@@ -44,12 +48,18 @@ func init() {
 	}
 }
 
+// rootCmdFactory builds the command tree. The root command uses it so tests can
+// register a fixture command and drive the real run entry point.
+var rootCmdFactory = newRootCmd
+
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "orbit",
 		Short:             "Orbit developer platform and workspace orchestrator",
 		Long:              "Orbit developer onboarding, multi-repo sync, and dev stack orchestrator. (Shortcut: 'o')",
 		DisableAutoGenTag: true,
+		SilenceUsage:      true,
+		SilenceErrors:     true,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
@@ -69,7 +79,7 @@ func newRootCmd() *cobra.Command {
 			if !ownerStore.IsVerified() {
 				if sm, err := sessionstore.New(""); err == nil && sm.HasPending() {
 					if sess, err := sm.Load(); err == nil && sess != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup, or '%s' to discard.\n",
+						fmt.Fprintf(cmd.ErrOrStderr(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup, or '%s' to discard.\n",
 							iconInfo,
 							infoStyle.Render("Ongoing onboarding session detected"),
 							warningStyle.Render(string(sess.CurrentStage)),
@@ -81,17 +91,29 @@ func newRootCmd() *cobra.Command {
 			}
 
 			// Check for available updates in background cache
-			updater.NotifyIfUpdateAvailable(cmd.OutOrStdout(), version)
+			updater.NotifyIfUpdateAvailable(cmd.ErrOrStderr(), version)
 		},
 	}
 
 	cmd.PersistentFlags().StringVar(&configFlag, "config", "", "Custom path to Orbit CLI configuration file")
 
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		return clierr.Usage(err.Error())
+	})
+
+	var versionJSON bool
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the CLI version and build metadata",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			if versionJSON {
+				return render.Emit(out, true, versionInfo{
+					Version: version,
+					Commit:  knownValue(commit, "none"),
+					Built:   knownValue(date, "unknown"),
+				}, nil)
+			}
 			var meta []string
 			if commit != "" && commit != "none" {
 				meta = append(meta, fmt.Sprintf("commit: %s", commit))
@@ -104,8 +126,10 @@ func newRootCmd() *cobra.Command {
 			} else {
 				fmt.Fprintf(out, "orbit version %s\n", version)
 			}
+			return nil
 		},
 	}
+	versionCmd.Flags().BoolVar(&versionJSON, "json", false, "Print the result as a JSON envelope")
 
 	// Register all subcommands
 	cmd.AddCommand(newInitCmd())
@@ -183,9 +207,107 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 }
 
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
-		os.Exit(exitCodeFor(err))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// run executes one CLI invocation and reports exactly one result. In text mode
+// a failure is one "Error: ..." line plus an optional hint on stderr; in --json
+// mode it is exactly one envelope on stdout (ADR-047 D5/D7).
+func run(args []string, stdout, stderr io.Writer) int {
+	output.ResetWritten()
+
+	cmd := rootCmdFactory()
+	cmd.SetArgs(args)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+
+	executed, err := cmd.ExecuteC()
+	if err == nil {
+		return clierr.ExitOK
 	}
+
+	err = asUsageError(err)
+	if jsonRequested(args) {
+		if !output.Written() {
+			_ = output.Write(stdout, output.Failure(err))
+		}
+		return clierr.ExitCode(err)
+	}
+
+	fmt.Fprintf(stderr, "Error: %s\n", err)
+	if hint := errorHint(err); hint != "" {
+		fmt.Fprintf(stderr, "  hint: %s\n", hint)
+	}
+	if clierr.Code(err) == clierr.CodeUsage && executed != nil {
+		fmt.Fprintf(stderr, "Run '%s --help' for usage.\n", executed.CommandPath())
+	}
+	return clierr.ExitCode(err)
+}
+
+// asUsageError classifies cobra's own argument and flag errors as usage errors.
+// Errors that already carry a clierr code keep their class.
+func asUsageError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var c *clierr.Error
+	if errors.As(err, &c) {
+		return err
+	}
+	msg := err.Error()
+	for _, prefix := range []string{
+		"unknown command",
+		"unknown flag",
+		"unknown shorthand flag",
+		"flag needs an argument",
+		"invalid argument",
+		"required flag(s)",
+		"accepts ",
+		"requires at least",
+		"requires at most",
+		"unknown help topic",
+	} {
+		if strings.HasPrefix(msg, prefix) {
+			return clierr.Usage(msg)
+		}
+	}
+	return err
+}
+
+// jsonRequested reports whether --json appears before a literal "--".
+func jsonRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "--json" || arg == "--json=true" {
+			return true
+		}
+	}
+	return false
+}
+
+func errorHint(err error) string {
+	var c *clierr.Error
+	if errors.As(err, &c) {
+		return c.Hint
+	}
+	return ""
+}
+
+// versionInfo is the --json data shape of the version command.
+type versionInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Built   string `json:"built"`
+}
+
+// knownValue maps a build placeholder to the empty string.
+func knownValue(value, unknown string) string {
+	if value == "" || value == unknown {
+		return ""
+	}
+	return value
 }
 
 // exitCodeFor maps a command error to the process exit code. Errors that do not

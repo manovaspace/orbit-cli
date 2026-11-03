@@ -3,10 +3,12 @@ package gitcli
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/runner/runnertest"
 )
@@ -92,6 +94,73 @@ func TestRepoResolvesDetachedHead(t *testing.T) {
 	want := []string{"-C", testDir, "symbolic-ref", "--short", "HEAD"}
 	if got := fake.Calls()[2].Args; !reflect.DeepEqual(got, want) {
 		t.Errorf("args = %v, want %v", got, want)
+	}
+}
+
+func TestRepoMapsOriginLookupFailures(t *testing.T) {
+	gitFailure := clierr.Tool("git -C " + testDir + " remote get-url origin exited with code 128")
+
+	tests := []struct {
+		name     string
+		result   runner.Result
+		cause    error
+		wantCode string
+		wantExit int
+	}{
+		{
+			name:     "not a repository",
+			result:   runner.Result{Stderr: "fatal: not a git repository (or any of the parent directories): .git\n"},
+			cause:    gitFailure,
+			wantCode: clierr.CodeUsage,
+			wantExit: clierr.ExitUsage,
+		},
+		{
+			name:     "missing git",
+			result:   runner.Result{},
+			cause:    clierr.Wrap(exec.ErrNotFound, clierr.Tool("cannot run git")),
+			wantCode: clierr.CodeTool,
+			wantExit: clierr.ExitTool,
+		},
+		{
+			name:     "no origin remote",
+			result:   runner.Result{Stderr: "error: No such remote 'origin'\n"},
+			cause:    gitFailure,
+			wantCode: clierr.CodeTool,
+			wantExit: clierr.ExitTool,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &runnertest.Fake{}
+			fake.On("git -C "+testDir+" config --get remote.origin.url", runner.Result{}, tc.cause)
+			fake.On("git -C "+testDir+" remote get-url origin", tc.result, tc.cause)
+
+			_, err := New(fake).Repo(context.Background(), testDir)
+			if err == nil {
+				t.Fatal("expected an error, got nil")
+			}
+			if !errors.Is(err, tc.cause) {
+				t.Errorf("errors.Is did not find the original cause: %v", err)
+			}
+			if got := clierr.Code(err); got != tc.wantCode {
+				t.Errorf("Code = %q, want %q", got, tc.wantCode)
+			}
+			if got := clierr.ExitCode(err); got != tc.wantExit {
+				t.Errorf("ExitCode = %d, want %d", got, tc.wantExit)
+			}
+			var c *clierr.Error
+			if !errors.As(err, &c) {
+				t.Fatalf("error is not a *clierr.Error: %v", err)
+			}
+			if c.Hint != repoOriginHint {
+				t.Errorf("Hint = %q, want %q", c.Hint, repoOriginHint)
+			}
+			wantMessage := "not a git repository with an origin remote: " + testDir
+			if got := err.Error(); got != wantMessage {
+				t.Errorf("Error() = %q, want exactly %q", got, wantMessage)
+			}
+		})
 	}
 }
 

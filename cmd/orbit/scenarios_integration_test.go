@@ -646,13 +646,13 @@ func seedOwnerVault(path, email, secret string) error {
 }
 
 func executeOrbit(args ...string) (string, error) {
-	buf := new(bytes.Buffer)
-	cmd := newRootCmd()
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-	cmd.SetArgs(args)
-	err := cmd.Execute()
-	return buf.String(), err
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	code := run(args, stdout, stderr)
+	if code != 0 {
+		return stdout.String() + stderr.String(), fmt.Errorf("orbit exited with code %d", code)
+	}
+	return stdout.String() + stderr.String(), nil
 }
 
 func TestScenariosIntegration(t *testing.T) {
