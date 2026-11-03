@@ -1,6 +1,8 @@
 package table
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
@@ -50,5 +52,34 @@ func TestTableBuilderMethods(t *testing.T) {
 	}
 	if len(tbl.rows) != 3 {
 		t.Fatalf("expected 3 rows, got %d", len(tbl.rows))
+	}
+}
+
+func TestDetailRowRendersOnItsOwnLine(t *testing.T) {
+	var buf bytes.Buffer
+	tbl := New(
+		Column{Title: "REPO", MinWidth: 8},
+		Column{Title: "PR", MinWidth: 4},
+		Column{Title: "TITLE", Flexible: true},
+	).WithTerminalWidth(80).WithDetailColumn(1)
+	tbl.AddDetailRow("https://example.test/1", "orbit-cli", "#1", "feat: x")
+
+	if err := tbl.Render(&buf); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected header, divider, row and detail, got %d lines:\n%s", len(lines), buf.String())
+	}
+	if !strings.Contains(lines[2], "#1") {
+		t.Errorf("row line = %q, want the row before the detail", lines[2])
+	}
+	if got := strings.TrimSpace(lines[3]); got != "https://example.test/1" {
+		t.Errorf("detail line = %q, want the URL", got)
+	}
+	// Indent plus the REPO width and one padding gap aligns the detail under PR.
+	if want := "  " + strings.Repeat(" ", 8+2); !strings.HasPrefix(lines[3], want) {
+		t.Errorf("detail line = %q, want prefix %q", lines[3], want)
 	}
 }

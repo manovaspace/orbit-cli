@@ -15,6 +15,7 @@ Flags:
   -h, --help              help for status
       --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
+      --no-url            Hide pull request URLs
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file

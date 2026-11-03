@@ -17,6 +17,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/pr/domain"
 	"github.com/manovaspace/orbit-cli/pkg/pr/infrastructure/ghcli"
 	"github.com/manovaspace/orbit-cli/pkg/pr/infrastructure/gitcli"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
@@ -247,6 +248,7 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 	var (
 		jsonFlag     bool
 		manifestFlag string
+		noURLFlag    bool
 	)
 
 	cmd := &cobra.Command{
@@ -276,7 +278,7 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 				}
 				workspaceRoot := findWorkspaceRoot("")
 				manifestPath := findManifestPath(workspaceRoot, manifestFlag)
-				return runWorkspacePRStatus(cmd.Context(), out, workspaceRoot, manifestPath, pattern, jsonFlag)
+				return runWorkspacePRStatus(cmd.Context(), out, workspaceRoot, manifestPath, pattern, jsonFlag, !noURLFlag)
 			}
 
 			res, err := newPRService(out).Status(cmd.Context(), prDir(*dirFlag))
@@ -290,23 +292,14 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 				return output.Write(out, output.Success(res))
 			}
 
-			fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Open Pull Requests (GitHub) — %s", res.Repo)))
-
-			if len(res.PullRequests) == 0 {
-				fmt.Fprintf(out, "No open pull requests in %s.\n", res.Repo)
-				return nil
-			}
-
-			if err := renderPRTable(out, res.PullRequests); err != nil {
-				return err
-			}
-			fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(res.PullRequests))))
-			return nil
+			results := []prStatusRepoResult{{Repo: res.Repo.Name, PullRequests: res.PullRequests}}
+			return renderPRStatusText(out, results, len(res.PullRequests), !noURLFlag)
 		},
 	}
 
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	cmd.Flags().BoolVar(&noURLFlag, "no-url", false, "Hide pull request URLs")
 
 	return cmd
 }
@@ -332,7 +325,7 @@ type prStatusWorkspaceResult struct {
 
 // runWorkspacePRStatus lists open pull requests for every manifest repository
 // whose name matches pattern.
-func runWorkspacePRStatus(ctx context.Context, out io.Writer, workspaceRoot, manifestPath, pattern string, jsonFlag bool) error {
+func runWorkspacePRStatus(ctx context.Context, out io.Writer, workspaceRoot, manifestPath, pattern string, jsonFlag, showURL bool) error {
 	manifestFile, err := manifest.Load(manifestPath)
 	if err != nil {
 		failure := &clierr.Error{
@@ -375,7 +368,7 @@ func runWorkspacePRStatus(ctx context.Context, out io.Writer, workspaceRoot, man
 		return failure
 	}
 
-	if err := renderWorkspacePRStatus(out, results, data.Total); err != nil {
+	if err := renderPRStatusText(out, results, data.Total, showURL); err != nil {
 		return err
 	}
 	return failure
@@ -467,18 +460,24 @@ func firstRepoFailure(results []prStatusRepoResult) error {
 	}
 }
 
-// renderWorkspacePRStatus prints one table per repository with open pull
-// requests, then collapses empty, skipped and failed repositories into summary
-// lines.
-func renderWorkspacePRStatus(out io.Writer, results []prStatusRepoResult, total int) error {
+// prStatusRow is one pull request in the flat status table.
+type prStatusRow struct {
+	Repo        string
+	PullRequest domain.PullRequest
+}
+
+// renderPRStatusText prints one flat table for every open pull request, with
+// each URL on the line below its row, then collapses empty, skipped and failed
+// repositories into summary lines.
+func renderPRStatusText(out io.Writer, results []prStatusRepoResult, total int, showURL bool) error {
 	var (
 		noPRs   []string
 		skipped []string
 		failed  []string
+		rows    []prStatusRow
 		queried int
 	)
 
-	first := true
 	for _, result := range results {
 		switch {
 		case result.Skipped != "":
@@ -494,50 +493,77 @@ func renderWorkspacePRStatus(out io.Writer, results []prStatusRepoResult, total 
 			noPRs = append(noPRs, result.Repo)
 			continue
 		}
-
-		if !first {
-			fmt.Fprintln(out)
+		for _, pullRequest := range result.PullRequests {
+			rows = append(rows, prStatusRow{Repo: result.Repo, PullRequest: pullRequest})
 		}
-		first = false
-		fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Open Pull Requests (GitHub) — %s", result.Repo)))
-		if err := renderPRTable(out, result.PullRequests); err != nil {
+	}
+
+	fmt.Fprintln(out, render.Title.Render("Open pull requests"))
+
+	if len(rows) > 0 {
+		fmt.Fprintln(out)
+		if err := renderPRTable(out, rows, showURL); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s)", len(result.PullRequests))))
 	}
 
+	if len(noPRs)+len(skipped)+len(failed) > 0 {
+		fmt.Fprintln(out)
+	}
+	if line := joinRepoNames(skipped, "Skipped: "); line != "" {
+		fmt.Fprintln(out, warningStyle.Render(line))
+	}
+	if line := joinRepoNames(failed, "Failed: "); line != "" {
+		fmt.Fprintln(out, errorStyle.Render(line))
+	}
 	if len(noPRs) > 0 {
-		fmt.Fprintf(out, "\n%s\n", subtleStyle.Render("No open PRs in: "+strings.Join(noPRs, ", ")))
+		line := fmt.Sprintf("No open PRs in %d %s", len(noPRs), render.Plural(len(noPRs), "repository", "repositories"))
+		fmt.Fprintln(out, subtleStyle.Render(line))
 	}
-	if len(skipped) > 0 {
-		fmt.Fprintf(out, "%s\n", warningStyle.Render("Skipped: "+strings.Join(skipped, ", ")))
+
+	summary := fmt.Sprintf("%d open %s", total, render.Plural(total, "pull request", "pull requests"))
+	if len(results) > 1 {
+		summary += fmt.Sprintf(" across %d %s", queried, render.Plural(queried, "repository", "repositories"))
 	}
-	if len(failed) > 0 {
-		fmt.Fprintf(out, "%s\n", errorStyle.Render("Failed: "+strings.Join(failed, ", ")))
-	}
-	fmt.Fprintf(out, "\n%s\n", infoStyle.Render(fmt.Sprintf("%d open pull request(s) across %d repo(s)", total, queried)))
+	fmt.Fprintf(out, "\n%s\n", infoStyle.Render(summary))
 	return nil
 }
 
-// renderPRTable renders the shared open-pull-request table.
-func renderPRTable(out io.Writer, pullRequests []domain.PullRequest) error {
-	tbl := table.New(
-		table.Column{Title: "#", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 6},
-		table.Column{Title: "TITLE", HeaderStyle: headerStyle, MinWidth: 20, Flexible: true},
-		table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 16},
-		table.Column{Title: "AUTHOR", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 12},
-		table.Column{Title: "URL", HeaderStyle: headerStyle, CellStyle: dimStyle, MinWidth: 30, Flexible: true},
-	)
+// joinRepoNames renders one collapsed summary line, or "" when the list is
+// empty.
+func joinRepoNames(names []string, prefix string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return prefix + strings.Join(names, ", ")
+}
 
-	for _, pullRequest := range pullRequests {
-		branch := pullRequest.Head
-		if pullRequest.Head != "" && pullRequest.Base != "" {
-			branch = fmt.Sprintf("%s -> %s", pullRequest.Head, pullRequest.Base)
+// renderPRTable renders the shared open-pull-request table.
+func renderPRTable(out io.Writer, rows []prStatusRow, showURL bool) error {
+	tbl := table.New(
+		table.Column{Title: "REPO", HeaderStyle: headerStyle, MinWidth: 8},
+		table.Column{Title: "PR", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 4},
+		table.Column{Title: "TITLE", HeaderStyle: headerStyle, Flexible: true, EndTruncate: true, MinWidth: 20, MaxWidth: 72},
+		table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: subtleStyle, Flexible: true, MinWidth: 12, MaxWidth: 48},
+		table.Column{Title: "AUTHOR", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 8},
+	).WithDetailColumn(1).WithDetailStyle(dimStyle)
+
+	for _, row := range rows {
+		values := []string{
+			row.Repo,
+			fmt.Sprintf("#%d", row.PullRequest.Number),
+			row.PullRequest.Title,
+			row.PullRequest.Head,
+			row.PullRequest.Author,
 		}
-		tbl.AddRow(fmt.Sprintf("#%d", pullRequest.Number), pullRequest.Title, branch, pullRequest.Author, pullRequest.URL)
+		if showURL && row.PullRequest.URL != "" {
+			tbl.AddDetailRow(row.PullRequest.URL, values...)
+			continue
+		}
+		tbl.AddRow(values...)
 	}
 
-	return tbl.Render(out)
+	return render.NewPrinter(out).Table(tbl)
 }
 
 func newPRDeliverCmd(dirFlag *string) *cobra.Command {

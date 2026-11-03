@@ -363,17 +363,49 @@ func TestPRStatusPatternHumanOutput(t *testing.T) {
 		t.Fatalf("pr status repo-*: %v\nOutput: %s", err, out)
 	}
 	for _, want := range []string{
-		"Open Pull Requests (GitHub) — repo-a",
-		"No open PRs in: repo-b",
+		"Open pull requests",
+		"repo-a",
+		"No open PRs in 1 repository",
 		"Skipped: repo-c",
-		"1 open pull request(s) across 2 repo(s)",
+		"1 open pull request across 2 repositories",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected %q in output, got:\n%s", want, out)
 		}
 	}
+	lines := strings.Split(out, "\n")
+	urlIndex := -1
+	for index, line := range lines {
+		if strings.TrimSpace(line) == "https://github.com/manovaspace/repo-a/pull/21" {
+			urlIndex = index
+			break
+		}
+	}
+	if urlIndex < 0 {
+		t.Fatalf("expected the pull request URL on its own line, got:\n%s", out)
+	}
+	if urlIndex == 0 || !strings.Contains(lines[urlIndex-1], "#21") {
+		t.Errorf("expected the URL directly below its row, got:\n%s", out)
+	}
 	if strings.Contains(out, "schemaVersion") {
 		t.Errorf("human output must not be a JSON envelope: %s", out)
+	}
+}
+
+func TestPRStatusPatternNoURL(t *testing.T) {
+	setupPRWorkspace(t)
+	fake := setupPRFake(t)
+	expectWorkspacePRAnswers(t, fake)
+
+	out, err := runPRCmd(t, "pr", "status", "repo-*", "--no-url")
+	if err != nil {
+		t.Fatalf("pr status repo-* --no-url: %v\nOutput: %s", err, out)
+	}
+	if strings.Contains(out, "https://github.com/manovaspace/repo-a/pull/21") {
+		t.Errorf("--no-url must hide pull request URLs, got:\n%s", out)
+	}
+	if !strings.Contains(out, "repo-a") || !strings.Contains(out, "#21") {
+		t.Errorf("--no-url must keep the table rows, got:\n%s", out)
 	}
 }
 
