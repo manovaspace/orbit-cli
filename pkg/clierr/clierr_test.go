@@ -97,6 +97,27 @@ func TestUnwrap(t *testing.T) {
 	}
 }
 
+func TestWrapClean(t *testing.T) {
+	cause := errors.New("exit status 128")
+	err := WrapClean(cause, Failed("clean message"))
+
+	if got, want := err.Error(), "clean message"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatal("errors.Is did not find the wrapped cause")
+	}
+	if got := err.Unwrap(); got != cause {
+		t.Errorf("Unwrap() = %v, want %v", got, cause)
+	}
+	if got := ExitCode(err); got != ExitFailed {
+		t.Errorf("ExitCode = %d, want %d", got, ExitFailed)
+	}
+	if got := Code(err); got != CodeFailed {
+		t.Errorf("Code = %q, want %q", got, CodeFailed)
+	}
+}
+
 func TestWithHint(t *testing.T) {
 	err := WithHint(Failed("boom"), "run orbit doctor")
 	if err.Hint != "run orbit doctor" {

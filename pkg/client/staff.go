@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
 )
+
+const staffHTMLHint = "check the server URL (--server or ORBIT_STAFF_URL) and that the staff service is live"
 
 const defaultStaffURL = "https://staff.internal.manova.space"
 
@@ -211,6 +214,12 @@ func (c *StaffClient) do(ctx context.Context, method, path string, reqBody, resp
 		return nil
 	}
 	if err := json.Unmarshal(respBytes, respBody); err != nil {
+		if strings.HasPrefix(strings.TrimSpace(string(respBytes)), "<") {
+			return clierr.WithHint(
+				clierr.Network("staff server returned HTML instead of JSON"),
+				staffHTMLHint,
+			)
+		}
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil

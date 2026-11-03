@@ -104,6 +104,28 @@ func TestWriteOmitsNilData(t *testing.T) {
 	}
 }
 
+func TestWrittenFlag(t *testing.T) {
+	ResetWritten()
+	t.Cleanup(ResetWritten)
+
+	if Written() {
+		t.Fatal("Written() = true before any Write")
+	}
+
+	var buf bytes.Buffer
+	if err := Write(&buf, Success(nil)); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if !Written() {
+		t.Error("Written() = false after Write")
+	}
+
+	ResetWritten()
+	if Written() {
+		t.Error("Written() = true after ResetWritten")
+	}
+}
+
 func TestWriteFailureShape(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Write(&buf, Failure(clierr.Network("unreachable"))); err != nil {

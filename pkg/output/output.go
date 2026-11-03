@@ -5,9 +5,27 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sync/atomic"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 )
+
+// written records whether Write has emitted an envelope since the last
+// ResetWritten. The root command uses it to avoid writing a second envelope
+// after a command has already reported its own failure.
+var written atomic.Bool
+
+// Written reports whether Write has emitted an envelope since the last
+// ResetWritten.
+func Written() bool {
+	return written.Load()
+}
+
+// ResetWritten clears the written flag. The root command calls it before every
+// run; tests call it to isolate runs.
+func ResetWritten() {
+	written.Store(false)
+}
 
 // SchemaVersion is bumped when the envelope shape changes incompatibly.
 const SchemaVersion = 1
@@ -53,6 +71,9 @@ func Write(w io.Writer, e Envelope) error {
 		return err
 	}
 	b = append(b, '\n')
-	_, err = w.Write(b)
-	return err
+	if _, err = w.Write(b); err != nil {
+		return err
+	}
+	written.Store(true)
+	return nil
 }

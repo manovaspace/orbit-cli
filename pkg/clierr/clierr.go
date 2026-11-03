@@ -31,11 +31,14 @@ type Error struct {
 	Message string
 	Hint    string
 	Err     error
+
+	// hideCause makes Error render Message only while Unwrap still exposes Err.
+	hideCause bool
 }
 
 // Error renders the message and the wrapped cause, when there is one.
 func (e *Error) Error() string {
-	if e.Err != nil {
+	if e.Err != nil && !e.hideCause {
 		return e.Message + ": " + e.Err.Error()
 	}
 	return e.Message
@@ -79,6 +82,15 @@ func Unverified(msg string) *Error {
 // Wrap attaches err as the cause of c.
 func Wrap(err error, c *Error) *Error {
 	c.Err = err
+	c.hideCause = false
+	return c
+}
+
+// WrapClean attaches err as the cause of c but renders only c.Message. Unwrap
+// still exposes err, so errors.Is and errors.As keep working.
+func WrapClean(err error, c *Error) *Error {
+	c.Err = err
+	c.hideCause = true
 	return c
 }
 

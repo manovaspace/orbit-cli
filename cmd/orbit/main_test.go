@@ -171,19 +171,23 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 		t.Fatalf("failed to write session file: %v", err)
 	}
 
-	// Case 1: Owner vault does not exist or unverified -> notice is shown
+	// Case 1: Owner vault does not exist or unverified -> notice is shown on stderr
 	cmd := newRootCmdForTest(t)
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
 	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
 	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("fixture command failed: %v", err)
 	}
 
-	if !strings.Contains(buf.String(), "Ongoing onboarding session detected") {
-		t.Errorf("expected onboarding notice when owner is unverified, got: %s", buf.String())
+	if !strings.Contains(stderr.String(), "Ongoing onboarding session detected") {
+		t.Errorf("expected onboarding notice on stderr when owner is unverified, got: %s", stderr.String())
+	}
+	if strings.Contains(stdout.String(), "Ongoing onboarding session detected") {
+		t.Errorf("onboarding notice must not be written to stdout, got: %s", stdout.String())
 	}
 
 	// Case 2: Owner vault exists and is verified -> notice is suppressed
@@ -192,17 +196,21 @@ func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
 		t.Fatalf("failed to write owner file: %v", err)
 	}
 
-	buf.Reset()
+	stdout.Reset()
+	stderr.Reset()
 	cmd = newRootCmdForTest(t)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
 	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
 	cmd.SetArgs([]string{"fixture"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("fixture command failed: %v", err)
 	}
 
-	if strings.Contains(buf.String(), "Ongoing onboarding session detected") {
-		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", buf.String())
+	if strings.Contains(stdout.String(), "Ongoing onboarding session detected") {
+		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", stdout.String())
+	}
+	if strings.Contains(stderr.String(), "Ongoing onboarding session detected") {
+		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", stderr.String())
 	}
 }
