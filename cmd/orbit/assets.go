@@ -15,6 +15,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/spf13/cobra"
 )
 
@@ -171,32 +172,36 @@ func newAssetsStatusCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			uiOut := io.Writer(out)
-			if jsonFlag {
-				uiOut = io.Discard
-			}
+			scope := assetScope(args)
 
-			root, rels, err := resolveAssetRepos(manifestFlag, assetScope(args))
+			root, rels, err := resolveAssetRepos(manifestFlag, scope)
 			if err != nil {
 				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
 			// Status is local: it reads the index and hashes files without
 			// touching R2 or requiring credentials.
-			res, err := newAssetsService(uiOut, nil).Status(cmd.Context(), root, rels)
+			res, err := newAssetsService(io.Discard, nil).Status(cmd.Context(), root, rels)
 			if err != nil {
 				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
-			if res.Problems > 0 {
-				problemErr := clierr.Failed(fmt.Sprintf("%d asset(s) missing or mismatched", res.Problems))
-				if jsonFlag {
-					_ = output.Write(out, output.Failure(problemErr))
-				}
-				return problemErr
-			}
 			if jsonFlag {
+				if res.Problems > 0 {
+					problemErr := clierr.Failed(fmt.Sprintf("%d asset(s) missing or mismatched", res.Problems))
+					_ = output.Write(out, output.Failure(problemErr))
+					return problemErr
+				}
 				return output.Write(out, output.Success(res))
+			}
+
+			p := render.NewPrinter(out)
+			renderAssetsStatus(p, scope, res)
+			if perr := p.Err(); perr != nil {
+				return perr
+			}
+			if res.Problems > 0 {
+				return clierr.Failed(fmt.Sprintf("%d asset(s) missing or mismatched", res.Problems))
 			}
 			return nil
 		},
@@ -204,6 +209,43 @@ func newAssetsStatusCmd() *cobra.Command {
 	cmd.Flags().StringVar(&manifestFlag, "manifest", "", "Path to workspace.yaml")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
+}
+
+// renderAssetsStatus writes one section per repository and the shared summary.
+func renderAssetsStatus(p *render.Printer, scope string, res assetsapp.StatusResult) {
+	p.Title("Assets")
+	p.KV("Scope", scope)
+
+	ok, missing, mismatched := 0, 0, 0
+	for _, repository := range res.Repositories {
+		p.Section(repository.Path)
+		for _, file := range repository.Files {
+			switch file.State {
+			case assetsdomain.FileOK:
+				ok++
+				p.Line(render.StatusOK, file.Path)
+			case assetsdomain.FileMissing:
+				missing++
+				p.Line(render.StatusWarn, file.Path+"  missing")
+			default:
+				mismatched++
+				text := file.Path + "  mismatched"
+				if file.Error != "" {
+					text += ": " + file.Error
+				}
+				p.Line(render.StatusFail, text)
+			}
+		}
+	}
+	if len(res.Repositories) == 0 {
+		p.Empty(render.Plural(0, "repository", "repositories"))
+	}
+
+	p.Summary(
+		render.SummaryPart{Status: render.StatusOK, Count: ok, Label: "ok"},
+		render.SummaryPart{Status: render.StatusWarn, Count: missing, Label: "missing"},
+		render.SummaryPart{Status: render.StatusFail, Count: mismatched, Label: "mismatched"},
+	)
 }
 
 func assetScope(args []string) string {

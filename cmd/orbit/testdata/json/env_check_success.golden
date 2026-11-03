@@ -1,0 +1,1 @@
+{"schemaVersion":1,"ok":true,"data":{"searchPath":"<workspace>","verified":true,"schemas":[{"path":"<workspace>/.env.schema.yaml","directory":"001","variables":1,"valid":true}],"validCount":1,"errorCount":0,"mcpEnv":{"path":"<workspace>/.cursor/mcp.env","exists":false,"secure":false}}}

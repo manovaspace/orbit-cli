@@ -118,7 +118,7 @@ func TestDoctorCmdExecution(t *testing.T) {
 		t.Fatalf("doctor: %v\n%s", err, out)
 	}
 	text := out.String()
-	if !strings.Contains(text, "Orbit System Doctor") {
+	if !strings.Contains(text, "System doctor") {
 		t.Errorf("expected header, got: %s", text)
 	}
 	for _, category := range []string{"System", "Toolchain", "Runtime", "Container", "Authentication", "Ports"} {

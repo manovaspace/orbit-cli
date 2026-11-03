@@ -1,0 +1,13 @@
+Environment contracts
+
+  Search path  /workspace
+
+── services/frontend ───────────────────────────────────────
+  ✖  2 validation issue(s)
+  ⚠  missing DATABASE_URL: required variable is missing
+  ✖  invalid API_URL: must be a valid URL
+
+── MCP environment ─────────────────────────────────────────
+  ⚠  .cursor/mcp.env permissions are 0644 (recommended: 0600)
+
+✔ 0 valid  ⚠ 1 missing  ✖ 1 invalid  ✖ 0 failed  ⚠ 1 warning  ? 0 unverified

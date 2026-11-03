@@ -10,6 +10,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/statefile"
 	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/workspace"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
@@ -55,14 +56,7 @@ func newMigrateCmd() *cobra.Command {
 		Long:  "Executes pending workspace migrations and tracks applied state in .orbit/migrations.json.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			uiOut := io.Writer(out)
-			if jsonFlag {
-				uiOut = io.Discard
-			}
 			workspaceRoot := findWorkspaceRoot("")
-
-			fmt.Fprintln(uiOut, titleStyle.Render("Orbit Workspace Migrations"))
-			fmt.Fprintf(uiOut, "  Workspace Root: %s\n\n", subtleStyle.Render(workspaceRoot))
 
 			res, err := newMigrateEngine(workspaceRoot).RunPending()
 			if err != nil {
@@ -71,27 +65,13 @@ func newMigrateCmd() *cobra.Command {
 				return runErr
 			}
 
-			if len(res.Results) == 0 {
-				fmt.Fprintln(uiOut, successStyle.Render("✔ All workspace migrations are up to date (0 pending)."))
-				if jsonFlag {
-					return output.Write(out, output.Success(res))
-				}
-				return nil
-			}
-
-			for _, result := range res.Results {
-				if result.Success {
-					fmt.Fprintf(uiOut, "  %s  %s: %s\n", iconOK, boldStyle.Render(result.ID), result.Description)
-				} else {
-					fmt.Fprintf(uiOut, "  %s  %s: %s (%s)\n", iconError, boldStyle.Render(result.ID), errorStyle.Render("Failed"), result.Error)
-				}
-			}
-
-			fmt.Fprintf(uiOut, "\n%s\n", successStyle.Render(fmt.Sprintf("✔ Applied %d migration(s) successfully.", res.Applied)))
 			if jsonFlag {
 				return output.Write(out, output.Success(res))
 			}
-			return nil
+
+			p := render.NewPrinter(out)
+			renderMigrateApply(p, res)
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
@@ -113,10 +93,6 @@ func newMigrateStatusCmd() *cobra.Command {
 		Short: "Show status of all registered workspace migrations",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			uiOut := io.Writer(out)
-			if jsonFlag {
-				uiOut = io.Discard
-			}
 			workspaceRoot := findWorkspaceRoot("")
 
 			engine := newMigrateEngine(workspaceRoot)
@@ -130,42 +106,9 @@ func newMigrateStatusCmd() *cobra.Command {
 				return output.Write(out, output.Success(res))
 			}
 
-			fmt.Fprintln(uiOut, titleStyle.Render("Orbit Workspace Migration Status"))
-			fmt.Fprintf(uiOut, "  State File: %s\n\n", subtleStyle.Render(res.StatePath))
-
-			tbl := table.New(
-				table.Column{Title: "MIGRATION ID", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 24},
-				table.Column{Title: "DESCRIPTION", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 30, Flexible: true},
-				table.Column{Title: "STATUS", HeaderStyle: headerStyle, MinWidth: 16},
-			)
-			if limitFlag > 0 {
-				tbl.WithPagination(pageFlag, limitFlag)
-			}
-
-			for _, entry := range res.Entries {
-				idCell := table.PlainCell(entry.ID)
-				descCell := table.PlainCell(entry.Description)
-
-				var statusCell table.Cell
-				if entry.Applied && entry.AppliedAt != nil {
-					statusStr := fmt.Sprintf("✔ Applied (%s)", entry.AppliedAt.Format("2006-01-02 15:04"))
-					statusCell = table.StyleCell(statusStr, successStyle)
-				} else {
-					statusCell = table.StyleCell("⚠ Pending", warningStyle)
-				}
-
-				tbl.AddStyledRow(idCell, descCell, statusCell)
-			}
-
-			fmt.Fprintln(uiOut)
-			_ = tbl.Render(uiOut)
-
-			fmt.Fprintf(uiOut, "\n%s  %s\n",
-				successStyle.Render(fmt.Sprintf("✔ %d applied", res.Applied)),
-				warningStyle.Render(fmt.Sprintf("⚠ %d pending", res.Pending)),
-			)
-
-			return nil
+			p := render.NewPrinter(out)
+			renderMigrateStatus(p, res, pageFlag, limitFlag)
+			return p.Err()
 		},
 	}
 
@@ -179,4 +122,71 @@ func writeMigrateFailure(out io.Writer, jsonFlag bool, err error) {
 	if jsonFlag {
 		_ = output.Write(out, output.Failure(err))
 	}
+}
+
+// renderMigrateApply writes the text form of one `orbit migrate` run.
+func renderMigrateApply(p *render.Printer, res migrateapp.ApplyResult) {
+	p.Title("Workspace migrations")
+	p.KV("Workspace root", res.WorkspaceRoot)
+
+	skipped, failed := 0, 0
+	for _, result := range res.Results {
+		switch {
+		case result.Success:
+			p.Line(render.StatusOK, fmt.Sprintf("%s: %s", result.ID, result.Description))
+		case result.Skipped:
+			skipped++
+			p.Line(render.StatusWarn, fmt.Sprintf("%s: skipped", result.ID))
+		default:
+			failed++
+			message := result.Error
+			if message == "" {
+				message = "failed"
+			}
+			p.Line(render.StatusFail, fmt.Sprintf("%s: %s", result.ID, message))
+		}
+	}
+	if len(res.Results) == 0 {
+		p.Empty(render.Plural(0, "migration", "migrations"))
+	}
+
+	p.Summary(
+		render.SummaryPart{Status: render.StatusOK, Count: res.Applied, Label: "applied"},
+		render.SummaryPart{Status: render.StatusWarn, Count: skipped, Label: "skipped"},
+		render.SummaryPart{Status: render.StatusFail, Count: failed, Label: "failed"},
+	)
+}
+
+// renderMigrateStatus writes the table and summary for `orbit migrate status`.
+func renderMigrateStatus(p *render.Printer, res migrateapp.StatusResult, page, limit int) {
+	p.Title("Workspace migrations")
+	p.KV("State file", res.StatePath)
+
+	if len(res.Entries) == 0 {
+		p.Empty(render.Plural(0, "migration", "migrations"))
+	} else {
+		tbl := table.New(
+			table.Column{Title: "MIGRATION ID", HeaderStyle: render.Header, CellStyle: render.Bold, MinWidth: 24},
+			table.Column{Title: "DESCRIPTION", HeaderStyle: render.Header, CellStyle: render.Subtle, MinWidth: 30, Flexible: true},
+			table.Column{Title: "STATUS", HeaderStyle: render.Header, MinWidth: 16},
+		)
+		if limit > 0 {
+			tbl.WithPagination(page, limit)
+		}
+		for _, entry := range res.Entries {
+			var status string
+			if entry.Applied && entry.AppliedAt != nil {
+				status = fmt.Sprintf("%s applied (%s)", render.StatusOK.Icon(), entry.AppliedAt.Format("2006-01-02 15:04"))
+			} else {
+				status = render.StatusWarn.Icon() + " pending"
+			}
+			tbl.AddRow(entry.ID, entry.Description, status)
+		}
+		_ = p.Table(tbl)
+	}
+
+	p.Summary(
+		render.SummaryPart{Status: render.StatusOK, Count: res.Applied, Label: "applied"},
+		render.SummaryPart{Status: render.StatusWarn, Count: res.Pending, Label: "pending"},
+	)
 }

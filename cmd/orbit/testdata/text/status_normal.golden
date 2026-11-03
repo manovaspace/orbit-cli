@@ -1,0 +1,13 @@
+Workspace status — all
+
+  REPOSITORY        PATH                  BRANCH    SYNC             WORKING TREE
+  ───────────────────────────────────────────────────────────────────────────────────────────────
+  repo-clean        repo-clean            main      ℹ up to date     ✔ clean
+  repo-dirty        repo-dirty            feature   ℹ up to date     ⚠ dirty (2)
+  repo-ahead        repo-ahead            main      ℹ ↑2 ahead       ✔ clean
+  repo-diverged     repo-diverged         main      ⚠ ↕1/3 diverged  ⚠ dirty (1)
+  repo-missing      repo-missing          -         -                ○ not cloned
+  repo-gitless      repo-gitless          -         -                ✖ gitless — run orbit repair
+  ℹ  gitless trees: orbit repair [scope] (copies .git only; never checkout -f)
+
+ℹ 6 repositories  ✔ 2 clean  ⚠ 2 dirty  ○ 1 not cloned  ✖ 1 gitless  ✖ 0 other errors

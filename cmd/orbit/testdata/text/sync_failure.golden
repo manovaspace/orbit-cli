@@ -1,0 +1,8 @@
+Workspace sync — orbit
+
+  REPOSITORY        PATH                  RESULT
+  ───────────────────────────────────────────────────────────────────────
+  repo-failed       repo-failed           ✖ git fetch origin failed: boom
+  ✖  Assets: R2 access denied
+
+✔ 0 updated  ℹ 0 up to date  ⚠ 0 skipped  ✖ 1 failed

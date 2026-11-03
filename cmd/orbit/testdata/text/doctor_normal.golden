@@ -1,0 +1,22 @@
+System doctor
+
+── System ──────────────────────────────────────────────────
+  ✔  Host                        Supported host: Ubuntu 24.04 LTS amd64, zsh
+
+── Toolchain ───────────────────────────────────────────────
+  ✔  Git                         Git v2.50.0 installed
+  ✖  Go Compiler                 Go Compiler not found in PATH
+
+── Authentication ──────────────────────────────────────────
+  ⚠  SSH Agent                   SSH agent is not running (SSH_AUTH_SOCK unset)
+
+── Assets ──────────────────────────────────────────────────
+  ?  R2 assets                   Cloud assets unverified (local mode)
+
+── Remediation & fix suggestions ───────────────────────────
+  ✖  Go Compiler: Go Compiler not found in PATH
+  ℹ  Install Go from https://go.dev/dl/
+  ⚠  SSH Agent: SSH agent is not running (SSH_AUTH_SOCK unset)
+  ℹ  Start SSH agent: eval $(ssh-agent -s)
+
+✔ 2 passed  ⚠ 1 warning  ? 1 unverified  ✖ 1 error

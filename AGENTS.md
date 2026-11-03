@@ -54,8 +54,9 @@ Orbit CLI follows a dual-binary architecture:
 - **`--resume` vs `--reset` in `orbit onboard`:** `--resume` continues from checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it entirely.
 - **Mail templates are owned by `orbit-notifications`:** `pkg/mailtemplates` is the canonical source. Never duplicate or inline mail templates in orbit-cli.
 - **Exit codes and output:** commands exit `0` ok, `1` failed, `2` could not check, `3` usage, `4` auth, `5` network, `6` external tool. New commands return `pkg/clierr` errors and write machine-readable results through `pkg/output`; external commands go through `pkg/runner` (tests use `pkg/runner/runnertest.Fake`). `cmd/orbit/main.go` maps every error to its exit code, and plain errors still exit `1`. Runtime errors print one line plus hint on stderr and never the usage block; `--json` failures are exactly one envelope on stdout (ADR-047 D5/D7).
-- **Results go through `pkg/render`:** new commands print their text result through `render.Emit`, never `fmt.Fprint*`. Existing commands migrate in ADR-047 phase 3; until then the `cmd/orbit/ui.go` style aliases stay.
+- **Results go through `pkg/render`:** new commands print their text result through `render.Emit`, never `fmt.Fprint*`. ADR-047 phase 3 batch 1 has migrated `status`, `sync`, `migrate status` (and `migrate`), `port list`/`port allocate`, `assets status`, `env check` and `doctor` onto the shared title/table/section/summary shape; the remaining commands still use the `cmd/orbit/ui.go` style aliases until their batch lands.
 - **Help goldens:** `cmd/orbit/testdata/help/` captures every command's `--help`. Run `go test ./cmd/orbit -run TestHelpGolden -update` after intentionally changing flags or help text. The test pins `HOME`, `COLUMNS` and `NO_COLOR` so goldens never depend on the machine.
+- **Render goldens:** `pkg/render` and the batch 1 text/JSON goldens use `rendertest.Golden`. Run `go test ./pkg/render ./cmd/orbit -update-render` to rewrite them; the separate flag name keeps them from clashing with the help golden `-update`.
 
 ## Commands
 

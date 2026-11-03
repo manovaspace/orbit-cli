@@ -997,7 +997,7 @@ groups:
 
 		// AST-01: Asset status
 		statOut, err := executeOrbit("assets", "status")
-		if err != nil || !strings.Contains(statOut, "ok") {
+		if err != nil || !strings.Contains(statOut, "video.mp4") {
 			t.Errorf("AST-01 asset status failed: %v\nOutput: %s", err, statOut)
 		}
 
@@ -1027,7 +1027,7 @@ groups:
 		defer cleanup()
 
 		listOut, err := executeOrbit("port", "list")
-		if err != nil || !strings.Contains(listOut, "Orbit Port Manager") {
+		if err != nil || !strings.Contains(listOut, "Port allocations") {
 			t.Fatalf("PRT-01 port list failed: %v\nOutput: %s", err, listOut)
 		}
 

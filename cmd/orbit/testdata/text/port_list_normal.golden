@@ -1,0 +1,22 @@
+Port allocations
+
+  Projects  2
+  Scan  off
+
+  PROJECT               BASE      RANGE           STATUS
+  ────────────────────────────────────────────────────────────────
+  orbit-platform        10000     10000-10049     ? unverified
+  manova                10050     10050-10099     ? unverified
+
+── Project 0: orbit-platform ───────────────────────────────
+  ?  base 10000 · range 10000-10049 (50 ports) · unverified
+  ?  +0  10000  Base / Database
+  ?  +1  10001  Core API / Backend
+  ?  dynamic 10010-10049  unverified
+
+── Project 1: manova ───────────────────────────────────────
+  ?  base 10050 · range 10050-10099 (50 ports) · unverified
+  ?  +0  10050  Base / Database
+  ?  dynamic 10060-10099  unverified
+
+✔ 0 bindable  ⚠ 0 unavailable  ? 3 unverified

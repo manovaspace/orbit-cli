@@ -1,0 +1,7 @@
+Workspace status — all
+
+  REPOSITORY        PATH                  BRANCH    SYNC          WORKING TREE
+  ─────────────────────────────────────────────────────────────────────────────────────────
+  repo-broken       repo-broken           -         -             ✖ git status failed: boom
+
+ℹ 1 repository  ✔ 0 clean  ⚠ 0 dirty  ○ 0 not cloned  ✖ 0 gitless  ✖ 1 other error

@@ -1,0 +1,12 @@
+Port allocation
+
+  Project   orbit-platform (id 0)
+  Service   fixture
+  Port      10010
+  Slot      +10 (dynamic)
+  Export    export FIXTURE_PORT=10010
+  Reserved  no
+
+  ℹ  not reserved; the port may be taken at bind time
+
+ℹ 1 suggested  ○ 0 reserved

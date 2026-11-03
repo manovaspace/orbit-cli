@@ -1,0 +1,10 @@
+System doctor
+
+── Toolchain ───────────────────────────────────────────────
+  ✖  Git                         Git CLI not found in PATH
+
+── Remediation & fix suggestions ───────────────────────────
+  ✖  Git: Git CLI not found in PATH
+  ℹ  Install Git: sudo apt install git
+
+✔ 0 passed  ⚠ 0 warnings  ? 0 unverified  ✖ 1 error

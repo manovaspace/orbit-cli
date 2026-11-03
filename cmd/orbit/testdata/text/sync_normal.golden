@@ -1,0 +1,10 @@
+Workspace sync — orbit
+
+  REPOSITORY        PATH                  RESULT
+  ───────────────────────────────────────────────────────────────────────────────────────
+  repo-updated      repo-updated          ✔ fast-forwarded
+  repo-current      repo-current          ℹ up to date
+  repo-skipped      repo-skipped          ⚠ skipped: working tree has uncommitted changes
+  repo-failed       repo-failed           ✖ git fetch origin failed: boom
+
+✔ 1 updated  ℹ 1 up to date  ⚠ 1 skipped  ✖ 1 failed

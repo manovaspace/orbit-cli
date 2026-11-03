@@ -1,0 +1,1 @@
+{"schemaVersion":1,"ok":true,"data":{"scope":"all","repos":[{"name":"missing-repo","path":"missing-repo","current_branch":"","is_clean":false,"ahead_count":0,"behind_count":0,"modified_count":0,"error":"missing"}],"summary":{"total":1,"clean":0,"dirty":0,"missing":1,"gitless":0,"otherErrors":0}}}
