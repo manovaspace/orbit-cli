@@ -240,6 +240,7 @@ func TestServerCmd_HealthAndGracefulShutdown(t *testing.T) {
 	}
 
 	// Trigger graceful shutdown
+	client.CloseIdleConnections()
 	cancel()
 
 	select {
@@ -572,6 +573,10 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 	}
 
 	// 9. Graceful shutdown
+	// Drain the client's keep-alive pool first. srv.Shutdown waits for connections in StateNew,
+	// which is what a pooled connection looks like on the server before its next request, so a
+	// leftover idle connection can hold shutdown for the whole 5s context and race the wait below.
+	httpClient.CloseIdleConnections()
 	cancel()
 	select {
 	case execErr := <-errChan:
