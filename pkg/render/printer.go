@@ -43,6 +43,13 @@ type Printer struct {
 	plain bool
 	err   error
 	wrote bool
+	// tailNewlines counts the newlines at the end of everything written so
+	// far, capped at two. Section uses it to avoid adding a second blank line
+	// after Title or a KV separator already ended with one.
+	tailNewlines int
+	// needsBlankAfterKV separates a context key/value block from the body that
+	// follows it.
+	needsBlankAfterKV bool
 }
 
 // NewPrinter returns a Printer writing to w.
@@ -63,13 +70,16 @@ func (p *Printer) Err() error {
 
 // Title writes a bold title line followed by one truly empty line.
 func (p *Printer) Title(text string) {
+	p.needsBlankAfterKV = false
 	p.write(p.styled(Title, text) + "\n\n")
 }
 
 // Section writes a blank line when output already exists, then a fixed-width
-// "── name ─────" rule.
+// "── name ─────" rule. It does not add a second blank line after a Title or a
+// KV block that already ended with one.
 func (p *Printer) Section(name string) {
-	if p.wrote {
+	p.separateAfterKVs()
+	if p.wrote && p.tailNewlines < 2 {
 		p.write("\n")
 	}
 	p.write(p.styled(Header, sectionLine(name)) + "\n")
@@ -99,10 +109,12 @@ func (p *Printer) KVs(pairs ...[2]string) {
 		}
 		p.write(line + "\n")
 	}
+	p.needsBlankAfterKV = true
 }
 
 // Line writes one status line as "  <icon>  text".
 func (p *Printer) Line(s Status, text string) {
+	p.separateAfterKVs()
 	line := "  " + p.statusIcon(s)
 	if text != "" {
 		line += "  " + text
@@ -117,6 +129,7 @@ func (p *Printer) Table(t *table.Table) error {
 	if t == nil {
 		return nil
 	}
+	p.separateAfterKVs()
 	if p.err != nil {
 		return p.err
 	}
@@ -131,12 +144,14 @@ func (p *Printer) Table(t *table.Table) error {
 
 // Empty writes the single empty-result wording every command shares.
 func (p *Printer) Empty(what string) {
+	p.separateAfterKVs()
 	p.write(p.styled(Subtle, "No "+what+" found.") + "\n")
 }
 
 // Summary writes one summary line after a blank line. Zero-count parts are
 // kept so output stays stable.
 func (p *Printer) Summary(parts ...SummaryPart) {
+	p.needsBlankAfterKV = false
 	if len(parts) == 0 {
 		return
 	}
@@ -153,6 +168,7 @@ func (p *Printer) Summary(parts ...SummaryPart) {
 
 // SummaryText writes a free-form summary line after a blank line.
 func (p *Printer) SummaryText(text string) {
+	p.needsBlankAfterKV = false
 	p.write("\n" + text + "\n")
 }
 
@@ -163,6 +179,7 @@ func (p *Printer) Hint(text string) {
 
 // Blank writes one empty line.
 func (p *Printer) Blank() {
+	p.needsBlankAfterKV = false
 	p.write("\n")
 }
 
@@ -170,11 +187,46 @@ func (p *Printer) write(s string) {
 	if p.err != nil {
 		return
 	}
+	if s == "" {
+		return
+	}
 	if _, err := io.WriteString(p.w, s); err != nil {
 		p.err = err
 		return
 	}
 	p.wrote = true
+	if strings.Trim(s, "\n") == "" {
+		p.tailNewlines += len(s)
+		if p.tailNewlines > 2 {
+			p.tailNewlines = 2
+		}
+		return
+	}
+	p.tailNewlines = trailingNewlines(s)
+}
+
+// separateAfterKVs writes the one blank line that separates a context KV block
+// from the body that follows it.
+func (p *Printer) separateAfterKVs() {
+	if !p.needsBlankAfterKV {
+		return
+	}
+	p.needsBlankAfterKV = false
+	if p.tailNewlines < 2 {
+		p.write("\n")
+	}
+}
+
+// trailingNewlines counts the newlines ending s, capped at two.
+func trailingNewlines(s string) int {
+	n := 0
+	for i := len(s) - 1; i >= 0 && s[i] == '\n'; i-- {
+		n++
+		if n == 2 {
+			break
+		}
+	}
+	return n
 }
 
 func (p *Printer) styled(style lipgloss.Style, text string) string {

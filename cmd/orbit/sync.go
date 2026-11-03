@@ -6,6 +6,8 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
+	"github.com/manovaspace/orbit-cli/pkg/table"
 	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 	"github.com/spf13/cobra"
@@ -56,10 +58,6 @@ func newSyncCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			uiOut := io.Writer(out)
-			if jsonFlag {
-				uiOut = io.Discard
-			}
 			scope := "all"
 			if len(args) > 0 && args[0] != "" {
 				scope = args[0]
@@ -68,11 +66,7 @@ func newSyncCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			if !jsonFlag {
-				fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Sync — Scope: %s", scope)))
-			}
-
-			res, err := newWorkspaceService(uiOut).Sync(cmd.Context(), workspaceapp.SyncInput{
+			res, err := newWorkspaceService(io.Discard).Sync(cmd.Context(), workspaceapp.SyncInput{
 				WorkspaceRoot: workspaceRoot,
 				ManifestPath:  manifestPath,
 				Scope:         scope,
@@ -93,8 +87,9 @@ func newSyncCmd() *cobra.Command {
 						Summary: summarizeSyncResults(res.Results),
 					}))
 				}
-				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
-				return nil
+				p := render.NewPrinter(out)
+				renderSyncResult(p, scope, res.Results, "")
+				return p.Err()
 			}
 
 			summary := summarizeSyncResults(res.Results)
@@ -107,25 +102,18 @@ func newSyncCmd() *cobra.Command {
 			if err := pullWorkspaceAssets(cmd.Context(), workspaceRoot, rels, false); err != nil {
 				assetError = err.Error()
 				summary.Failed++
-				if !jsonFlag {
-					fmt.Fprintf(out, "  %s  %s\n", iconError, errorStyle.Render("Assets: "+assetError))
-				}
-			}
-
-			if !jsonFlag {
-				// Summary footer
-				fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
-					successStyle.Render(fmt.Sprintf("✔ %d updated", summary.Updated)),
-					infoStyle.Render(fmt.Sprintf("✔ %d up to date", summary.UpToDate)),
-					warningStyle.Render(fmt.Sprintf("⚠ %d skipped", summary.Skipped)),
-					errorStyle.Render(fmt.Sprintf("✖ %d failed", summary.Failed)),
-				)
 			}
 
 			if summary.Failed > 0 {
 				syncErr := clierr.Failed(fmt.Sprintf("sync completed with %d error(s)", summary.Failed))
 				if jsonFlag {
 					_ = output.Write(out, output.Failure(syncErr))
+					return syncErr
+				}
+				p := render.NewPrinter(out)
+				renderSyncResult(p, scope, res.Results, assetError)
+				if perr := p.Err(); perr != nil {
+					return perr
 				}
 				return syncErr
 			}
@@ -137,7 +125,10 @@ func newSyncCmd() *cobra.Command {
 					AssetError: assetError,
 				}))
 			}
-			return nil
+
+			p := render.NewPrinter(out)
+			renderSyncResult(p, scope, res.Results, assetError)
+			return p.Err()
 		},
 	}
 
@@ -146,4 +137,51 @@ func newSyncCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+// renderSyncResult writes the per-repository rows the service used to print
+// while it ran, followed by the shared summary line.
+func renderSyncResult(p *render.Printer, scope string, results []workspacedomain.SyncResult, assetError string) {
+	p.Title(fmt.Sprintf("Workspace sync — %s", scope))
+
+	if len(results) > 0 {
+		tbl := table.New(
+			table.Column{Title: "REPOSITORY", HeaderStyle: render.Header, CellStyle: render.Bold, MinWidth: 16},
+			table.Column{Title: "PATH", HeaderStyle: render.Header, CellStyle: render.Subtle, MinWidth: 20, Flexible: true},
+			table.Column{Title: "RESULT", HeaderStyle: render.Header, MinWidth: 24},
+		)
+		for _, res := range results {
+			var result string
+			switch {
+			case res.Success && res.FastForwarded:
+				result = render.StatusOK.Icon() + " fast-forwarded"
+			case res.Success:
+				result = render.StatusInfo.Icon() + " up to date"
+			case res.SkippedReason != "":
+				result = render.StatusWarn.Icon() + " skipped: " + res.SkippedReason
+			default:
+				msg := res.Error
+				if msg == "" {
+					msg = "unknown sync error"
+				}
+				result = render.StatusFail.Icon() + " " + msg
+			}
+			tbl.AddRow(res.Name, res.Path, result)
+		}
+		_ = p.Table(tbl)
+	} else {
+		p.Empty(render.Plural(0, "repository", "repositories"))
+	}
+
+	if assetError != "" {
+		p.Line(render.StatusFail, "Assets: "+assetError)
+	}
+
+	summary := summarizeSyncResults(results)
+	p.Summary(
+		render.SummaryPart{Status: render.StatusOK, Count: summary.Updated, Label: "updated"},
+		render.SummaryPart{Status: render.StatusInfo, Count: summary.UpToDate, Label: "up to date"},
+		render.SummaryPart{Status: render.StatusWarn, Count: summary.Skipped, Label: "skipped"},
+		render.SummaryPart{Status: render.StatusFail, Count: summary.Failed, Label: "failed"},
+	)
 }

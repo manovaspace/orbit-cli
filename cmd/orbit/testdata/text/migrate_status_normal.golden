@@ -1,0 +1,10 @@
+Workspace migrations
+
+  State file  /workspace/.orbit/migrations.json
+
+  MIGRATION ID              DESCRIPTION                          STATUS
+  ───────────────────────────────────────────────────────────────────────────────────────────
+  001_workspace_init        Initialize workspace directory tree  ✔ applied (2026-11-03 09:30)
+  002_env_contracts         Verify environment contracts         ⚠ pending
+
+✔ 1 applied  ⚠ 1 pending

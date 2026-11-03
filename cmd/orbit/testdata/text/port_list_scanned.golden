@@ -1,0 +1,16 @@
+Port allocations
+
+  Projects  1
+  Scan  on
+
+  PROJECT               BASE      RANGE           STATUS
+  ────────────────────────────────────────────────────────────────
+  orbit-platform        10000     10000-10049     ⚠ 1 in use
+
+── Project 0: orbit-platform ───────────────────────────────
+  ⚠  base 10000 · range 10000-10049 (50 ports) · 1 unavailable at probe
+  ✔  +0  10000  Base / Database
+  ⚠  +1  10001  Core API / Backend  in use
+  ⚠  dynamic 10010-10049  38 bindable, 2 in use
+
+✔ 1 bindable  ⚠ 1 unavailable  ? 0 unverified

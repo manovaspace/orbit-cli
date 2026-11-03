@@ -72,6 +72,57 @@ func TestKVAlignment(t *testing.T) {
 	}
 }
 
+func TestKVBlockSeparatedFromBody(t *testing.T) {
+	bodies := map[string]func(*render.Printer){
+		"line": func(p *render.Printer) { p.Line(render.StatusOK, "fine") },
+		"table": func(p *render.Printer) {
+			tbl := table.New(
+				table.Column{Title: "NAME", MinWidth: 10},
+				table.Column{Title: "STATUS", MinWidth: 12},
+			).WithTerminalWidth(60)
+			tbl.AddRow("orbit-cli", "ok")
+			_ = p.Table(tbl)
+		},
+		"empty":   func(p *render.Printer) { p.Empty("repositories") },
+		"section": func(p *render.Printer) { p.Section("Checks") },
+	}
+
+	const prefix = "Subject\n\n  Scope  all\n  Mode   fast\n\n"
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			p := newPlain(&buf)
+			p.Title("Subject")
+			p.KVs([2]string{"Scope", "all"}, [2]string{"Mode", "fast"})
+			body(p)
+			if err := p.Err(); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+
+			out := buf.String()
+			if !strings.HasPrefix(out, prefix) {
+				t.Fatalf("output = %q, want the KV block followed by one empty line", out)
+			}
+			if strings.HasPrefix(strings.TrimPrefix(out, prefix), "\n") {
+				t.Errorf("output = %q, want exactly one empty line after the KV block", out)
+			}
+		})
+	}
+}
+
+func TestKVBlockThenSummaryKeepsOneBlankLine(t *testing.T) {
+	var buf bytes.Buffer
+	p := newPlain(&buf)
+	p.Title("Subject")
+	p.KVs([2]string{"Scope", "all"})
+	p.Summary(render.SummaryPart{Status: render.StatusOK, Count: 1, Label: "ok"})
+
+	want := "Subject\n\n  Scope  all\n\n[ok] 1 ok\n"
+	if got := buf.String(); got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+}
+
 func TestSummaryKeepsZeroCounts(t *testing.T) {
 	var buf bytes.Buffer
 	newPlain(&buf).Summary(
@@ -145,6 +196,18 @@ func TestSectionBlankLineOnlyAfterOutput(t *testing.T) {
 		if got := lipgloss.Width(lines[i]); got != 60 {
 			t.Errorf("rule %d width = %d, want 60: %q", i, got, lines[i])
 		}
+	}
+}
+
+func TestSectionAfterTitleKeepsOneBlankLine(t *testing.T) {
+	var buf bytes.Buffer
+	p := newPlain(&buf)
+	p.Title("System doctor")
+	p.Section("System")
+
+	want := "System doctor\n\n── System ─"
+	if !strings.HasPrefix(buf.String(), want) {
+		t.Errorf("Title followed by Section = %q, want one blank line then the rule", buf.String())
 	}
 }
 

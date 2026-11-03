@@ -138,8 +138,8 @@ groups:
 	if !strings.Contains(output, "dirty") && !strings.Contains(output, "modified") {
 		t.Errorf("expected 'dirty' or 'modified' indicator in output:\n%s", output)
 	}
-	if !strings.Contains(output, "Total: 4") {
-		t.Errorf("expected 'Total: 4' summary footer in output:\n%s", output)
+	if !strings.Contains(output, "4 repositories") {
+		t.Errorf("expected '4 repositories' summary footer in output:\n%s", output)
 	}
 }
 

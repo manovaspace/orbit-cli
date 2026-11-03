@@ -1,0 +1,1 @@
+{"schemaVersion":1,"ok":false,"error":{"code":"failed","message":"manifest file not found at <workspace>/absent.yaml. Ensure workspace.yaml exists or pass --manifest"}}

@@ -1,0 +1,10 @@
+Assets
+
+  Scope  all
+
+── repo ────────────────────────────────────────────────────
+  ✔  docs/a.pdf
+  ⚠  docs/b.pdf  missing
+  ✖  docs/c.pdf  mismatched: hash differs
+
+✔ 1 ok  ⚠ 1 missing  ✖ 1 mismatched

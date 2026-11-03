@@ -1,5 +1,5 @@
 // Package rendertest compares rendered output against golden files next to the
-// calling test. Run go test with -update to rewrite them.
+// calling test. Run go test with -update-render to rewrite them.
 package rendertest
 
 import (
@@ -10,7 +10,9 @@ import (
 	"testing"
 )
 
-var update = flag.Bool("update", false, "rewrite render golden files")
+// updateRender uses its own flag name because cmd/orbit registers -update for
+// its help goldens, and two packages cannot share one flag in the same binary.
+var updateRender = flag.Bool("update-render", false, "rewrite render golden files")
 
 // ansi matches CSI escape sequences emitted by lipgloss.
 var ansi = regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
@@ -23,7 +25,7 @@ func Golden(t testing.TB, name string, got string) {
 	got = ansi.ReplaceAllString(got, "")
 	path := filepath.Join("testdata", name+".golden")
 
-	if *update {
+	if *updateRender {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatalf("create golden dir: %v", err)
 		}
@@ -35,9 +37,9 @@ func Golden(t testing.TB, name string, got string) {
 
 	want, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read %s: %v (run go test ./pkg/render -update to create it)", path, err)
+		t.Fatalf("read %s: %v (run go test ./pkg/render ./cmd/orbit -update-render to create it)", path, err)
 	}
 	if got != string(want) {
-		t.Errorf("%s golden changed; run 'go test ./pkg/render -update' to refresh\n--- want ---\n%s\n--- got ---\n%s", name, want, got)
+		t.Errorf("%s golden changed; run 'go test ./pkg/render ./cmd/orbit -update-render' to refresh\n--- want ---\n%s\n--- got ---\n%s", name, want, got)
 	}
 }

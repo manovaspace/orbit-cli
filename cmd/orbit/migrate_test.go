@@ -27,11 +27,14 @@ func TestMigrateCmd_AllUpToDate(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Orbit Workspace Migrations") {
+	if !strings.Contains(output, "Workspace migrations") {
 		t.Errorf("output missing title:\n%s", output)
 	}
-	if !strings.Contains(output, "All workspace migrations are up to date") {
-		t.Errorf("output missing up-to-date message:\n%s", output)
+	if !strings.Contains(output, "No migrations found.") {
+		t.Errorf("output missing empty-result message:\n%s", output)
+	}
+	if !strings.Contains(output, "0 applied") {
+		t.Errorf("output missing applied count:\n%s", output)
 	}
 }
 
@@ -49,17 +52,11 @@ func TestMigrateStatusCmd_TableStructure(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Orbit Workspace Migration Status") {
+	if !strings.Contains(output, "Workspace migrations") {
 		t.Errorf("output missing title:\n%s", output)
 	}
-	if !strings.Contains(output, "MIGRATION ID") {
-		t.Errorf("output missing MIGRATION ID column header:\n%s", output)
-	}
-	if !strings.Contains(output, "DESCRIPTION") {
-		t.Errorf("output missing DESCRIPTION column header:\n%s", output)
-	}
-	if !strings.Contains(output, "STATUS") {
-		t.Errorf("output missing STATUS column header:\n%s", output)
+	if !strings.Contains(output, "No migrations found.") {
+		t.Errorf("output missing empty-result message:\n%s", output)
 	}
 	if !strings.Contains(output, "0 applied") || !strings.Contains(output, "0 pending") {
 		t.Errorf("output missing summary footer counts:\n%s", output)
@@ -93,14 +90,14 @@ func TestMigrateStatusCmd_WithAppliedState(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Orbit Workspace Migration Status") {
+	if !strings.Contains(output, "Workspace migrations") {
 		t.Errorf("output missing title:\n%s", output)
-	}
-	if !strings.Contains(output, "MIGRATION ID") || !strings.Contains(output, "DESCRIPTION") || !strings.Contains(output, "STATUS") {
-		t.Errorf("output missing headers:\n%s", output)
 	}
 	if !strings.Contains(output, "migrations.json") {
 		t.Errorf("output missing state file path:\n%s", output)
+	}
+	if !strings.Contains(output, "No migrations found.") {
+		t.Errorf("output missing empty-result message:\n%s", output)
 	}
 }
 

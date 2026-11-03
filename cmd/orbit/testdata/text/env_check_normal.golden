@@ -1,0 +1,11 @@
+Environment contracts
+
+  Search path  /workspace
+
+── services/backend ────────────────────────────────────────
+  ✔  .env valid (3 variables verified)
+
+── MCP environment ─────────────────────────────────────────
+  ✔  .cursor/mcp.env permissions 0600 secure
+
+✔ 1 valid  ⚠ 0 missing  ✖ 0 invalid  ✖ 0 failed  ⚠ 0 warnings  ? 0 unverified

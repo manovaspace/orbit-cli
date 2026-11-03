@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
@@ -34,18 +35,18 @@ func newWorkspaceService(out io.Writer) *workspaceapp.Service {
 
 func workspaceUI() workspaceapp.UI {
 	return workspaceapp.UI{
-		OK:        iconOK,
-		Warn:      iconWarn,
-		Error:     iconError,
-		Info:      iconInfo,
-		Title:     func(text string) string { return titleStyle.Render(text) },
-		Header:    func(text string) string { return headerStyle.Render(text) },
-		Bold:      func(text string) string { return boldStyle.Render(text) },
-		Success:   func(text string) string { return successStyle.Render(text) },
-		Warning:   func(text string) string { return warningStyle.Render(text) },
-		ErrorText: func(text string) string { return errorStyle.Render(text) },
-		InfoText:  func(text string) string { return infoStyle.Render(text) },
-		Subtle:    func(text string) string { return subtleStyle.Render(text) },
+		OK:        render.IconOK,
+		Warn:      render.IconWarn,
+		Error:     render.IconError,
+		Info:      render.IconInfo,
+		Title:     func(text string) string { return render.TitleLegacy.Render(text) },
+		Header:    func(text string) string { return render.Header.Render(text) },
+		Bold:      func(text string) string { return render.Bold.Render(text) },
+		Success:   func(text string) string { return render.Success.Render(text) },
+		Warning:   func(text string) string { return render.Warning.Render(text) },
+		ErrorText: func(text string) string { return render.Error.Render(text) },
+		InfoText:  func(text string) string { return render.Info.Render(text) },
+		Subtle:    func(text string) string { return render.Subtle.Render(text) },
 	}
 }
 
@@ -100,10 +101,6 @@ func newStatusCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			uiOut := io.Writer(out)
-			if jsonFlag {
-				uiOut = io.Discard
-			}
 			scope := "all"
 			if len(args) > 0 && args[0] != "" {
 				scope = args[0]
@@ -112,11 +109,7 @@ func newStatusCmd() *cobra.Command {
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
-			if !jsonFlag {
-				fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Status — Scope: %s", scope)))
-			}
-
-			res, err := newWorkspaceService(uiOut).Status(cmd.Context(), workspaceapp.StatusInput{
+			res, err := newWorkspaceService(io.Discard).Status(cmd.Context(), workspaceapp.StatusInput{
 				WorkspaceRoot: workspaceRoot,
 				ManifestPath:  manifestPath,
 				Scope:         scope,
@@ -136,79 +129,9 @@ func newStatusCmd() *cobra.Command {
 				}))
 			}
 
-			if len(res.Repos) == 0 {
-				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
-				return nil
-			}
-
-			tbl := table.New(
-				table.Column{Title: "REPOSITORY", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 16},
-				table.Column{Title: "PATH", HeaderStyle: headerStyle, CellStyle: subtleStyle, MinWidth: 20, Flexible: true},
-				table.Column{Title: "BRANCH", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 8},
-				table.Column{Title: "SYNC", HeaderStyle: headerStyle, MinWidth: 12},
-				table.Column{Title: "WORKING TREE", HeaderStyle: headerStyle, MinWidth: 14},
-			)
-			if limitFlag > 0 {
-				tbl.WithPagination(pageFlag, limitFlag)
-			}
-
-			summary := summarizeStatuses(res.Repos)
-
-			for _, s := range res.Repos {
-				repoCell := table.PlainCell(s.Name)
-				pathCell := table.PlainCell(s.Path)
-
-				switch s.Error {
-				case "":
-					branchCell := table.PlainCell(s.CurrentBranch)
-					var syncCell table.Cell
-					switch {
-					case s.AheadCount > 0 && s.BehindCount > 0:
-						syncCell = table.StyleCell(fmt.Sprintf("↕%d/%d diverged", s.AheadCount, s.BehindCount), warningStyle)
-					case s.AheadCount > 0:
-						syncCell = table.StyleCell(fmt.Sprintf("↑%d ahead", s.AheadCount), subtleStyle)
-					case s.BehindCount > 0:
-						syncCell = table.StyleCell(fmt.Sprintf("↓%d behind", s.BehindCount), subtleStyle)
-					default:
-						syncCell = table.StyleCell("up to date", subtleStyle)
-					}
-
-					var treeCell table.Cell
-					if s.IsClean {
-						treeCell = table.StyleCell("✔ clean", successStyle)
-					} else {
-						treeCell = table.StyleCell(fmt.Sprintf("✖ dirty (%d)", s.ModifiedCount), errorStyle)
-					}
-
-					tbl.AddStyledRow(repoCell, pathCell, branchCell, syncCell, treeCell)
-				case workspacedomain.ErrMissing:
-					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell("not cloned", subtleStyle))
-				case workspacedomain.ErrGitless:
-					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell("gitless — run orbit repair", warningStyle))
-				default:
-					tbl.AddStyledRow(repoCell, pathCell, table.StyleCell("-", subtleStyle), table.StyleCell("-", subtleStyle), table.StyleCell(s.Error, errorStyle))
-				}
-			}
-
-			fmt.Fprintln(out)
-			_ = tbl.Render(out)
-
-			// Summary footer
-			fmt.Fprintf(out, "\n%s  %s  %s  %s  %s\n",
-				infoStyle.Render(fmt.Sprintf("Total: %d", summary.Total)),
-				successStyle.Render(fmt.Sprintf("✔ %d clean", summary.Clean)),
-				warningStyle.Render(fmt.Sprintf("⚠ %d dirty", summary.Dirty)),
-				subtleStyle.Render(fmt.Sprintf("○ %d not cloned", summary.Missing)),
-				warningStyle.Render(fmt.Sprintf("✖ %d gitless", summary.Gitless)),
-			)
-			if summary.OtherErrors > 0 {
-				fmt.Fprintf(out, "%s\n", errorStyle.Render(fmt.Sprintf("  %d other errors", summary.OtherErrors)))
-			}
-			if summary.Gitless > 0 {
-				fmt.Fprintf(out, "  %s  %s\n", iconInfo, subtleStyle.Render("gitless trees: orbit repair [scope]  (copies .git only; never checkout -f)"))
-			}
-
-			return nil
+			p := render.NewPrinter(out)
+			renderStatusResult(p, scope, res.Repos, pageFlag, limitFlag)
+			return p.Err()
 		},
 	}
 
@@ -218,4 +141,75 @@ func newStatusCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+// renderStatusResult writes the text form from the same repository statuses the
+// JSON envelope carries.
+func renderStatusResult(p *render.Printer, scope string, repos []workspacedomain.RepoStatus, page, limit int) {
+	p.Title(fmt.Sprintf("Workspace status — %s", scope))
+
+	summary := summarizeStatuses(repos)
+	if len(repos) > 0 {
+		tbl := table.New(
+			table.Column{Title: "REPOSITORY", HeaderStyle: render.Header, CellStyle: render.Bold, MinWidth: 16},
+			table.Column{Title: "PATH", HeaderStyle: render.Header, CellStyle: render.Subtle, MinWidth: 20, Flexible: true},
+			table.Column{Title: "BRANCH", HeaderStyle: render.Header, CellStyle: render.Bold, MinWidth: 8},
+			table.Column{Title: "SYNC", HeaderStyle: render.Header, MinWidth: 12},
+			table.Column{Title: "WORKING TREE", HeaderStyle: render.Header, MinWidth: 14},
+		)
+		if limit > 0 {
+			tbl.WithPagination(page, limit)
+		}
+
+		for _, s := range repos {
+			branch := "-"
+			syncText := "-"
+			tree := ""
+
+			switch s.Error {
+			case "":
+				branch = s.CurrentBranch
+				switch {
+				case s.AheadCount > 0 && s.BehindCount > 0:
+					syncText = fmt.Sprintf("%s ↕%d/%d diverged", render.StatusWarn.Icon(), s.AheadCount, s.BehindCount)
+				case s.AheadCount > 0:
+					syncText = fmt.Sprintf("%s ↑%d ahead", render.StatusInfo.Icon(), s.AheadCount)
+				case s.BehindCount > 0:
+					syncText = fmt.Sprintf("%s ↓%d behind", render.StatusInfo.Icon(), s.BehindCount)
+				default:
+					syncText = render.StatusInfo.Icon() + " up to date"
+				}
+				if s.IsClean {
+					tree = render.StatusOK.Icon() + " clean"
+				} else {
+					tree = fmt.Sprintf("%s dirty (%d)", render.StatusWarn.Icon(), s.ModifiedCount)
+				}
+			case workspacedomain.ErrMissing:
+				tree = render.StatusSkipped.Icon() + " not cloned"
+			case workspacedomain.ErrGitless:
+				tree = render.StatusFail.Icon() + " gitless — run orbit repair"
+			default:
+				tree = render.StatusFail.Icon() + " " + s.Error
+			}
+
+			tbl.AddRow(s.Name, s.Path, branch, syncText, tree)
+		}
+
+		_ = p.Table(tbl)
+
+		if summary.Gitless > 0 {
+			p.Line(render.StatusInfo, "gitless trees: orbit repair [scope] (copies .git only; never checkout -f)")
+		}
+	} else {
+		p.Empty(render.Plural(0, "repository", "repositories"))
+	}
+
+	p.Summary(
+		render.SummaryPart{Status: render.StatusInfo, Count: summary.Total, Label: render.Plural(summary.Total, "repository", "repositories")},
+		render.SummaryPart{Status: render.StatusOK, Count: summary.Clean, Label: "clean"},
+		render.SummaryPart{Status: render.StatusWarn, Count: summary.Dirty, Label: "dirty"},
+		render.SummaryPart{Status: render.StatusSkipped, Count: summary.Missing, Label: "not cloned"},
+		render.SummaryPart{Status: render.StatusFail, Count: summary.Gitless, Label: "gitless"},
+		render.SummaryPart{Status: render.StatusFail, Count: summary.OtherErrors, Label: render.Plural(summary.OtherErrors, "other error", "other errors")},
+	)
 }

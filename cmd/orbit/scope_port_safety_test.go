@@ -36,7 +36,7 @@ func TestPortNoScanTruthful(t *testing.T) {
 	if strings.Contains(out.String(), "[FREE]") || strings.Contains(out.String(), "in use") {
 		t.Errorf("disabled scan claims listener knowledge: %s", out)
 	}
-	if !strings.Contains(out.String(), "UNVERIFIED") {
+	if !strings.Contains(out.String(), "unverified") {
 		t.Errorf("disabled scan missing unverified: %s", out)
 	}
 }
