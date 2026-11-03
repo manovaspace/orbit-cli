@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/manovaspace/orbit-cli/compare/v0.13.0...v0.14.0) (2026-11-03)
+
+
+### Features
+
+* **cli:** one-line errors, JSON error envelopes and version --json (ADR-047 phase 2) ([6acd1b5](https://github.com/manovaspace/orbit-cli/commit/6acd1b51637223783789a69b146683b8d007dd5f))
+* **cli:** one-line errors, JSON error envelopes and version --json (ADR-047 phase 2) ([5b7f00f](https://github.com/manovaspace/orbit-cli/commit/5b7f00f2526dde33cafa3f0d2ee489b2b3a16ec4))
+
 ## [0.13.0](https://github.com/manovaspace/orbit-cli/compare/v0.12.0...v0.13.0) (2026-11-02)
 
 
