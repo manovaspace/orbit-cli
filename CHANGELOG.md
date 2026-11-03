@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/manovaspace/orbit-cli/compare/v0.14.0...v0.15.0) (2026-11-03)
+
+
+### Features
+
+* **cli:** render inspection commands through pkg/render (ADR-047 phase 3, batch 1) ([98efa50](https://github.com/manovaspace/orbit-cli/commit/98efa50c6f3cf05f8123ac9ca2ee0205e2b46837))
+* **cli:** render inspection commands through pkg/render (ADR-047 phase 3, batch 1) ([9c43cb9](https://github.com/manovaspace/orbit-cli/commit/9c43cb958391e16e9086aa34011438b80bf04219))
+
 ## [0.14.0](https://github.com/manovaspace/orbit-cli/compare/v0.13.0...v0.14.0) (2026-11-03)
 
 
