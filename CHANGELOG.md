@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0](https://github.com/manovaspace/orbit-cli/compare/v0.15.0...v0.16.0) (2026-11-03)
+
+
+### Features
+
+* **pr:** flat status table with URL detail line ([36deedc](https://github.com/manovaspace/orbit-cli/commit/36deedc388272912b838b01931998cee49d5d428))
+* **pr:** flat status table with URL detail line ([fc75fc5](https://github.com/manovaspace/orbit-cli/commit/fc75fc595931df539597e0f71bc4abe92905cba3))
+
 ## [0.15.0](https://github.com/manovaspace/orbit-cli/compare/v0.14.0...v0.15.0) (2026-11-03)
 
 
