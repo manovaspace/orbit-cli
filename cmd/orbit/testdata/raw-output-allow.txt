@@ -1,0 +1,24 @@
+# ADR-047 D1 allowlist: raw fmt.Fprint* calls that have not moved to pkg/render.
+# Format: '<filename> <count>  # reason'. Entries must be sorted by filename.
+# The guard fails when a file grows past its count, when a file with calls is
+# not listed, and when a listed count is stale (lower it as batches land).
+# Measured on 2026-11-05.
+#
+# Groups:
+#   Exempt: interactive prompts and diagnostics, not command results
+#   Pending migration (ADR-047 batches 3-5)
+admin.go 1  # Exempt: interactive prompts and diagnostics, not command results
+assets.go 2  # Exempt: interactive prompts and diagnostics, not command results
+audit.go 4  # Pending migration (ADR-047 batches 3-5)
+config.go 8  # Pending migration (ADR-047 batches 3-5)
+doc.go 2  # Exempt: interactive prompts and diagnostics, not command results
+hostgate.go 1  # Exempt: interactive prompts and diagnostics, not command results
+init.go 14  # Pending migration (ADR-047 batches 3-5)
+invite.go 26  # Pending migration (ADR-047 batches 3-5)
+main.go 6  # Exempt: interactive prompts and diagnostics, not command results
+pr.go 7  # Pending migration (ADR-047 batches 3-5)
+release.go 12  # Pending migration (ADR-047 batches 3-5)
+repair.go 3  # Pending migration (ADR-047 batches 3-5)
+staff.go 29  # Pending migration (ADR-047 batches 3-5)
+ui.go 4  # Exempt: interactive prompts and diagnostics, not command results
+update.go 27  # Pending migration (ADR-047 batches 3-5)
