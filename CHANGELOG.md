@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0](https://github.com/manovaspace/orbit-cli/compare/v0.16.0...v0.17.0) (2026-11-05)
+
+
+### Features
+
+* **dev:** use the orbit-block dev tooling ports ([9b63bcb](https://github.com/manovaspace/orbit-cli/commit/9b63bcb03589367c08954a397513d3fabbb51cde))
+* **dev:** use the orbit-block dev tooling ports ([ecedf9b](https://github.com/manovaspace/orbit-cli/commit/ecedf9b1b5f254c7acb3ec4971c676ef7c4d819b))
+
 ## [0.16.0](https://github.com/manovaspace/orbit-cli/compare/v0.15.0...v0.16.0) (2026-11-03)
 
 
