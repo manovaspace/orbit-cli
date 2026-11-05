@@ -1,4 +1,4 @@
-Start or stop the standby runner and set CI_RUNNER on private repos
+Set CI_RUNNER on private repos and report the self-hosted pool
 
 Usage:
   orbit ci runner vps|github|status [flags]

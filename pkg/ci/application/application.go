@@ -4,6 +4,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -72,14 +73,28 @@ func (s *Service) PrivateRepos(ctx context.Context, repos []manifest.RepoTarget)
 	return private, nil
 }
 
-// SetRunner switches the CI runner for repos. "vps" starts the standby runner
-// before pointing CI_RUNNER at it; "github" removes the variable (missing is
-// fine) and stops the runner afterwards.
+// SetRunner switches where CI runs for repos. "vps" points CI_RUNNER at the
+// organization's self-hosted pool and refuses to switch when no online runner
+// carries the label; "github" removes the variable (missing is fine) so the
+// workflow falls back to ubuntu-latest. Neither mode touches the runner host:
+// the pool is always on.
 func (s *Service) SetRunner(ctx context.Context, mode domain.RunnerMode, repos []string) error {
 	switch mode {
 	case domain.ModeVPS:
-		if _, err := s.run(ctx, "", "sudo", "systemctl", "start", "gh-ci"); err != nil {
-			return fmt.Errorf("start gh-ci: %w", err)
+		// Nothing to pin: skip the pool check rather than fail on an empty
+		// organization name.
+		if len(repos) > 0 {
+			org, ok := domain.Organization(repos)
+			if !ok {
+				return clierr.Usage("runner vps needs repositories from a single GitHub organization")
+			}
+			runners, err := s.runners(ctx, org)
+			if err != nil {
+				return err
+			}
+			if !domain.OnlineWithLabel(runners, domain.RunnerLabelVPS) {
+				return fmt.Errorf("no online self-hosted runner with label %q in %s: register the pool before pinning CI_RUNNER", domain.RunnerLabelVPS, org)
+			}
 		}
 		for _, repo := range repos {
 			if _, err := s.run(ctx, "", "gh", "variable", "set", "CI_RUNNER", "--body", "vps", "-R", repo); err != nil {
@@ -94,9 +109,6 @@ func (s *Service) SetRunner(ctx context.Context, mode domain.RunnerMode, repos [
 				}
 			}
 		}
-		if _, err := s.run(ctx, "", "sudo", "systemctl", "stop", "gh-ci"); err != nil {
-			return fmt.Errorf("stop gh-ci: %w", err)
-		}
 	default:
 		return clierr.Usage(fmt.Sprintf("unknown runner mode %q", mode))
 	}
@@ -105,15 +117,17 @@ func (s *Service) SetRunner(ctx context.Context, mode domain.RunnerMode, repos [
 	return nil
 }
 
-// RunnerStatus reports whether the standby runner is active and which
-// repositories still pin CI_RUNNER.
+// RunnerStatus reports the organization runners and which repositories still
+// pin CI_RUNNER.
 func (s *Service) RunnerStatus(ctx context.Context, repos []string) (domain.Status, error) {
-	status := domain.Status{Vars: map[string]string{}}
-	out, err := s.run(ctx, "", "systemctl", "is-active", "gh-ci")
-	if err != nil && strings.TrimSpace(out) == "" {
-		return status, fmt.Errorf("gh-ci status: %w", err)
+	status := domain.Status{Runners: []domain.Runner{}, Vars: map[string]string{}}
+	if org, ok := domain.Organization(repos); ok {
+		runners, err := s.runners(ctx, org)
+		if err != nil {
+			return status, err
+		}
+		status.Runners = runners
 	}
-	status.Service = strings.TrimSpace(out)
 	for _, repo := range repos {
 		value, err := s.run(ctx, "", "gh", "variable", "get", "CI_RUNNER", "-R", repo, "--json", "value", "--jq", ".value")
 		if err != nil {
@@ -124,10 +138,36 @@ func (s *Service) RunnerStatus(ctx context.Context, repos []string) (domain.Stat
 	return status, nil
 }
 
+// runners lists the organization's self-hosted runners. The default page size
+// is 30; 100 is the API maximum and exceeds any pool this workspace runs.
+func (s *Service) runners(ctx context.Context, org string) ([]domain.Runner, error) {
+	out, err := s.run(ctx, "", "gh", "api", fmt.Sprintf("orgs/%s/actions/runners?per_page=100", org))
+	if err != nil {
+		return nil, fmt.Errorf("list runners for %s: %w", org, err)
+	}
+	var payload struct {
+		Runners []domain.Runner `json:"runners"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		return nil, fmt.Errorf("decode runners for %s: %w", org, err)
+	}
+	return payload.Runners, nil
+}
+
 // RenderStatus writes the human lines of `ci runner status`.
 func (s *Service) RenderStatus(status domain.Status, repos []string) {
 	out := s.out()
-	fmt.Fprintf(out, "gh-ci service: %s\n", status.Service)
+	for _, runner := range status.Runners {
+		state := "idle"
+		if runner.Busy {
+			state = "busy"
+		}
+		labels := make([]string, 0, len(runner.Labels))
+		for _, label := range runner.Labels {
+			labels = append(labels, label.Name)
+		}
+		fmt.Fprintf(out, "runner %s: %s %s labels=%s\n", runner.Name, runner.Status, state, strings.Join(labels, ","))
+	}
 	for _, repo := range repos {
 		variable := status.Vars[repo]
 		if variable == "" {

@@ -32,9 +32,9 @@ func newCIService(out io.Writer) *ciapp.Service {
 func newCICmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ci",
-		Short: "Switch the CI runner and sync GitHub Actions secrets",
-		Long: "Move private repositories between the GitHub-hosted runner and the standby vps " +
-			"runner, and push each repository's secrets without writing them to argv.",
+		Short: "Point private repositories at the self-hosted pool and sync secrets",
+		Long: "Move private repositories between GitHub-hosted runners and the organization's " +
+			"self-hosted pool, and push each repository's secrets without writing them to argv.",
 	}
 	cmd.AddCommand(newCIRunnerCmd())
 	cmd.AddCommand(newCISecretsCmd())
@@ -48,7 +48,7 @@ func newCIRunnerCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "runner vps|github|status",
-		Short: "Start or stop the standby runner and set CI_RUNNER on private repos",
+		Short: "Set CI_RUNNER on private repos and report the self-hosted pool",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

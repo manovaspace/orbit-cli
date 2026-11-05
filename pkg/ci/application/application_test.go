@@ -68,14 +68,20 @@ func newService(commands *fakeCommand, files *fakeFiles) *Service {
 	return &Service{Commands: commands, Files: files, Out: io.Discard}
 }
 
+const onlineVPSRunners = `{"total_count":2,"runners":[
+	{"name":"gcp-ci-1","status":"online","busy":false,"labels":[{"name":"self-hosted"},{"name":"vps"}]},
+	{"name":"gcp-ci-2","status":"offline","busy":false,"labels":[{"name":"self-hosted"},{"name":"vps"}]}
+]}`
+
 func TestSetRunnerVPSOrder(t *testing.T) {
 	commands := newFakeCommand()
+	commands.result["gh api orgs/manovaspace/actions/runners?per_page=100"] = onlineVPSRunners
 	if err := newService(commands, newFakeFiles()).SetRunner(context.Background(), domain.ModeVPS, []string{"manovaspace/a", "manovaspace/b"}); err != nil {
 		t.Fatalf("SetRunner: %v", err)
 	}
 
 	want := []string{
-		"sudo systemctl start gh-ci",
+		"gh api orgs/manovaspace/actions/runners?per_page=100",
 		"gh variable set CI_RUNNER --body vps -R manovaspace/a",
 		"gh variable set CI_RUNNER --body vps -R manovaspace/b",
 	}
@@ -89,7 +95,48 @@ func TestSetRunnerVPSOrder(t *testing.T) {
 	}
 }
 
-func TestSetRunnerGithubIgnoresMissingVar(t *testing.T) {
+func TestSetRunnerVPSRequiresOnlineLabel(t *testing.T) {
+	for name, payload := range map[string]string{
+		"no runners":        `{"total_count":0,"runners":[]}`,
+		"offline only":      `{"total_count":1,"runners":[{"name":"gcp-ci-1","status":"offline","labels":[{"name":"vps"}]}]}`,
+		"missing the label": `{"total_count":1,"runners":[{"name":"other","status":"online","labels":[{"name":"self-hosted"}]}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			commands := newFakeCommand()
+			commands.result["gh api orgs/manovaspace/actions/runners?per_page=100"] = payload
+			err := newService(commands, newFakeFiles()).SetRunner(context.Background(), domain.ModeVPS, []string{"manovaspace/a"})
+			if err == nil {
+				t.Fatal("vps mode must fail without an online runner carrying the label")
+			}
+			for _, c := range commands.calls {
+				if strings.HasPrefix(c.argv, "gh variable set") {
+					t.Fatalf("pinned CI_RUNNER despite no usable runner: %q", c.argv)
+				}
+			}
+		})
+	}
+}
+
+func TestSetRunnerVPSRejectsMixedOrganizations(t *testing.T) {
+	err := newService(newFakeCommand(), newFakeFiles()).SetRunner(context.Background(), domain.ModeVPS, []string{"manovaspace/a", "other/b"})
+	if err == nil {
+		t.Fatal("mixed owners must fail")
+	}
+	if got := clierr.ExitCode(err); got != clierr.ExitUsage {
+		t.Errorf("exit = %d, want usage", got)
+	}
+}
+
+func TestSetRunnerVPSWithNoReposMakesNoCalls(t *testing.T) {
+	commands := newFakeCommand()
+	if err := newService(commands, newFakeFiles()).SetRunner(context.Background(), domain.ModeVPS, nil); err != nil {
+		t.Fatalf("SetRunner: %v", err)
+	}
+	if len(commands.calls) != 0 {
+		t.Fatalf("calls = %+v, want none", commands.calls)
+	}
+}
+func TestSetRunnerGithubOnlyDeletesVariables(t *testing.T) {
 	commands := newFakeCommand()
 	commands.failure["gh variable delete CI_RUNNER -R manovaspace/b"] = errors.New("variable not found")
 	commands.failure["gh variable delete CI_RUNNER -R manovaspace/c"] = errors.New("failed to delete variable CI_RUNNER: HTTP 404")
@@ -97,8 +144,13 @@ func TestSetRunnerGithubIgnoresMissingVar(t *testing.T) {
 	if err := newService(commands, newFakeFiles()).SetRunner(context.Background(), domain.ModeGitHub, []string{"manovaspace/a", "manovaspace/b", "manovaspace/c"}); err != nil {
 		t.Fatalf("SetRunner: %v", err)
 	}
-	if last := commands.calls[len(commands.calls)-1].argv; last != "sudo systemctl stop gh-ci" {
-		t.Errorf("last call = %q, want the runner stop", last)
+	if last := commands.calls[len(commands.calls)-1].argv; last != "gh variable delete CI_RUNNER -R manovaspace/c" {
+		t.Errorf("last call = %q, want the final delete", last)
+	}
+	for _, c := range commands.calls {
+		if !strings.HasPrefix(c.argv, "gh variable delete") {
+			t.Errorf("github mode must not touch the runner host: %q", c.argv)
+		}
 	}
 }
 
@@ -133,7 +185,7 @@ func TestPrivateReposFiltersPublic(t *testing.T) {
 
 func TestRunnerStatus(t *testing.T) {
 	commands := newFakeCommand()
-	commands.result["systemctl is-active gh-ci"] = "active\n"
+	commands.result["gh api orgs/manovaspace/actions/runners?per_page=100"] = onlineVPSRunners
 	commands.result["gh variable get CI_RUNNER -R manovaspace/a --json value --jq .value"] = "vps\n"
 	commands.failure["gh variable get CI_RUNNER -R manovaspace/b --json value --jq .value"] = errors.New("not found")
 
@@ -141,11 +193,35 @@ func TestRunnerStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Service != "active" || status.Vars["manovaspace/a"] != "vps" {
-		t.Fatalf("status = %+v", status)
+	if len(status.Runners) != 2 || status.Runners[0].Name != "gcp-ci-1" {
+		t.Fatalf("runners = %+v", status.Runners)
+	}
+	if status.Runners[0].Status != "online" || !status.Runners[0].HasLabel(domain.RunnerLabelVPS) {
+		t.Errorf("first runner = %+v", status.Runners[0])
+	}
+	if status.Vars["manovaspace/a"] != "vps" {
+		t.Errorf("vars = %+v", status.Vars)
 	}
 	if _, ok := status.Vars["manovaspace/b"]; ok {
 		t.Error("unset variable recorded")
+	}
+}
+
+func TestRunnerStatusSurfacesUnreadablePool(t *testing.T) {
+	commands := newFakeCommand()
+	commands.failure["gh api orgs/manovaspace/actions/runners?per_page=100"] = errors.New("HTTP 403")
+
+	status, err := newService(commands, newFakeFiles()).RunnerStatus(context.Background(), []string{"manovaspace/a"})
+	if err == nil {
+		t.Fatal("an unreadable pool must surface the API error")
+	}
+	if len(status.Runners) != 0 {
+		t.Fatalf("runners = %+v", status.Runners)
+	}
+	for _, c := range commands.calls {
+		if strings.HasPrefix(c.argv, "gh variable get") {
+			t.Errorf("status read variables after a failed pool listing: %q", c.argv)
+		}
 	}
 }
 

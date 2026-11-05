@@ -1,10 +1,10 @@
-Move private repositories between the GitHub-hosted runner and the standby vps runner, and push each repository's secrets without writing them to argv.
+Move private repositories between GitHub-hosted runners and the organization's self-hosted pool, and push each repository's secrets without writing them to argv.
 
 Usage:
   orbit ci [command]
 
 Available Commands:
-  runner      Start or stop the standby runner and set CI_RUNNER on private repos
+  runner      Set CI_RUNNER on private repos and report the self-hosted pool
   secrets     Push repository secrets declared in workspace.yaml
 
 Flags:
