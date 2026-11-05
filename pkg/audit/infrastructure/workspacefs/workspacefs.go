@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -117,14 +118,20 @@ func (f *Files) InstalledExports(repoDir, fromFile, module string) (string, bool
 	}
 
 	found := ""
+	foundVersion := ""
 	_ = filepath.WalkDir(repoDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || !entry.IsDir() || path == repoDir {
 			return nil
 		}
 		if entry.Name() == "node_modules" {
-			if file, ok := packageExportFile(filepath.Join(path, filepath.FromSlash(name)), sub); ok {
-				found = file
-				return filepath.SkipAll
+			pkgDir := filepath.Join(path, filepath.FromSlash(name))
+			if file, ok := packageExportFile(pkgDir, sub); ok {
+				// Several copies can exist (Bun keeps every resolved version in
+				// node_modules/.bun), so prefer the newest declaration instead of
+				// the first one the walk meets (#100).
+				if version := packageVersion(pkgDir); found == "" || compareVersions(version, foundVersion) > 0 {
+					found, foundVersion = file, version
+				}
 			}
 			return filepath.SkipDir
 		}
@@ -134,6 +141,75 @@ func (f *Files) InstalledExports(repoDir, fromFile, module string) (string, bool
 		return nil
 	})
 	return found, found != ""
+}
+
+// packageVersion reads an installed package's version, or "" when absent.
+func packageVersion(pkgDir string) string {
+	data, err := os.ReadFile(filepath.Join(pkgDir, "package.json"))
+	if err != nil {
+		return ""
+	}
+	var pkg struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(data, &pkg) != nil {
+		return ""
+	}
+	return pkg.Version
+}
+
+// compareVersions orders dotted numeric versions; a version that does not parse
+// sorts below any that does, so a package with a version always wins.
+func compareVersions(a, b string) int {
+	as, aok := numericParts(a)
+	bs, bok := numericParts(b)
+	if !aok || !bok {
+		switch {
+		case aok:
+			return 1
+		case bok:
+			return -1
+		default:
+			return strings.Compare(a, b)
+		}
+	}
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		var av, bv int
+		if i < len(as) {
+			av = as[i]
+		}
+		if i < len(bs) {
+			bv = bs[i]
+		}
+		if av != bv {
+			if av < bv {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+// numericParts splits major.minor.patch, ignoring a prerelease or build suffix.
+func numericParts(version string) ([]int, bool) {
+	if version == "" {
+		return nil, false
+	}
+	core := version
+	if i := strings.IndexAny(core, "-+"); i >= 0 {
+		core = core[:i]
+	}
+	parts := strings.Split(core, ".")
+	out := make([]int, 0, len(parts))
+	for _, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return nil, false
+		}
+		out = append(out, n)
+	}
+	return out, true
 }
 
 // packageExportFile resolves the declaration file of one installed package

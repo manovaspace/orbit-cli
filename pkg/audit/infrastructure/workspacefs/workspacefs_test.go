@@ -56,3 +56,17 @@ func TestInstalledExportsReadsImportingPackageNodeModules(t *testing.T) {
 		t.Errorf("resolved %q, want a path under %q", got, want)
 	}
 }
+
+func TestInstalledExportsPrefersNewestStoredCopy(t *testing.T) {
+	repoDir := filepath.Join(fixtureWorkspace(t), "clients", "demo", "stale-store")
+	fromFile := filepath.Join(repoDir, "spec", "source.ts")
+
+	got, ok := New().InstalledExports(repoDir, fromFile, "@manovaspace/ui")
+	if !ok {
+		t.Fatal("@manovaspace/ui not resolved from a node_modules store copy")
+	}
+	want := filepath.Join(repoDir, "zzz", "node_modules", "@manovaspace", "ui", "dist", "index.d.ts")
+	if got != want {
+		t.Errorf("resolved %q, want the newer copy %q", got, want)
+	}
+}
