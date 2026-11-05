@@ -118,6 +118,8 @@ github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBql
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/manovaspace/orbit-notifications v0.0.0-20261029235826-3ccd242c100c h1:jQlFjyFO1lPr8hZRMi1R2IG60eb78nlGc3xZblbe8CI=
 github.com/manovaspace/orbit-notifications v0.0.0-20261029235826-3ccd242c100c/go.mod h1:H83gV+XeEjb7b23DAubj6l1vb1pwCKn/FRa+RJQNKTU=
+github.com/manovaspace/orbit-notifications v0.1.1 h1:6kUNqn2cY1bEtfbBbzBJxIybk44z30iMQvHUjegsJZk=
+github.com/manovaspace/orbit-notifications v0.1.1/go.mod h1:fyzQTJyZTWMXtJzTrvIysfCWsJb4ZI8ngtHRJqjA+jA=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=

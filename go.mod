@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/creativeprojects/go-selfupdate v1.7.0
-	github.com/manovaspace/orbit-notifications v0.0.0-20261029235826-3ccd242c100c
+	github.com/manovaspace/orbit-notifications v0.1.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/term v0.47.0
