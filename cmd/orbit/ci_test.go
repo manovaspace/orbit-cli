@@ -69,7 +69,7 @@ func setupCITest(t *testing.T) (*ciFakeCommand, string) {
 func TestCIRunnerStatusJSON(t *testing.T) {
 	commands, _ := setupCITest(t)
 	commands.result["gh repo view manovaspace/orbit-tg --json visibility --jq .visibility"] = "PRIVATE\n"
-	commands.result["systemctl is-active gh-ci"] = "active\n"
+	commands.result["gh api orgs/manovaspace/actions/runners?per_page=100"] = `{"total_count":1,"runners":[{"name":"gcp-ci-1","status":"online","busy":true,"labels":[{"name":"self-hosted"},{"name":"vps"}]}]}`
 	commands.result["gh variable get CI_RUNNER -R manovaspace/orbit-tg --json value --jq .value"] = "vps\n"
 
 	out, err := runRootForTest(t, "ci", "runner", "status", "--json")
@@ -81,14 +81,18 @@ func TestCIRunnerStatusJSON(t *testing.T) {
 		t.Fatalf("unexpected envelope: %+v", env)
 	}
 	var data struct {
-		Service string            `json:"service"`
-		Vars    map[string]string `json:"vars"`
+		Runners []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+			Busy   bool   `json:"busy"`
+		} `json:"runners"`
+		Vars map[string]string `json:"vars"`
 	}
 	if err := json.Unmarshal(env.Data, &data); err != nil {
 		t.Fatalf("decoding data: %v", err)
 	}
-	if data.Service != "active" {
-		t.Errorf("service = %q", data.Service)
+	if len(data.Runners) != 1 || data.Runners[0].Name != "gcp-ci-1" || data.Runners[0].Status != "online" || !data.Runners[0].Busy {
+		t.Errorf("runners = %+v", data.Runners)
 	}
 	if data.Vars["manovaspace/orbit-tg"] != "vps" {
 		t.Errorf("vars = %+v", data.Vars)
@@ -117,8 +121,35 @@ func TestCIRunnerSetJSON(t *testing.T) {
 	if data.Mode != "github" || len(data.Repositories) != 1 {
 		t.Fatalf("data = %+v", data)
 	}
-	if last := commands.calls[len(commands.calls)-1].argv; last != "sudo systemctl stop gh-ci" {
+	if last := commands.calls[len(commands.calls)-1].argv; last != "gh variable delete CI_RUNNER -R manovaspace/orbit-tg" {
 		t.Errorf("last call = %q", last)
+	}
+	for _, c := range commands.calls {
+		if strings.HasPrefix(c.argv, "sudo ") {
+			t.Errorf("github mode must not touch the runner host: %q", c.argv)
+		}
+	}
+}
+
+// The vps switch only sets CI_RUNNER once the organization actually reports an
+// online runner with the label, so a typo cannot pin every repo at a dead pool.
+func TestCIRunnerSetVPSNeedsOnlineRunner(t *testing.T) {
+	commands, _ := setupCITest(t)
+	commands.result["gh repo view manovaspace/orbit-tg --json visibility --jq .visibility"] = "PRIVATE\n"
+	commands.result["gh api orgs/manovaspace/actions/runners?per_page=100"] = `{"total_count":1,"runners":[{"name":"gcp-ci-1","status":"offline","labels":[{"name":"vps"}]}]}`
+
+	out, err := runRootForTest(t, "ci", "runner", "vps", "--json")
+	if err == nil {
+		t.Fatalf("expected an error, got success: %s", out)
+	}
+	env := decodeEnvelope(t, out)
+	if env.OK || env.Error == nil {
+		t.Fatalf("unexpected envelope: %+v", env)
+	}
+	for _, c := range commands.calls {
+		if strings.HasPrefix(c.argv, "gh variable set") {
+			t.Errorf("pinned CI_RUNNER without an online runner: %q", c.argv)
+		}
 	}
 }
 

@@ -8,7 +8,7 @@ Available Commands:
   admin       Manage platform ownership verification and root cryptographic secrets
   assets      Sync gitignored media with private Cloudflare R2
   audit       Audit workspace versions, dependencies, agents and delivery
-  ci          Switch the CI runner and sync GitHub Actions secrets
+  ci          Point private repositories at the self-hosted pool and sync secrets
   completion  Generate zsh autocompletion
   config      Manage Orbit CLI configuration
   dev         Control and orchestrate local development stacks and containers

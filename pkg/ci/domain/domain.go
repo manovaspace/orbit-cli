@@ -10,13 +10,16 @@ import (
 // DeployKeySecret is the repository secret that carries a per-repo deploy key.
 const DeployKeySecret = "DEPLOY_SSH_KEY"
 
+// RunnerLabelVPS is the label private repositories pin through CI_RUNNER=vps.
+const RunnerLabelVPS = "vps"
+
 // RunnerMode selects where private repositories run CI.
 type RunnerMode string
 
 const (
-	// ModeVPS points CI at the standby runner.
+	// ModeVPS points CI at the self-hosted runner pool.
 	ModeVPS RunnerMode = "vps"
-	// ModeGitHub removes the override and stops the standby runner.
+	// ModeGitHub removes the override so CI runs on GitHub-hosted runners.
 	ModeGitHub RunnerMode = "github"
 	// ModeStatus reports the current state without changing it.
 	ModeStatus RunnerMode = "status"
@@ -36,10 +39,62 @@ func ParseRunnerMode(value string) (RunnerMode, error) {
 	}
 }
 
-// Status reports the standby runner service state and the CI_RUNNER variable of
-// each repository that has one.
+// RunnerLabel is one label of an organization runner.
+type RunnerLabel struct {
+	Name string `json:"name"`
+}
+
+// Runner is one organization-level self-hosted runner.
+type Runner struct {
+	Name   string        `json:"name"`
+	Status string        `json:"status"`
+	Busy   bool          `json:"busy"`
+	Labels []RunnerLabel `json:"labels"`
+}
+
+// HasLabel reports whether the runner carries label.
+func (r Runner) HasLabel(label string) bool {
+	for _, l := range r.Labels {
+		if l.Name == label {
+			return true
+		}
+	}
+	return false
+}
+
+// OnlineWithLabel reports whether any runner is online and carries label.
+func OnlineWithLabel(runners []Runner, label string) bool {
+	for _, r := range runners {
+		if r.Status == "online" && r.HasLabel(label) {
+			return true
+		}
+	}
+	return false
+}
+
+// Organization returns the owner shared by every owner/name slug in repos.
+func Organization(repos []string) (string, bool) {
+	org := ""
+	for _, slug := range repos {
+		owner, _, ok := strings.Cut(slug, "/")
+		if !ok || owner == "" {
+			return "", false
+		}
+		if org == "" {
+			org = owner
+			continue
+		}
+		if owner != org {
+			return "", false
+		}
+	}
+	return org, org != ""
+}
+
+// Status reports the organization runners and the CI_RUNNER variable of each
+// repository that has one.
 type Status struct {
-	Service string            `json:"service"`
+	Runners []Runner          `json:"runners"`
 	Vars    map[string]string `json:"vars"`
 }
 
