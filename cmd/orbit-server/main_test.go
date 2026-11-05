@@ -34,7 +34,7 @@ func TestServerCmd_Flags(t *testing.T) {
 		name     string
 		defValue string
 	}{
-		{"addr", ":10122"},
+		{"addr", ":10015"},
 		{"smtp-host", ""},
 		{"smtp-port", ""},
 		{"smtp-user", ""},

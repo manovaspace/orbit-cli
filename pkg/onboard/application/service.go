@@ -34,7 +34,7 @@ type Result struct {
 }
 
 // DefaultEdgeURL is used when neither --edge-url nor $ORBIT_SERVER is set.
-const DefaultEdgeURL = "http://localhost:10122"
+const DefaultEdgeURL = "http://localhost:10015"
 
 // Run executes one onboard invocation: a one-shot maintenance mode, the
 // diagnostic bundle, or the headless step flow.

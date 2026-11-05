@@ -47,7 +47,7 @@ type CoreService struct {
 // CoreServices are the services `dev up` reports on.
 func CoreServices() []CoreService {
 	return []CoreService{
-		{Name: "Postgres", Host: "127.0.0.1", Port: 10333, URL: "postgres://orbit@localhost:10333/orbit"},
+		{Name: "Postgres", Host: "127.0.0.1", Port: 10000, URL: "postgres://orbit@localhost:10000/orbit"},
 		{Name: "NATS", Host: "127.0.0.1", Port: 10006, URL: "nats://localhost:10006"},
 		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
 		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
