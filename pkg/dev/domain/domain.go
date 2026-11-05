@@ -48,10 +48,10 @@ type CoreService struct {
 func CoreServices() []CoreService {
 	return []CoreService{
 		{Name: "Postgres", Host: "127.0.0.1", Port: 10333, URL: "postgres://orbit@localhost:10333/orbit"},
-		{Name: "NATS", Host: "127.0.0.1", Port: 10422, URL: "nats://localhost:10422"},
+		{Name: "NATS", Host: "127.0.0.1", Port: 10006, URL: "nats://localhost:10006"},
 		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
 		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
-		{Name: "Mailpit", Host: "127.0.0.1", Port: 10825, URL: "http://localhost:10825"},
+		{Name: "Mailpit", Host: "127.0.0.1", Port: 10025, URL: "http://localhost:10025"},
 	}
 }
 

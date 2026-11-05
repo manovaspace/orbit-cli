@@ -251,7 +251,7 @@ func inviteMailerConfig(hostFlag, portFlag, fromFlag string, insecure bool) invi
 		cfg.Port = os.Getenv("ORBIT_SMTP_PORT")
 		if cfg.Port == "" {
 			if insecure {
-				cfg.Port = "10725"
+				cfg.Port = "10024"
 			} else {
 				cfg.Port = "587"
 			}

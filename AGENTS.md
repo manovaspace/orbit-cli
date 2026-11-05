@@ -29,7 +29,7 @@ Orbit CLI follows a dual-binary architecture:
 - **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
 - **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/Bun, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
-- **50-Port Allocation**: `orbit port list`, `orbit port allocate` — 50-port blocks per ADR-006 (`1nxxx` range).
+- **50-Port Allocation**: `orbit port list`, `orbit port allocate` — 50-port blocks per ADR-058.
 - **Workspace Migrations**: `orbit migrate` (applies pending) and `orbit migrate status`.
 - **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
 - **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.dev.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
@@ -42,7 +42,7 @@ Orbit CLI follows a dual-binary architecture:
 1. **`o` commands, never `cd` loops** — every agent using orbit-cli must use `orbit` / `o` commands for workspace orchestration.
 2. **`log/slog` only** — no `log.Printf`, `fmt.Println`, or other loggers anywhere.
 3. **`orbit doctor --local` for research and inspection** — diagnostics never implicitly heal. Only select `--fix` when repairs are explicitly authorized; remote probes require `--remote`, and host-key acceptance additionally requires `--accept-host-keys --fix`.
-4. **Port allocation via ADR-006** — never hardcode ports. Use `o port list` to inspect allocations.
+4. **Port allocation via ADR-058** — never hardcode ports. Use `o port list` to inspect allocations.
 5. **Sequential migrations** — `orbit migrate` only; never run raw SQL against production.
 6. **`orbit staff` is HMAC-auth only** — never embed admin credentials in workstation commands.
 
@@ -124,6 +124,6 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 - Never put the HMAC token or OTP in the email subject.
 - Use `pkg/tui` Lipgloss styling for output formatting — do not write unformatted console prints.
 - Keep workstation CLI commands as pure API clients — do not embed server SMTP credentials in workstation commands.
-- Adhere strictly to ADR-006 50-port block allocations (`1nxxx` range).
+- Adhere strictly to ADR-058 50-port block allocations.
 - Never log OTP challenge codes or master cryptographic signing secrets in stdout/stderr.
 - No commit unless user asks.

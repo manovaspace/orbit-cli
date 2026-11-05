@@ -577,7 +577,7 @@ For local development without Stalwart credentials or verified ownership:
 orbit invite create test@example.com --insecure
 ```
 
-This bypasses ownership checks and routes outgoing mail to `localhost:10725` (Mailpit).
+This bypasses ownership checks and routes outgoing mail to `localhost:10024` (Mailpit).
 
 ---
 
