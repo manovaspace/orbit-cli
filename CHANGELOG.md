@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.0](https://github.com/manovaspace/orbit-cli/compare/v0.17.0...v0.18.0) (2026-11-05)
+
+
+### Features
+
+* **ports:** move orbit-server into the orbit block ([554d997](https://github.com/manovaspace/orbit-cli/commit/554d997f4ea683078cd7a2c43c13445695cee56b))
+* **ports:** move orbit-server into the orbit block ([ce3ee52](https://github.com/manovaspace/orbit-cli/commit/ce3ee52c9953bed8a39c76f5d6778b07c62fabfb))
+
 ## [0.17.0](https://github.com/manovaspace/orbit-cli/compare/v0.16.0...v0.17.0) (2026-11-05)
 
 
