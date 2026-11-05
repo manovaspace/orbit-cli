@@ -152,7 +152,7 @@ and serves the canonical developer onboarding script.`,
 	cmd.InitDefaultVersionFlag()
 
 	// Server listener and daemon flags
-	cmd.Flags().StringVarP(&opts.addr, "addr", "a", ":10122", "HTTP server listen address (e.g. :10122 or 127.0.0.1:10122)")
+	cmd.Flags().StringVarP(&opts.addr, "addr", "a", ":10015", "HTTP server listen address (e.g. :10015 or 127.0.0.1:10015)")
 	cmd.Flags().StringVar(&opts.smtpHost, "smtp-host", "", "SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)")
 	cmd.Flags().StringVar(&opts.smtpPort, "smtp-port", "", "SMTP server port (default: $ORBIT_SMTP_PORT or 587)")
 	cmd.Flags().StringVar(&opts.smtpUser, "smtp-user", "", "SMTP authentication user")
@@ -315,7 +315,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	// 9. Start HTTP Listener
 	addr := opts.addr
 	if addr == "" {
-		addr = ":10122"
+		addr = ":10015"
 	}
 
 	lis, err := net.Listen("tcp", addr)
