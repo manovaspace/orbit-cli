@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.2](https://github.com/manovaspace/orbit-cli/compare/v0.18.1...v0.18.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ci:** report the org runner pool instead of a local systemctl unit ([0d2c258](https://github.com/manovaspace/orbit-cli/commit/0d2c258594a4f2b3c5a5604051d149e408f1fb3b))
+* **ci:** report the org runner pool instead of a local systemctl unit ([58cef55](https://github.com/manovaspace/orbit-cli/commit/58cef55eea087a0b8190f2acb440cf3a3a7795bc))
+
 ## [0.18.1](https://github.com/manovaspace/orbit-cli/compare/v0.18.0...v0.18.1) (2026-11-05)
 
 
