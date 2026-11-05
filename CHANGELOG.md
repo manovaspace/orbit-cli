@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/manovaspace/orbit-cli/compare/v0.18.0...v0.18.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **audit:** resolve the newest node_modules copy ([f288b4d](https://github.com/manovaspace/orbit-cli/commit/f288b4d1d9772e4bef028f94da525eacca26850f))
+* **audit:** resolve the newest node_modules copy ([333b458](https://github.com/manovaspace/orbit-cli/commit/333b4580578f608ede528b155e0f5be31ecfa861))
+
 ## [0.18.0](https://github.com/manovaspace/orbit-cli/compare/v0.17.0...v0.18.0) (2026-11-05)
 
 
