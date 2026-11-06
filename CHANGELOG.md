@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.19.0](https://github.com/manovaspace/orbit-cli/compare/v0.18.2...v0.19.0) (2026-11-06)
+
+
+### Features
+
+* **render:** finish fmt.Fprint migration batches 3-5 and add --json contract test ([0e155fe](https://github.com/manovaspace/orbit-cli/commit/0e155fed90fdaceeb906e5ea017e7a8a32e9917e))
+* **render:** finish fmt.Fprint migration batches 3-5 and add --json contract test (closes [#85](https://github.com/manovaspace/orbit-cli/issues/85)) ([925a144](https://github.com/manovaspace/orbit-cli/commit/925a144a7aa3b7516ca4e131cce0dc6d4b97356c))
+* **tui:** migrate bubbletea, bubbles, and lipgloss to v2 (closes [#78](https://github.com/manovaspace/orbit-cli/issues/78)) ([024f71e](https://github.com/manovaspace/orbit-cli/commit/024f71e8899226cb0d026af35e104fc147c3cb93))
+* **tui:** migrate charm dependencies to v2 ([1eda579](https://github.com/manovaspace/orbit-cli/commit/1eda5790687aba995c07c09834e5a4da38df49d3))
+
 ## [0.18.2](https://github.com/manovaspace/orbit-cli/compare/v0.18.1...v0.18.2) (2026-11-05)
 
 
