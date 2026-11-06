@@ -10,6 +10,7 @@ orbit assets push [scope] [flags]
 
 ```
   -h, --help              help for push
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml
 ```
 

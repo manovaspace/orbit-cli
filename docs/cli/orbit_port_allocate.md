@@ -10,6 +10,7 @@ orbit port allocate <project> <service> [flags]
 
 ```
   -h, --help   help for allocate
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

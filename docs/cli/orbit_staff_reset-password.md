@@ -10,6 +10,7 @@ orbit staff reset-password <uid> [flags]
 
 ```
   -h, --help      help for reset-password
+      --json      Print the result as a JSON envelope
       --ldap      reset the shared LLDAP password used for SSO and mail
       --mailbox   deprecated alias for the shared LLDAP password
 ```

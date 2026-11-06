@@ -10,6 +10,7 @@ orbit version [flags]
 
 ```
   -h, --help   help for version
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

@@ -11,6 +11,7 @@ orbit assets pull [scope] [flags]
 ```
       --force             Overwrite local files whose hash does not match the index
   -h, --help              help for pull
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml
 ```
 

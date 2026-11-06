@@ -10,6 +10,7 @@ orbit assets add <path> [flags]
 
 ```
   -h, --help   help for add
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

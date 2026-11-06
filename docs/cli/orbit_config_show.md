@@ -15,6 +15,7 @@ orbit config show [flags]
 ```
   -f, --format string   Output format: yaml or json (default "yaml")
   -h, --help            help for show
+      --json            Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

@@ -10,6 +10,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/config/domain"
 	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -103,6 +104,7 @@ func newConfigShowCmd() *cobra.Command {
 				return output.Write(out, output.Success(masked))
 			}
 
+			p := render.NewPrinter(out)
 			if strings.ToLower(formatFlag) == "json" {
 				data, err := json.MarshalIndent(masked, "", "  ")
 				if err != nil {
@@ -110,8 +112,8 @@ func newConfigShowCmd() *cobra.Command {
 					writeConfigFailure(out, jsonFlag, encErr)
 					return encErr
 				}
-				fmt.Fprintln(out, string(data))
-				return nil
+				p.Text(string(data) + "\n")
+				return p.Err()
 			}
 
 			data, err := yaml.Marshal(masked)
@@ -120,8 +122,8 @@ func newConfigShowCmd() *cobra.Command {
 				writeConfigFailure(out, jsonFlag, encErr)
 				return encErr
 			}
-			fmt.Fprint(out, string(data))
-			return nil
+			p.Text(string(data))
+			return p.Err()
 		},
 	}
 
@@ -154,12 +156,13 @@ func newConfigGetCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(entry))
 			}
+			p := render.NewPrinter(out)
 			if rawFlag {
-				fmt.Fprint(out, entry.Value)
+				p.Text(entry.Value)
 			} else {
-				fmt.Fprintln(out, entry.Value)
+				p.Text(entry.Value + "\n")
 			}
-			return nil
+			return p.Err()
 		},
 	}
 
@@ -322,6 +325,7 @@ func newConfigListCmd() *cobra.Command {
 				return output.Write(out, output.Success(entries))
 			}
 
+			p := render.NewPrinter(out)
 			if strings.ToLower(formatFlag) == "json" {
 				data, err := json.MarshalIndent(entries, "", "  ")
 				if err != nil {
@@ -329,8 +333,8 @@ func newConfigListCmd() *cobra.Command {
 					writeConfigFailure(out, jsonFlag, encErr)
 					return encErr
 				}
-				fmt.Fprintln(out, string(data))
-				return nil
+				p.Text(string(data) + "\n")
+				return p.Err()
 			}
 
 			if strings.ToLower(formatFlag) == "yaml" {
@@ -340,8 +344,8 @@ func newConfigListCmd() *cobra.Command {
 					writeConfigFailure(out, jsonFlag, encErr)
 					return encErr
 				}
-				fmt.Fprint(out, string(data))
-				return nil
+				p.Text(string(data))
+				return p.Err()
 			}
 
 			// Table format
@@ -365,10 +369,7 @@ func newConfigListCmd() *cobra.Command {
 				tbl.WithPagination(pageFlag, limitFlag)
 			}
 
-			fmt.Fprintln(out)
-			_ = tbl.Render(out)
-
-			return nil
+			return p.Table(tbl)
 		},
 	}
 
@@ -432,8 +433,9 @@ func newConfigPathCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(configPathResult{Path: cfgPath}))
 			}
-			fmt.Fprintln(out, cfgPath)
-			return nil
+			p := render.NewPrinter(out)
+			p.Text(cfgPath + "\n")
+			return p.Err()
 		},
 	}
 

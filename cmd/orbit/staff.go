@@ -14,6 +14,7 @@ import (
 	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	staffapp "github.com/manovaspace/orbit-cli/pkg/staff/application"
 	"github.com/manovaspace/orbit-cli/pkg/staff/domain"
 	"github.com/manovaspace/orbit-cli/pkg/staff/infrastructure/inviteissuer"
@@ -135,22 +136,23 @@ func newStaffCreateCmd() *cobra.Command {
 				return output.Write(out, output.Success(res))
 			}
 
+			p := render.NewPrinter(out)
 			printStaffCreate(out, res.Member)
 			if res.Invite != nil {
 				if res.InviteWarning != "" {
-					fmt.Fprintf(out, "warn   %s\n", res.InviteWarning)
-					return nil
+					p.Line(render.StatusWarn, res.InviteWarning)
+					return p.Err()
 				}
-				fmt.Fprintf(out, "invite    %s\n", res.Invite.ID)
-				fmt.Fprintf(out, "token     %s\n", res.Invite.Token)
-				fmt.Fprintf(out, "web setup https://orbit.manova.space/setup?token=%s\n", res.Invite.Token)
+				p.Line(render.StatusInfo, "invite    "+res.Invite.ID)
+				p.Line(render.StatusInfo, "token     "+res.Invite.Token)
+				p.Line(render.StatusOK, "web setup https://orbit.manova.space/setup?token="+res.Invite.Token)
 				if res.Invite.DispatchErr != "" {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warn   failed to dispatch invitation email to %s: %s\n", res.Invite.Email, res.Invite.DispatchErr)
+					render.NewPrinter(cmd.ErrOrStderr()).Line(render.StatusWarn, fmt.Sprintf("failed to dispatch invitation email to %s: %s", res.Invite.Email, res.Invite.DispatchErr))
 				} else if res.Invite.Dispatched {
-					fmt.Fprintf(out, "mail      dispatched to %s\n", res.Invite.Email)
+					p.Line(render.StatusOK, "mail      dispatched to "+res.Invite.Email)
 				}
 			}
-			return nil
+			return p.Err()
 		},
 	}
 	cmd.Flags().StringVar(&uidFlag, "uid", "", "staff uid (required)")
@@ -234,8 +236,7 @@ func newStaffListCmd() *cobra.Command {
 				)
 			}
 
-			_ = tbl.Render(out)
-			return nil
+			return render.NewPrinter(out).Table(tbl)
 		},
 	}
 	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
@@ -267,17 +268,20 @@ func newStaffGetCmd() *cobra.Command {
 				return output.Write(out, output.Success(member))
 			}
 
-			fmt.Fprintf(out, "uid    %s\n", member.UID)
-			fmt.Fprintf(out, "name   %s\n", member.DisplayName)
-			fmt.Fprintf(out, "first  %s\n", member.FirstName)
-			fmt.Fprintf(out, "last   %s\n", member.LastName)
-			fmt.Fprintf(out, "mail   %s\n", member.Mail)
-			fmt.Fprintf(out, "fwd    %s\n", member.PersonalForward)
-			fmt.Fprintf(out, "status %s\n", member.Status)
+			p := render.NewPrinter(out)
+			p.KVs(
+				[2]string{"uid", member.UID},
+				[2]string{"name", member.DisplayName},
+				[2]string{"first", member.FirstName},
+				[2]string{"last", member.LastName},
+				[2]string{"mail", member.Mail},
+				[2]string{"fwd", member.PersonalForward},
+				[2]string{"status", member.Status},
+			)
 			if len(member.Groups) > 0 {
-				fmt.Fprintf(out, "groups %s\n", strings.Join(member.Groups, ","))
+				p.KV("groups", strings.Join(member.Groups, ","))
 			}
-			return nil
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
@@ -319,8 +323,9 @@ func newStaffUpdateCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(member))
 			}
-			fmt.Fprintf(out, "updated %s\n", member.UID)
-			return nil
+			p := render.NewPrinter(out)
+			p.Line(render.StatusOK, "updated "+member.UID)
+			return p.Err()
 		},
 	}
 	cmd.Flags().StringVar(&nameFlag, "name", "", "display name")
@@ -353,8 +358,9 @@ func newStaffDisableCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(staffAction{UID: args[0], Status: "disabled"}))
 			}
-			fmt.Fprintf(out, "disabled %s\n", args[0])
-			return nil
+			p := render.NewPrinter(out)
+			p.Line(render.StatusOK, "disabled "+args[0])
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
@@ -382,8 +388,9 @@ func newStaffEnableCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(staffAction{UID: args[0], Status: "enabled"}))
 			}
-			fmt.Fprintf(out, "enabled %s\n", args[0])
-			return nil
+			p := render.NewPrinter(out)
+			p.Line(render.StatusOK, "enabled "+args[0])
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
@@ -412,9 +419,10 @@ func newStaffDeleteCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(staffAction{UID: args[0], Status: "deleted"}))
 			}
-			fmt.Fprintf(out, "deleted %s\n", args[0])
-			fmt.Fprintln(out, "warning Keycloak profile remains; mailbox data is preserved but LLDAP-backed mail sign-in is unavailable until the UID is restored")
-			return nil
+			p := render.NewPrinter(out)
+			p.Line(render.StatusOK, "deleted "+args[0])
+			p.Line(render.StatusWarn, "Keycloak profile remains; mailbox data is preserved but LLDAP-backed mail sign-in is unavailable until the UID is restored")
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
@@ -443,14 +451,15 @@ func newStaffResetPasswordCmd() *cobra.Command {
 			if jsonFlag {
 				return output.Write(out, output.Success(res))
 			}
-			fmt.Fprintf(out, "uid    %s\n", args[0])
+			p := render.NewPrinter(out)
+			p.Line(render.StatusInfo, "uid    "+args[0])
 			if res.LDAPPassword != "" {
-				fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
+				p.Line(render.StatusOK, "shared "+res.LDAPPassword)
 			}
 			if res.Warning != "" {
-				fmt.Fprintf(out, "warning %s\n", res.Warning)
+				p.Line(render.StatusWarn, res.Warning)
 			}
-			return nil
+			return p.Err()
 		},
 	}
 	cmd.Flags().BoolVar(&ldapFlag, "ldap", false, "reset the shared LLDAP password used for SSO and mail")
@@ -520,22 +529,18 @@ func printStaffCreate(out io.Writer, res *domain.CreateResult) {
 	if res == nil {
 		return
 	}
-	fmt.Fprintf(out, "uid    %s\n", res.UID)
-	if res.FirstName != "" {
-		fmt.Fprintf(out, "first  %s\n", res.FirstName)
+	p := render.NewPrinter(out)
+	identity := [][2]string{{"uid", res.UID}}
+	if res.FirstName != "" || res.LastName != "" {
+		identity = append(identity, [2]string{"first", res.FirstName}, [2]string{"last", res.LastName})
 	}
-	if res.LastName != "" {
-		fmt.Fprintf(out, "last   %s\n", res.LastName)
-	}
-	if res.LDAPPassword != "" {
-		fmt.Fprintf(out, "shared %s\n", res.LDAPPassword)
-	}
-	if res.PersonalForward != "" {
-		fmt.Fprintf(out, "fwd    %s\n", res.PersonalForward)
+	p.KVs(identity...)
+	if res.LDAPPassword != "" || res.PersonalForward != "" {
+		p.KVs([2]string{"shared", res.LDAPPassword}, [2]string{"fwd", res.PersonalForward})
 	}
 	if res.Idempotent {
-		fmt.Fprintf(out, "idempotent true\n")
+		p.Line(render.StatusInfo, "idempotent true")
 	} else {
-		fmt.Fprintf(out, "next   sign in at %s with this LLDAP password, link Google, and register a passkey\n", defaultKeycloakAccountURL)
+		p.Line(render.StatusInfo, "next   sign in at "+defaultKeycloakAccountURL+" with this LLDAP password, link Google, and register a passkey")
 	}
 }

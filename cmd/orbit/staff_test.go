@@ -63,9 +63,10 @@ func TestPrintStaffCreateIncludesProfileNames(t *testing.T) {
 		LastName:  "J",
 	}})
 
+	got := stripANSI(buf.String())
 	for _, want := range []string{"uid    alirezaopmc", "first  Alireza", "last   J"} {
-		if !strings.Contains(buf.String(), want) {
-			t.Errorf("output missing %q:\n%s", want, buf.String())
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
 		}
 	}
 }
@@ -184,11 +185,12 @@ func TestStaffResetPasswordLDAP(t *testing.T) {
 	if !strings.Contains(string(gotBody), `"ldap"`) || strings.Contains(string(gotBody), `"totp"`) {
 		t.Fatalf("body = %s", gotBody)
 	}
-	if !strings.Contains(buf.String(), "shared rotated-password") {
-		t.Fatalf("output = %q", buf.String())
+	got := stripANSI(buf.String())
+	if !strings.Contains(got, "shared rotated-password") {
+		t.Fatalf("output = %q", got)
 	}
-	if !strings.Contains(buf.String(), "warning password rotated, but Telegram delivery failed") {
-		t.Fatalf("missing delivery warning: %q", buf.String())
+	if !strings.Contains(got, "password rotated, but Telegram delivery failed") {
+		t.Fatalf("missing delivery warning: %q", got)
 	}
 }
 
@@ -421,7 +423,7 @@ func TestStaffCreate_InviteWithWebSetupURL(t *testing.T) {
 		t.Fatalf("staff create --invite failed: %v\n%s", err, buf.String())
 	}
 
-	out := buf.String()
+	out := stripANSI(buf.String())
 	if !strings.Contains(out, "web setup https://orbit.manova.space/setup?token=orbit-inv.") {
 		t.Fatalf("expected web setup URL in output, got:\n%s", out)
 	}
@@ -429,8 +431,8 @@ func TestStaffCreate_InviteWithWebSetupURL(t *testing.T) {
 	var tokenStr string
 	prefix := "web setup https://orbit.manova.space/setup?token="
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, prefix) {
-			tokenStr = strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			tokenStr = strings.TrimSpace(line[idx+len(prefix):])
 			break
 		}
 	}
@@ -480,7 +482,7 @@ func TestStaffCreate_InviteWithNoSend(t *testing.T) {
 		t.Fatalf("staff create --invite --no-send failed: %v\n%s", err, buf.String())
 	}
 
-	out := buf.String()
+	out := stripANSI(buf.String())
 	if !strings.Contains(out, "web setup https://orbit.manova.space/setup?token=orbit-inv.") {
 		t.Fatalf("expected web setup URL in output, got:\n%s", out)
 	}

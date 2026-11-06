@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/audit"
 	auditapp "github.com/manovaspace/orbit-cli/pkg/audit/application"
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/spf13/cobra"
 )
 
@@ -204,7 +204,11 @@ func runAudit(cmd *cobra.Command, jsonOutput bool, run func(context.Context, *au
 		return failure
 	}
 
-	renderAuditReport(out, result)
+	p := render.NewPrinter(out)
+	renderAuditReport(p, result)
+	if err := p.Err(); err != nil {
+		return err
+	}
 	return failure
 }
 
@@ -222,7 +226,7 @@ func auditFailure(report audit.Report) error {
 
 // renderAuditReport prints one line per problem and a final summary. The
 // format is intentionally plain: audit output is meant for grep and CI logs.
-func renderAuditReport(out io.Writer, result audit.Result) {
+func renderAuditReport(p *render.Printer, result audit.Result) {
 	for _, finding := range result.Findings {
 		line := fmt.Sprintf("%-5s %s", finding.Severity, finding.ID)
 		if finding.Subject != "" {
@@ -241,13 +245,13 @@ func renderAuditReport(out io.Writer, result audit.Result) {
 		default:
 			line += "  fix: " + finding.Fix
 		}
-		fmt.Fprintln(out, line)
+		p.Text(line + "\n")
 	}
 	for _, item := range result.Accepted {
-		fmt.Fprintf(out, "ACCEPTED %s (%s)\n", item.Message, item.Reason)
+		p.Text(fmt.Sprintf("ACCEPTED %s (%s)\n", item.Message, item.Reason))
 	}
 	for _, message := range result.Unverified {
-		fmt.Fprintln(out, "UNVERIFIED "+message)
+		p.Text("UNVERIFIED " + message + "\n")
 	}
 	errorsCount, warnings := result.Counts()
 	summary := fmt.Sprintf("summary: %d findings (%d errors, %d warnings), %d unverified, %d accepted",
@@ -255,5 +259,5 @@ func renderAuditReport(out io.Writer, result audit.Result) {
 	if result.Detail != "" {
 		summary += " — " + result.Detail
 	}
-	fmt.Fprintln(out, summary)
+	p.Text(summary + "\n")
 }

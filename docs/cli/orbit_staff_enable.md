@@ -10,6 +10,7 @@ orbit staff enable <uid> [flags]
 
 ```
   -h, --help   help for enable
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

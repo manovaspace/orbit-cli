@@ -10,6 +10,7 @@ orbit staff disable <uid> [flags]
 
 ```
   -h, --help   help for disable
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

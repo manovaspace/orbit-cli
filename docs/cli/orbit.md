@@ -21,6 +21,8 @@ orbit [flags]
 
 * [orbit admin](orbit_admin.md)	 - Manage platform ownership verification and root cryptographic secrets
 * [orbit assets](orbit_assets.md)	 - Sync gitignored media with private Cloudflare R2
+* [orbit audit](orbit_audit.md)	 - Audit workspace versions, dependencies, agents and delivery
+* [orbit ci](orbit_ci.md)	 - Point private repositories at the self-hosted pool and sync secrets
 * [orbit completion](orbit_completion.md)	 - Generate zsh autocompletion
 * [orbit config](orbit_config.md)	 - Manage Orbit CLI configuration
 * [orbit dev](orbit_dev.md)	 - Control and orchestrate local development stacks and containers
@@ -32,6 +34,8 @@ orbit [flags]
 * [orbit migrate](orbit_migrate.md)	 - Run and inspect workspace state migrations
 * [orbit onboard](orbit_onboard.md)	 - Interactive onboarding wizard with resume, claims, and stack provisioning
 * [orbit port](orbit_port.md)	 - Manage and inspect the hybrid 50-port allocation model
+* [orbit pr](orbit_pr.md)	 - Manage pull requests and automated delivery
+* [orbit release](orbit_release.md)	 - Inspect and promote release pull requests and demo branches
 * [orbit repair](orbit_repair.md)	 - Attach .git to gitless workspace trees without overwriting files
 * [orbit self-update](orbit_self-update.md)	 - Update the Orbit CLI binary to the latest release
 * [orbit staff](orbit_staff.md)	 - Manage Orbit staff via the staff control plane

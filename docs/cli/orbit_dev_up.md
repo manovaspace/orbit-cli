@@ -10,6 +10,7 @@ orbit dev up [modules...] [flags]
 
 ```
   -h, --help               help for up
+      --json               Print the result as a JSON envelope
       --timeout duration   Timeout when waiting for service readiness (default 15s)
   -w, --wait               Wait for core services to become responsive
 ```

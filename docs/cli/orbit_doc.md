@@ -15,6 +15,7 @@ orbit doc [flags]
 ```
   -f, --format string   Documentation format: markdown or man (default "markdown")
   -h, --help            help for doc
+      --json            Print the result as a JSON envelope
   -o, --output string   Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages) (default "./docs/cli")
 ```
 

@@ -14,6 +14,7 @@ orbit config set <key> <value> [flags]
 
 ```
   -h, --help   help for set
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

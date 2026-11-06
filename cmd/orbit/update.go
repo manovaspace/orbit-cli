@@ -8,6 +8,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/env"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	updaterapp "github.com/manovaspace/orbit-cli/pkg/updater/application"
 	updaterdomain "github.com/manovaspace/orbit-cli/pkg/updater/domain"
 	"github.com/manovaspace/orbit-cli/pkg/updater/infrastructure/releases"
@@ -74,57 +75,51 @@ func newUpdateCmd() *cobra.Command {
   4. Validates project .env files against .env.schema.yaml contracts`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			human := io.Writer(out)
-			if jsonFlag {
-				human = io.Discard
-			}
+			p := render.NewPrinter(out)
 			workspaceRoot := findWorkspaceRoot("")
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 			data := updateJSON{}
 
 			if !jsonFlag {
-				fmt.Fprintln(out, titleStyle.Render("Orbit Unified Workspace Update"))
-				fmt.Fprintf(out, "  Workspace Root: %s\n\n", subtleStyle.Render(workspaceRoot))
+				p.Title("Orbit Unified Workspace Update")
+				p.KV("Workspace Root", subtleStyle.Render(workspaceRoot))
 			}
 
 			// Phase 1: CLI Version Check
 			if !skipSelfUpdate {
 				if !jsonFlag {
-					fmt.Fprintln(out, headerStyle.Render("── 1/4 CLI Version Check ────────────────────────────────────"))
+					p.Section("1/4 CLI Version Check")
 				}
 				res, err := (&updaterapp.Service{Updater: releaseUpdater, Out: io.Discard}).Check(cmd.Context(), updaterapp.CheckInput{CurrentVersion: version})
 				if err != nil {
 					data.SelfUpdateError = err.Error()
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  Could not check for CLI updates: %v\n", iconWarn, err)
+						p.Line(render.StatusWarn, "Could not check for CLI updates: "+err.Error())
 					}
 				} else {
 					data.SelfUpdate = res
 					if !jsonFlag {
 						if res.HasUpdate {
-							fmt.Fprintf(out, "  %s  %s (Current: %s %s Latest: %s)\n     %s Run %s to upgrade.\n",
-								iconInfo,
+							p.Line(render.StatusInfo, fmt.Sprintf("%s (Current: %s → Latest: %s)",
 								warningStyle.Render("A newer version of Orbit CLI is available!"),
 								codeStyle.Render(version),
-								iconArrow,
 								codeStyle.Render(res.LatestVersion),
-								iconArrow,
-								boldStyle.Render("orbit self-update"),
-							)
+							))
+							p.Line(render.StatusInfo, "Run "+boldStyle.Render("orbit self-update")+" to upgrade.")
 						} else {
-							fmt.Fprintf(out, "  %s  CLI is up to date (%s)\n", iconOK, subtleStyle.Render("v"+version))
+							p.Line(render.StatusOK, "CLI is up to date ("+subtleStyle.Render("v"+version)+")")
 						}
 					}
 				}
 				if !jsonFlag {
-					fmt.Fprintln(out)
+					p.Blank()
 				}
 			}
 
 			// Phase 2: Git Sync
 			if !skipSync {
 				if !jsonFlag {
-					fmt.Fprintln(out, headerStyle.Render("── 2/4 Workspace Git Sync ───────────────────────────────────"))
+					p.Section("2/4 Workspace Git Sync")
 				}
 				syncOut, syncErr := newWorkspaceService(io.Discard).SyncAll(cmd.Context(), workspaceapp.SyncAllInput{
 					WorkspaceRoot: workspaceRoot,
@@ -152,49 +147,49 @@ func newUpdateCmd() *cobra.Command {
 				switch {
 				case !syncOut.ManifestFound:
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  Manifest %s not found (skipping git sync)\n", iconWarn, manifestPath)
+						p.Line(render.StatusWarn, fmt.Sprintf("Manifest %s not found (skipping git sync)", manifestPath))
 					}
 				case syncErr != nil:
 					data.SyncError = syncErr.Error()
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  Failed to parse manifest: %v\n", iconError, syncErr)
+						p.Line(render.StatusFail, "Failed to parse manifest: "+syncErr.Error())
 					}
 				default:
 					if !jsonFlag {
 						for _, sr := range syncOut.Results {
 							switch {
 							case sr.Success && sr.FastForwarded:
-								fmt.Fprintf(out, "  %s  %s: fast-forwarded\n", iconOK, boldStyle.Render(sr.Name))
+								p.Line(render.StatusOK, boldStyle.Render(sr.Name)+": fast-forwarded")
 							case sr.Success:
 							case sr.SkippedReason != "":
 							default:
-								fmt.Fprintf(out, "  %s  %s: %s\n", iconError, boldStyle.Render(sr.Name), sr.Error)
+								p.Line(render.StatusFail, boldStyle.Render(sr.Name)+": "+sr.Error)
 							}
 						}
 
-						fmt.Fprintf(human, "  %s  Synced %d repos: %d up to date, %d updated, %d skipped, %d failed\n",
-							iconOK, len(syncOut.Targets), syncData.UpToDate, syncData.FastForwarded, syncData.Skipped, syncData.Failed)
+						p.Line(render.StatusOK, fmt.Sprintf("Synced %d repos: %d up to date, %d updated, %d skipped, %d failed",
+							len(syncOut.Targets), syncData.UpToDate, syncData.FastForwarded, syncData.Skipped, syncData.Failed))
 					}
 				}
 				if !jsonFlag {
-					fmt.Fprintln(out)
+					p.Blank()
 				}
 			}
 
 			// Phase 3: Workspace Migrations
 			if !skipMigrate {
 				if !jsonFlag {
-					fmt.Fprintln(out, headerStyle.Render("── 3/4 Workspace Migrations ─────────────────────────────────"))
+					p.Section("3/4 Workspace Migrations")
 				}
 				migResults, err := runWorkspaceMigrations(workspaceRoot)
 				if err != nil {
 					data.MigrationError = err.Error()
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  Migration error: %v\n", iconError, err)
+						p.Line(render.StatusFail, "Migration error: "+err.Error())
 					}
 				} else if len(migResults) == 0 {
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  All migrations up to date (0 pending)\n", iconOK)
+						p.Line(render.StatusOK, "All migrations up to date (0 pending)")
 					}
 				} else {
 					for _, mr := range migResults {
@@ -206,22 +201,22 @@ func newUpdateCmd() *cobra.Command {
 						})
 						if !jsonFlag {
 							if mr.Success {
-								fmt.Fprintf(out, "  %s  Applied: %s (%s)\n", iconOK, boldStyle.Render(mr.ID), mr.Description)
+								p.Line(render.StatusOK, "Applied: "+boldStyle.Render(mr.ID)+" ("+mr.Description+")")
 							} else {
-								fmt.Fprintf(out, "  %s  Failed: %s (%s)\n", iconError, boldStyle.Render(mr.ID), mr.Error)
+								p.Line(render.StatusFail, "Failed: "+boldStyle.Render(mr.ID)+" ("+mr.Error+")")
 							}
 						}
 					}
 				}
 				if !jsonFlag {
-					fmt.Fprintln(out)
+					p.Blank()
 				}
 			}
 
 			// Phase 4: Environment Validation
 			if !skipEnv {
 				if !jsonFlag {
-					fmt.Fprintln(out, headerStyle.Render("── 4/4 Environment Validation ───────────────────────────────"))
+					p.Section("4/4 Environment Validation")
 				}
 				schemas, err := env.FindSchemas(workspaceRoot)
 				if err != nil {
@@ -236,7 +231,7 @@ func newUpdateCmd() *cobra.Command {
 				data.Environment = envData
 				if len(schemas) == 0 {
 					if !jsonFlag {
-						fmt.Fprintf(out, "  %s  Environment unverified: no .env.schema.yaml contracts found\n", iconInfo)
+						p.Line(render.StatusInfo, "Environment unverified: no .env.schema.yaml contracts found")
 					}
 				} else {
 					validSchemas := 0
@@ -258,7 +253,7 @@ func newUpdateCmd() *cobra.Command {
 						} else {
 							envErrors += len(vErrs)
 							if !jsonFlag {
-								fmt.Fprintf(out, "  %s  %s: %d validation error(s)\n", iconError, boldStyle.Render(relDir), len(vErrs))
+								p.Line(render.StatusFail, fmt.Sprintf("%s: %d validation error(s)", boldStyle.Render(relDir), len(vErrs)))
 							}
 						}
 					}
@@ -267,22 +262,22 @@ func newUpdateCmd() *cobra.Command {
 					envData.ValidationErrs = envErrors
 					if !jsonFlag {
 						if envErrors == 0 {
-							fmt.Fprintf(out, "  %s  All %d environment files valid against schemas\n", iconOK, validSchemas)
+							p.Line(render.StatusOK, fmt.Sprintf("All %d environment files valid against schemas", validSchemas))
 						} else {
-							fmt.Fprintf(out, "  %s  %d environment validation error(s) detected. Run 'orbit env check' for details.\n", iconWarn, envErrors)
+							p.Line(render.StatusWarn, fmt.Sprintf("%d environment validation error(s) detected. Run 'orbit env check' for details.", envErrors))
 						}
 					}
 				}
 				if !jsonFlag {
-					fmt.Fprintln(out)
+					p.Blank()
 				}
 			}
 
 			if jsonFlag {
 				return output.Write(out, output.Success(data))
 			}
-			fmt.Fprintln(out, successStyle.Render("✔ Workspace update process completed."))
-			return nil
+			p.Line(render.StatusOK, "Workspace update process completed.")
+			return p.Err()
 		},
 	}
 

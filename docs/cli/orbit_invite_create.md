@@ -18,6 +18,7 @@ orbit invite create [email] [flags]
   -h, --help                 help for create
       --insecure             Bypass owner verification check (development only)
   -i, --interactive          Interactive wizard for generating developer invitations
+      --json                 Print the result as a JSON envelope
   -n, --name string          Display name of the developer (e.g. 'Alex Smith')
       --no-send              Suppress dispatching onboarding invitation email
       --owner-store string   Custom path to owner storage vault file (default: $ORBIT_OWNER_STORE or ~/.config/orbit/owner.json)

@@ -10,7 +10,7 @@ orbit admin totp reset <email> [flags]
 
 ```
   -h, --help            help for reset
-      --json            Output recovery details as JSON
+      --json            Print the result as a JSON envelope
   -s, --server string   Orbit server URL
       --store string    Custom path to owner storage vault file
 ```

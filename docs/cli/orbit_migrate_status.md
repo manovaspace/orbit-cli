@@ -10,6 +10,7 @@ orbit migrate status [flags]
 
 ```
   -h, --help        help for status
+      --json        Print the result as a JSON envelope
       --limit int   maximum rows per page (0 = all)
       --page int    page number to display (default 1)
 ```

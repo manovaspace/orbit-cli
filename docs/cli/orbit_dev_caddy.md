@@ -10,6 +10,7 @@ orbit dev caddy [reload|restart|logs] [flags]
 
 ```
   -h, --help   help for caddy
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

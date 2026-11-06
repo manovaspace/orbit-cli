@@ -10,6 +10,7 @@ orbit staff get <uid> [flags]
 
 ```
   -h, --help   help for get
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

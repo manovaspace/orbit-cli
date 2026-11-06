@@ -74,6 +74,14 @@ func (p *Printer) Title(text string) {
 	p.write(p.styled(Title, text) + "\n\n")
 }
 
+// Text writes text exactly as given. Use it for scalar results and
+// pre-rendered blocks (YAML, JSON documents, cards) that are not line-oriented
+// tables. It adds no newline of its own.
+func (p *Printer) Text(text string) {
+	p.needsBlankAfterKV = false
+	p.write(text)
+}
+
 // Section writes a blank line when output already exists, then a fixed-width
 // "── name ─────" rule. It does not add a second blank line after a Title or a
 // KV block that already ended with one.

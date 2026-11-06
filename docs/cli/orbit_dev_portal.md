@@ -10,6 +10,7 @@ orbit dev portal [flags]
 
 ```
   -h, --help   help for portal
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

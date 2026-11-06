@@ -11,6 +11,7 @@ import (
 	prdomain "github.com/manovaspace/orbit-cli/pkg/pr/domain"
 	"github.com/manovaspace/orbit-cli/pkg/release"
 	"github.com/manovaspace/orbit-cli/pkg/release/application"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/spf13/cobra"
 )
@@ -103,7 +104,11 @@ func newReleaseStatusCmd(manifestFlag *string) *cobra.Command {
 			if jsonFlag {
 				return writeReleaseResult(out, res, err)
 			}
-			renderReleaseStatus(out, res)
+			p := render.NewPrinter(out)
+			renderReleaseStatus(p, res)
+			if renderErr := p.Err(); renderErr != nil {
+				return renderErr
+			}
 			return err
 		},
 	}
@@ -264,10 +269,10 @@ func writeReleaseResult(out io.Writer, data any, err error) error {
 	return output.Write(out, output.Success(data))
 }
 
-func renderReleaseStatus(out io.Writer, result application.StatusResult) {
-	fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Release Status — %d repository(ies)", len(result.Repos))))
+func renderReleaseStatus(p *render.Printer, result application.StatusResult) {
+	p.Title(fmt.Sprintf("Release Status — %d repository(ies)", len(result.Repos)))
 	if len(result.Repos) == 0 {
-		fmt.Fprintln(out, "No repository with a release setup was found.")
+		p.Empty("repository with a release setup")
 		return
 	}
 	for _, repo := range result.Repos {
@@ -275,30 +280,33 @@ func renderReleaseStatus(out io.Writer, result application.StatusResult) {
 		if slug == "" {
 			slug = "no GitHub remote"
 		}
-		fmt.Fprintf(out, "\n%s (%s)\n", boldStyle.Render(repo.Name), subtleStyle.Render(slug))
-		fmt.Fprintf(out, "  branch:    %s @ %s\n", repo.DefaultBranch, shortReleaseSHA(repo.HeadSHA))
-		fmt.Fprintf(out, "  latest tag: %s\n", orNone(repo.LatestTag))
+		p.Section(boldStyle.Render(repo.Name) + " (" + subtleStyle.Render(slug) + ")")
+		pairs := [][2]string{
+			{"branch:", repo.DefaultBranch + " @ " + shortReleaseSHA(repo.HeadSHA)},
+			{"latest tag:", orNone(repo.LatestTag)},
+		}
 		if repo.ReleasePR != nil {
-			fmt.Fprintf(out, "  release PR: #%d %s -> %s (checks: %s) %s\n",
+			pairs = append(pairs, [2]string{"release PR:", fmt.Sprintf("#%d %s -> %s (checks: %s) %s",
 				repo.ReleasePR.Number, repo.ReleasePR.Head, repo.ReleasePR.Base,
-				repo.ReleasePR.CheckState, repo.ReleasePR.URL)
+				repo.ReleasePR.CheckState, repo.ReleasePR.URL)})
 		} else {
-			fmt.Fprintln(out, "  release PR: none open")
+			pairs = append(pairs, [2]string{"release PR:", "none open"})
 		}
 		if repo.Demo.Exists {
-			fmt.Fprintf(out, "  demo:      exists @ %s, %d commit(s) behind %s\n",
-				shortReleaseSHA(repo.Demo.SHA), repo.Demo.Behind, repo.DefaultBranch)
+			pairs = append(pairs, [2]string{"demo:", fmt.Sprintf("exists @ %s, %d commit(s) behind %s",
+				shortReleaseSHA(repo.Demo.SHA), repo.Demo.Behind, repo.DefaultBranch)})
 		} else {
-			fmt.Fprintln(out, "  demo:      branch does not exist")
+			pairs = append(pairs, [2]string{"demo:", "branch does not exist"})
 		}
 		if repo.LastRun != nil {
-			fmt.Fprintf(out, "  last run:  %s (%s, %s) %s\n",
-				repo.LastRun.Name, orNone(repo.LastRun.Status), orNone(repo.LastRun.Conclusion), repo.LastRun.URL)
+			pairs = append(pairs, [2]string{"last run:", fmt.Sprintf("%s (%s, %s) %s",
+				repo.LastRun.Name, orNone(repo.LastRun.Status), orNone(repo.LastRun.Conclusion), repo.LastRun.URL)})
 		} else {
-			fmt.Fprintln(out, "  last run:  no publish or deploy run")
+			pairs = append(pairs, [2]string{"last run:", "no publish or deploy run"})
 		}
+		p.KVs(pairs...)
 		for _, message := range repo.Unverified {
-			fmt.Fprintf(out, "  %s %s\n", warningStyle.Render("unverified:"), message)
+			p.Line(render.StatusWarn, "unverified: "+message)
 		}
 	}
 }
