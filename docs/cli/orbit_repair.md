@@ -21,6 +21,7 @@ orbit repair [scope] [flags]
 ```
       --concurrency int   Number of concurrent repair workers (default 4)
   -h, --help              help for repair
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
 ```
 

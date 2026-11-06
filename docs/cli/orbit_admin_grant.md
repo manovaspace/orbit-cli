@@ -17,7 +17,7 @@ orbit admin grant <email> [flags]
 ```
       --code string     Explicit 8-digit code (auto-generated if omitted)
   -h, --help            help for grant
-      --json            Output grant details as JSON
+      --json            Print the result as a JSON envelope
       --role string     Role to grant (admin, maintainer, superadmin) (default "admin")
       --send            Dispatch grant code directly to recipient via SMTP
   -s, --server string   Orbit server URL

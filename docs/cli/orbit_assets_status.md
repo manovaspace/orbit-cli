@@ -10,6 +10,7 @@ orbit assets status [scope] [flags]
 
 ```
   -h, --help              help for status
+      --json              Print the result as a JSON envelope
       --manifest string   Path to workspace.yaml
 ```
 

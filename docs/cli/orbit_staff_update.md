@@ -13,6 +13,7 @@ orbit staff update <uid> [flags]
       --forward string      personal forward email
       --groups string       comma-separated groups
   -h, --help                help for update
+      --json                Print the result as a JSON envelope
       --last-name string    last name
       --name string         display name
 ```

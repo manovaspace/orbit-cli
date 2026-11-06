@@ -130,34 +130,44 @@ func newAssetsPushCmd() *cobra.Command {
 }
 
 func newAssetsAddCmd() *cobra.Command {
+	var jsonFlag bool
 	cmd := &cobra.Command{
 		Use:   "add <path>",
 		Short: "Hash, upload, and gitignore a file; update orbit-assets.yaml",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			abs, err := filepath.Abs(args[0])
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
 			repoRoot, rel, err := findRepoRelative(abs)
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
 			store, err := openAssets(cmd.Context())
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
 			}
 			res, err := newAssetsService(cmd.OutOrStdout(), store).Add(cmd.Context(), repoRoot, rel)
 			if err != nil {
+				writeAssetsFailure(out, jsonFlag, err)
 				return err
+			}
+			if jsonFlag {
+				return output.Write(out, output.Success(res))
 			}
 			if res.Small {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s is %d bytes; consider committing small icons to git instead\n", rel, res.Object.Size)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Added %s (%s, %d bytes). Commit orbit-assets.yaml and .gitignore.\n", rel, res.Object.SHA256[:12], res.Object.Size)
+			fmt.Fprintf(out, "Added %s (%s, %d bytes). Commit orbit-assets.yaml and .gitignore.\n", rel, res.Object.SHA256[:12], res.Object.Size)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
 

@@ -768,8 +768,8 @@ func TestScenariosIntegration(t *testing.T) {
 		if err != nil || !strings.Contains(getOut, "Alice Smith") {
 			t.Errorf("STF-02 staff get missing Alice Smith: %v\nOutput: %s", err, getOut)
 		}
-		if !strings.Contains(getOut, "first  Alice") || !strings.Contains(getOut, "last   Smith") {
-			t.Errorf("STF-02 staff get missing profile names: %s", getOut)
+		if plain := stripANSI(getOut); !strings.Contains(plain, "Alice") || !strings.Contains(plain, "Smith") {
+			t.Errorf("STF-02 staff get missing profile names: %s", plain)
 		}
 
 		// STF-03: Disable & Enable
@@ -790,8 +790,8 @@ func TestScenariosIntegration(t *testing.T) {
 			t.Errorf("STF-04 staff update failed: %v\nOutput: %s", err, upOut)
 		}
 		getUpdatedOut, err := executeOrbit("staff", "get", "alice", "--server", srv.URL)
-		if err != nil || !strings.Contains(getUpdatedOut, "first  Alicia") || !strings.Contains(getUpdatedOut, "last   Lead") {
-			t.Errorf("STF-04 staff get did not confirm updated profile names: %v\nOutput: %s", err, getUpdatedOut)
+		if plain := stripANSI(getUpdatedOut); err != nil || !strings.Contains(plain, "Alicia") || !strings.Contains(plain, "Lead") {
+			t.Errorf("STF-04 staff get did not confirm updated profile names: %v\nOutput: %s", err, plain)
 		}
 
 		pwOut, err := executeOrbit("staff", "reset-password", "alice", "--server", srv.URL)

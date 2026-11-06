@@ -15,6 +15,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/istty"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/manovaspace/orbit-cli/pkg/tui/forms"
 	"github.com/spf13/cobra"
@@ -159,57 +160,56 @@ func newInviteCreateCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			fmt.Fprintln(out, titleStyle.Render("Orbit Developer Invitation Generated"))
-			fmt.Fprintf(out, "  %s  Signed invitation token created for %s\n",
-				iconOK,
-				boldStyle.Render(res.Email),
-			)
-			fmt.Fprintf(out, "  %s  Web Setup: %s\n", iconOK, infoStyle.Render(fmt.Sprintf("https://orbit.manova.space/setup?token=%s", res.Token)))
+			p := render.NewPrinter(out)
+			p.Title("Orbit Developer Invitation Generated")
+			p.Line(render.StatusOK, "Signed invitation token created for "+render.Bold.Render(res.Email))
+			p.Line(render.StatusOK, "Web Setup: "+render.Info.Render("https://orbit.manova.space/setup?token="+res.Token))
 
 			if send {
 				if res.MailError != "" {
-					fmt.Fprintf(cmd.ErrOrStderr(), "  %s  %s: %s\n", iconWarn, warningStyle.Render("Failed to dispatch invitation email"), res.MailError)
+					render.NewPrinter(cmd.ErrOrStderr()).Line(render.StatusWarn, render.Warning.Render("Failed to dispatch invitation email")+": "+res.MailError)
 				} else {
-					fmt.Fprintf(out, "  %s  Invitation email dispatched to %s via %s:%s\n",
-						iconOK,
-						boldStyle.Render(res.Email),
-						codeStyle.Render(mailerCfg.Host),
-						codeStyle.Render(mailerCfg.Port),
-					)
+					p.Line(render.StatusOK, fmt.Sprintf("Invitation email dispatched to %s via %s:%s",
+						render.Bold.Render(res.Email),
+						render.Code.Render(mailerCfg.Host),
+						render.Code.Render(mailerCfg.Port),
+					))
 				}
 			}
-			fmt.Fprintln(out)
+			p.Blank()
 
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Token:"), boldStyle.Render(res.Token))
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Email:"), boldStyle.Render(res.Email))
+			pairs := [][2]string{
+				{"Token:", render.Bold.Render(res.Token)},
+				{"Email:", render.Bold.Render(res.Email)},
+			}
 			if res.DisplayName != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Name:"), res.DisplayName)
+				pairs = append(pairs, [2]string{"Name:", res.DisplayName})
 			}
 			if res.CreatedBy != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Created By:"), boldStyle.Render(res.CreatedBy))
+				pairs = append(pairs, [2]string{"Created By:", render.Bold.Render(res.CreatedBy)})
 			}
-			fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("Scope:"), infoStyle.Render(res.Scope))
+			pairs = append(pairs, [2]string{"Scope:", render.Info.Render(res.Scope)})
 			if res.TOTPSecret != "" {
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP Secret:"), codeStyle.Render(res.TOTPSecret))
-				fmt.Fprintf(out, "  %-14s %s\n", headerStyle.Render("TOTP URI:"), subtleStyle.Render(res.TOTPURI))
+				pairs = append(pairs,
+					[2]string{"TOTP Secret:", render.Code.Render(res.TOTPSecret)},
+					[2]string{"TOTP URI:", render.Subtle.Render(res.TOTPURI)},
+				)
 			}
-			fmt.Fprintf(out, "  %-14s %s (%s)\n\n",
-				headerStyle.Render("Expires:"),
-				res.ExpiresAt.Format("2006-01-02 15:04:05 UTC"),
-				warningStyle.Render(invitedomain.FormatRemainingLabel(time.Until(res.ExpiresAt))),
-			)
+			pairs = append(pairs, [2]string{"Expires:", res.ExpiresAt.Format("2006-01-02 15:04:05 UTC") + " (" + render.Warning.Render(invitedomain.FormatRemainingLabel(time.Until(res.ExpiresAt))) + ")"})
+			p.KVs(pairs...)
+			p.Blank()
 
 			instructions := fmt.Sprintf(
 				"To onboard with this invitation token, run:\n\n"+
 					"  %s\n\n"+
 					"Or using shortcut:\n\n"+
 					"  %s",
-				codeStyle.Render("orbit onboard --token "+res.Token),
-				codeStyle.Render("o onboard --token "+res.Token),
+				render.Code.Render("orbit onboard --token "+res.Token),
+				render.Code.Render("o onboard --token "+res.Token),
 			)
-			fmt.Fprintln(out, renderCard("ONBOARDING INSTRUCTIONS", instructions))
+			p.Text(renderCard("ONBOARDING INSTRUCTIONS", instructions) + "\n")
 
-			return nil
+			return p.Err()
 		},
 	}
 
@@ -312,17 +312,18 @@ func newInviteListCmd() *cobra.Command {
 				return output.Write(out, output.Success(displayed))
 			}
 
+			p := render.NewPrinter(out)
 			if res.Total == 0 {
-				fmt.Fprintln(out, infoStyle.Render("No invitations found. Run 'orbit invite create <email>' to generate one."))
-				return nil
+				p.Line(render.StatusInfo, "No invitations found. Run 'orbit invite create <email>' to generate one.")
+				return p.Err()
 			}
 
 			if len(res.Displayed) == 0 {
-				fmt.Fprintln(out, infoStyle.Render("No active invitations found. Use --all (-a) to view expired or revoked invitations, or 'orbit invite create <email>' to generate one."))
-				return nil
+				p.Line(render.StatusInfo, "No active invitations found. Use --all (-a) to view expired or revoked invitations, or 'orbit invite create <email>' to generate one.")
+				return p.Err()
 			}
 
-			fmt.Fprintln(out, titleStyle.Render("Orbit Developer Invitations"))
+			p.Title("Orbit Developer Invitations")
 
 			tbl := table.New(
 				table.Column{Title: "INVITE ID", HeaderStyle: headerStyle, CellStyle: codeStyle, MinWidth: 12},
@@ -373,17 +374,13 @@ func newInviteListCmd() *cobra.Command {
 				tbl.WithPagination(pageFlag, limitFlag)
 			}
 
-			fmt.Fprintln(out)
-			_ = tbl.Render(out)
+			if err := p.Table(tbl); err != nil {
+				return err
+			}
 
-			fmt.Fprintf(out, "\n%s  %s  %s  %s\n",
-				infoStyle.Render(fmt.Sprintf("Total: %d", res.Total)),
-				successStyle.Render(fmt.Sprintf("✔ %d active", res.Active)),
-				errorStyle.Render(fmt.Sprintf("✖ %d revoked", res.Revoked)),
-				warningStyle.Render(fmt.Sprintf("⚠ %d expired", res.Expired)),
-			)
+			p.SummaryText(fmt.Sprintf("Total: %d  %d active  %d revoked  %d expired", res.Total, res.Active, res.Revoked, res.Expired))
 
-			return nil
+			return p.Err()
 		},
 	}
 
@@ -443,40 +440,37 @@ func newInviteRevokeCmd() *cobra.Command {
 				return output.Write(out, output.Success(res))
 			}
 
+			p := render.NewPrinter(out)
 			if allFlag {
 				if res.None {
-					fmt.Fprintln(out, infoStyle.Render("No active invitations to revoke."))
-					return nil
+					p.Line(render.StatusInfo, "No active invitations to revoke.")
+					return p.Err()
 				}
-				fmt.Fprintln(out, titleStyle.Render("Invitations Revoked"))
-				fmt.Fprintf(out, "  %s  Revoked %d active invitation(s):\n",
-					iconOK,
-					len(res.Revoked),
-				)
+				p.Title("Invitations Revoked")
+				p.Line(render.StatusOK, fmt.Sprintf("Revoked %d active invitation(s):", len(res.Revoked)))
 				for _, r := range res.Revoked {
 					idCol := r.ID
 					if len(idCol) > 16 {
 						idCol = idCol[:16] + "…"
 					}
-					fmt.Fprintf(out, "    • %s  %-26s (scope: %s)\n",
-						codeStyle.Render(padRight(idCol, 18)),
-						boldStyle.Render(r.Email),
-						infoStyle.Render(r.Scope),
-					)
+					p.Line(render.StatusInfo, fmt.Sprintf("%s  %-26s (scope: %s)",
+						render.Code.Render(padRight(idCol, 18)),
+						render.Bold.Render(r.Email),
+						render.Info.Render(r.Scope),
+					))
 				}
-				return nil
+				return p.Err()
 			}
 
 			rec := res.Revoked[0]
-			fmt.Fprintln(out, titleStyle.Render("Invitation Revoked"))
-			fmt.Fprintf(out, "  %s  Revoked invitation %s for %s (scope: %s)\n",
-				iconOK,
-				codeStyle.Render(rec.ID),
-				boldStyle.Render(rec.Email),
-				infoStyle.Render(rec.Scope),
-			)
+			p.Title("Invitation Revoked")
+			p.Line(render.StatusOK, fmt.Sprintf("Revoked invitation %s for %s (scope: %s)",
+				render.Code.Render(rec.ID),
+				render.Bold.Render(rec.Email),
+				render.Info.Render(rec.Scope),
+			))
 
-			return nil
+			return p.Err()
 		},
 	}
 

@@ -15,6 +15,7 @@ orbit config list [flags]
 ```
   -f, --format string   Output format: table, json, or yaml (default "table")
   -h, --help            help for list
+      --json            Print the result as a JSON envelope
       --limit int       maximum rows per page (0 = all)
       --page int        page number to display (default 1)
 ```

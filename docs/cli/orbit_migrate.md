@@ -14,6 +14,7 @@ orbit migrate [flags]
 
 ```
   -h, --help   help for migrate
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

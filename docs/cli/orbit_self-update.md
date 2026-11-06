@@ -15,6 +15,7 @@ orbit self-update [flags]
 ```
       --check   Check for updates without downloading or installing
   -h, --help    help for self-update
+      --json    Print the result as a JSON envelope
   -y, --yes     Automatically accept update confirmation prompt
 ```
 

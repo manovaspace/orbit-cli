@@ -498,35 +498,35 @@ func renderPRStatusText(out io.Writer, results []prStatusRepoResult, total int, 
 		}
 	}
 
-	fmt.Fprintln(out, render.Title.Render("Open pull requests"))
+	p := render.NewPrinter(out)
+	p.Title("Open pull requests")
 
 	if len(rows) > 0 {
-		fmt.Fprintln(out)
-		if err := renderPRTable(out, rows, showURL); err != nil {
+		if err := renderPRTable(p, rows, showURL); err != nil {
 			return err
 		}
 	}
 
 	if len(noPRs)+len(skipped)+len(failed) > 0 {
-		fmt.Fprintln(out)
+		p.Blank()
 	}
 	if line := joinRepoNames(skipped, "Skipped: "); line != "" {
-		fmt.Fprintln(out, warningStyle.Render(line))
+		p.Line(render.StatusWarn, warningStyle.Render(line))
 	}
 	if line := joinRepoNames(failed, "Failed: "); line != "" {
-		fmt.Fprintln(out, errorStyle.Render(line))
+		p.Line(render.StatusFail, errorStyle.Render(line))
 	}
 	if len(noPRs) > 0 {
 		line := fmt.Sprintf("No open PRs in %d %s", len(noPRs), render.Plural(len(noPRs), "repository", "repositories"))
-		fmt.Fprintln(out, subtleStyle.Render(line))
+		p.Line(render.StatusInfo, subtleStyle.Render(line))
 	}
 
 	summary := fmt.Sprintf("%d open %s", total, render.Plural(total, "pull request", "pull requests"))
 	if len(results) > 1 {
 		summary += fmt.Sprintf(" across %d %s", queried, render.Plural(queried, "repository", "repositories"))
 	}
-	fmt.Fprintf(out, "\n%s\n", infoStyle.Render(summary))
-	return nil
+	p.SummaryText(infoStyle.Render(summary))
+	return p.Err()
 }
 
 // joinRepoNames renders one collapsed summary line, or "" when the list is
@@ -539,7 +539,7 @@ func joinRepoNames(names []string, prefix string) string {
 }
 
 // renderPRTable renders the shared open-pull-request table.
-func renderPRTable(out io.Writer, rows []prStatusRow, showURL bool) error {
+func renderPRTable(p *render.Printer, rows []prStatusRow, showURL bool) error {
 	tbl := table.New(
 		table.Column{Title: "REPO", HeaderStyle: headerStyle, MinWidth: 8},
 		table.Column{Title: "PR", HeaderStyle: headerStyle, CellStyle: boldStyle, MinWidth: 4},
@@ -563,7 +563,7 @@ func renderPRTable(out io.Writer, rows []prStatusRow, showURL bool) error {
 		tbl.AddRow(values...)
 	}
 
-	return render.NewPrinter(out).Table(tbl)
+	return p.Table(tbl)
 }
 
 func newPRDeliverCmd(dirFlag *string) *cobra.Command {

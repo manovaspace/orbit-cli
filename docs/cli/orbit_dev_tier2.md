@@ -10,6 +10,7 @@ orbit dev tier2 [flags]
 
 ```
   -h, --help   help for tier2
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

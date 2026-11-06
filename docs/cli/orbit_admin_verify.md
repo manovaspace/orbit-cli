@@ -16,6 +16,7 @@ orbit admin verify [email] [code] [flags]
   -c, --code string    6-digit verification code
   -f, --force          Force re-verification even if already verified
   -h, --help           help for verify
+      --json           Print the result as a JSON envelope
   -n, --name string    Owner display name
   -o, --owner string   Owner email address
       --store string   Custom path to owner storage vault file

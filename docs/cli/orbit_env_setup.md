@@ -15,6 +15,7 @@ orbit env setup [path] [flags]
 ```
       --force   Overwrite existing .env files with schema defaults
   -h, --help    help for setup
+      --json    Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

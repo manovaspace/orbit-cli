@@ -10,6 +10,7 @@ orbit port list [flags]
 
 ```
   -h, --help        help for list
+      --json        Print the result as a JSON envelope
       --limit int   maximum projects per page (0 = all)
       --page int    page number to display (default 1)
       --scan        Momentarily attempt IPv4 loopback binds; no reservation is retained

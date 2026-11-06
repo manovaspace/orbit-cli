@@ -15,6 +15,7 @@ orbit admin status [flags]
 ```
   -f, --format string   Output format: table or json (default "table")
   -h, --help            help for status
+      --json            Print the result as a JSON envelope
       --store string    Custom path to owner storage vault file
 ```
 

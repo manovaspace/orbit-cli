@@ -14,6 +14,7 @@ orbit config get <key> [flags]
 
 ```
   -h, --help   help for get
+      --json   Print the result as a JSON envelope
       --raw    Print raw value without trailing newline or formatting
 ```
 

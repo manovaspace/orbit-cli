@@ -15,6 +15,7 @@ orbit invite revoke [token_or_id] [flags]
 ```
   -a, --all                 Revoke all active developer onboarding invitations
   -h, --help                help for revoke
+      --json                Print the result as a JSON envelope
       --store-file string   Custom path to invites storage file
 ```
 

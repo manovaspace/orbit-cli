@@ -6,6 +6,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/render"
 	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 	workspacedomain "github.com/manovaspace/orbit-cli/pkg/workspace/domain"
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ Scopes match orbit init / orbit status (default: all).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
+			p := render.NewPrinter(out)
 			uiOut := io.Writer(out)
 			if jsonFlag {
 				uiOut = io.Discard
@@ -56,7 +58,7 @@ Scopes match orbit init / orbit status (default: all).`,
 			manifestPath := findManifestPath(workspaceRoot, manifestFlag)
 
 			if !jsonFlag {
-				fmt.Fprintln(out, titleStyle.Render(fmt.Sprintf("Orbit Workspace Repair — Scope: %s", scope)))
+				p.Title(fmt.Sprintf("Orbit Workspace Repair — Scope: %s", scope))
 			}
 
 			res, err := newWorkspaceService(uiOut).Repair(cmd.Context(), workspaceapp.RepairInput{
@@ -80,15 +82,15 @@ Scopes match orbit init / orbit status (default: all).`,
 						Summary: repairSummary{Repaired: res.Repaired, Skipped: res.Skipped, Failed: res.Failed},
 					}))
 				}
-				fmt.Fprintf(out, "No repositories found for scope %q.\n", scope)
-				return nil
+				p.Line(render.StatusInfo, fmt.Sprintf("No repositories found for scope %q.", scope))
+				return p.Err()
 			}
 
 			if !jsonFlag {
-				fmt.Fprintf(out, "\n%s  %s  %s\n",
-					successStyle.Render(fmt.Sprintf("✔ %d repaired", res.Repaired)),
-					infoStyle.Render(fmt.Sprintf("ℹ %d skipped", res.Skipped)),
-					errorStyle.Render(fmt.Sprintf("✖ %d failed", res.Failed)),
+				p.Summary(
+					render.SummaryPart{Status: render.StatusOK, Count: res.Repaired, Label: "repaired"},
+					render.SummaryPart{Status: render.StatusInfo, Count: res.Skipped, Label: "skipped"},
+					render.SummaryPart{Status: render.StatusFail, Count: res.Failed, Label: "failed"},
 				)
 			}
 
@@ -106,7 +108,7 @@ Scopes match orbit init / orbit status (default: all).`,
 					Summary: repairSummary{Repaired: res.Repaired, Skipped: res.Skipped, Failed: res.Failed},
 				}))
 			}
-			return nil
+			return p.Err()
 		},
 	}
 

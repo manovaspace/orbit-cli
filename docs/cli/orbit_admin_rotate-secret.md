@@ -15,6 +15,7 @@ orbit admin rotate-secret [flags]
 
 ```
   -h, --help           help for rotate-secret
+      --json           Print the result as a JSON envelope
       --store string   Custom path to owner storage vault file
   -y, --yes            Skip interactive confirmation prompt
 ```

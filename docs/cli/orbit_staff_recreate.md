@@ -20,6 +20,7 @@ orbit staff recreate [flags]
       --invite                   legacy flag; ignored because recreate is disabled
       --invite-email string      legacy flag; ignored because recreate is disabled
       --invite-ttl string        legacy flag; ignored because recreate is disabled (default "7d")
+      --json                     Print the result as a JSON envelope
       --name string              legacy flag; ignored because recreate is disabled
       --no-send                  legacy flag; ignored because recreate is disabled
       --uid string               UID to include in the safe reset instructions (legacy flag)

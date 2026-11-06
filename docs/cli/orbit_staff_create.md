@@ -21,6 +21,7 @@ orbit staff create [flags]
       --invite                   generate and print a signed onboarding invite token after account creation
       --invite-email string      email address for the invite token (defaults to --forward value)
       --invite-ttl string        invite token TTL (e.g. 7d, 24h, 168h) (default "7d")
+      --json                     Print the result as a JSON envelope
       --last-name string         last name
       --name string              display name
       --no-send                  suppress dispatching onboarding invitation email

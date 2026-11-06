@@ -10,6 +10,7 @@ orbit env check [path] [flags]
 
 ```
   -h, --help   help for check
+      --json   Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands

@@ -15,6 +15,7 @@ orbit config init [flags]
 ```
   -f, --force   Overwrite existing configuration file with default values
   -h, --help    help for init
+      --json    Print the result as a JSON envelope
 ```
 
 ### Options inherited from parent commands
