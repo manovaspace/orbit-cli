@@ -1,6 +1,6 @@
 package render
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Styles shared by every Orbit command. They keep the colors the CLI has used
 // since the original cmd/orbit/ui.go so phase 1 changes no existing output.

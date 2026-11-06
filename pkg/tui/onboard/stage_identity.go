@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"golang.org/x/crypto/ssh"
@@ -240,32 +240,26 @@ func NewIdentityModel(parent *WizardModel) *IdentityModel {
 	nameTi := textinput.New()
 	nameTi.Placeholder = "Enter your full name (e.g. Grace Hopper)"
 	nameTi.CharLimit = 64
-	nameTi.Width = 48
+	nameTi.SetWidth(48)
 	nameTi.Prompt = "Display Name ❯ "
-	nameTi.PromptStyle = lipgloss.NewStyle().Foreground(ColorPurple).Bold(true)
-	nameTi.TextStyle = lipgloss.NewStyle().Foreground(ColorCyan)
-	nameTi.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorGray)
+	nameTi.SetStyles(inputStyles())
 	nameTi.Focus()
 
 	// Desired UID input
 	uidTi := textinput.New()
 	uidTi.Placeholder = "Enter desired username / UID (e.g. ghopper)"
 	uidTi.CharLimit = 32
-	uidTi.Width = 48
+	uidTi.SetWidth(48)
 	uidTi.Prompt = "Desired UID  ❯ "
-	uidTi.PromptStyle = lipgloss.NewStyle().Foreground(ColorPurple).Bold(true)
-	uidTi.TextStyle = lipgloss.NewStyle().Foreground(ColorCyan)
-	uidTi.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorGray)
+	uidTi.SetStyles(inputStyles())
 
 	// Server Base URL input
 	serverTi := textinput.New()
 	serverTi.Placeholder = "https://api.internal.manova.space or http://localhost:8080"
 	serverTi.CharLimit = 128
-	serverTi.Width = 48
+	serverTi.SetWidth(48)
 	serverTi.Prompt = "Server URL   ❯ "
-	serverTi.PromptStyle = lipgloss.NewStyle().Foreground(ColorPurple).Bold(true)
-	serverTi.TextStyle = lipgloss.NewStyle().Foreground(ColorCyan)
-	serverTi.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorGray)
+	serverTi.SetStyles(inputStyles())
 
 	defaultServer := os.Getenv("ORBIT_SERVER")
 	if defaultServer == "" {
@@ -485,7 +479,7 @@ func (m *IdentityModel) RunClaim() tea.Cmd {
 }
 
 // Update processes Bubble Tea messages, text input keystrokes, and claim dispatch.
-func (m *IdentityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *IdentityModel) Update(msg tea.Msg) (*IdentityModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -547,22 +541,22 @@ func (m *IdentityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Retry shortcut when in error state
 		if (msg.String() == "r" || msg.String() == "R") && m.parent != nil && m.parent.ErrorMsg != "" {
 			return m, m.RunClaim()
 		}
 
-		switch msg.Type {
-		case tea.KeyTab, tea.KeyDown:
-			m.SetFocusedIndex(m.focusedIndex + 1)
-			return m, nil
-
-		case tea.KeyShiftTab, tea.KeyUp:
+		switch {
+		case msg.Code == tea.KeyTab && msg.Mod.Contains(tea.ModShift), msg.Code == tea.KeyUp:
 			m.SetFocusedIndex(m.focusedIndex - 1)
 			return m, nil
 
-		case tea.KeyEnter:
+		case msg.Code == tea.KeyTab, msg.Code == tea.KeyDown:
+			m.SetFocusedIndex(m.focusedIndex + 1)
+			return m, nil
+
+		case msg.Code == tea.KeyEnter:
 			if !m.submitting {
 				return m, m.RunClaim()
 			}

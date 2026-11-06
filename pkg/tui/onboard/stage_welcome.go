@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
@@ -29,12 +29,10 @@ func NewWelcomeModel(parent *WizardModel) *WelcomeModel {
 	ti := textinput.New()
 	ti.Placeholder = "Paste your invitation token (e.g. inv_... or orb_...)"
 	ti.CharLimit = 128
-	ti.Width = 56
+	ti.SetWidth(56)
 	ti.Focus()
 	ti.Prompt = "Token ❯ "
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorPurple).Bold(true)
-	ti.TextStyle = lipgloss.NewStyle().Foreground(ColorCyan)
-	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(ColorGray)
+	ti.SetStyles(inputStyles())
 
 	var hasPending bool
 	var pendingSess *onboarddomain.SessionState
@@ -87,7 +85,7 @@ func (m *WelcomeModel) SetTokenValue(tok string) {
 }
 
 // Update handles key presses and user interaction for the welcome stage.
-func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *WelcomeModel) Update(msg tea.Msg) (*WelcomeModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -95,7 +93,7 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.hasPendingSession {
 			switch msg.String() {
 			case "r", "R", "enter":
@@ -123,8 +121,7 @@ func (m *WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Token input mode
-		switch msg.Type {
-		case tea.KeyEnter:
+		if msg.Code == tea.KeyEnter {
 			tok := m.TokenValue()
 			if tok == "" {
 				if m.parent != nil {

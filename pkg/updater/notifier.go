@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/updater/domain"
 	"github.com/manovaspace/orbit-cli/pkg/updater/infrastructure/releases"
 )

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
@@ -37,7 +37,7 @@ func TestDoctorStageAllPassing(t *testing.T) {
 	}
 
 	// [Enter] when all passed transitions to StageIdentity
-	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	docModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if root.ActiveStage() != onboarddomain.StageIdentity {
 		t.Errorf("expected transition to StageIdentity, got: %v", root.ActiveStage())
 	}
@@ -88,7 +88,7 @@ func TestDoctorStageCriticalUnhealableErrorBlocksAdvance(t *testing.T) {
 	docModel.SetReport(report)
 
 	// Press [Enter] - should NOT advance to StageIdentity
-	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	docModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if root.ActiveStage() == onboarddomain.StageIdentity {
 		t.Errorf("expected stage not to transition to StageIdentity on critical error, got: %v", root.ActiveStage())
 	}
@@ -124,7 +124,7 @@ func TestDoctorStageWarningAllowsAdvance(t *testing.T) {
 	docModel.SetReport(report)
 
 	// Press [Enter] - should advance to StageIdentity even with warnings
-	docModel.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	docModel.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if root.ActiveStage() != onboarddomain.StageIdentity {
 		t.Errorf("expected transition to StageIdentity with warnings, got: %v", root.ActiveStage())
 	}
@@ -206,7 +206,7 @@ func TestDoctorStageAutoHealExecution(t *testing.T) {
 	})
 
 	// Press 'h' key
-	_, cmd := docModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	_, cmd := docModel.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
 	if cmd == nil {
 		t.Fatalf("expected non-nil tea.Cmd after pressing 'h'")
 	}
@@ -270,7 +270,7 @@ func TestDoctorStageRetryKey(t *testing.T) {
 	docModel := tuiOnboard.NewDoctorModel(root)
 
 	// Press 'r'
-	_, cmd := docModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, cmd := docModel.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if cmd == nil {
 		t.Fatalf("expected non-nil tea.Cmd on 'r' retry")
 	}
@@ -311,7 +311,7 @@ func TestDoctorStageWizardIntegration(t *testing.T) {
 	// Set stage to Doctor
 	root.SetStage(onboarddomain.StageDoctor)
 
-	view := root.View()
+	view := root.View().Content
 	if !strings.Contains(view, "Pre-Flight System Diagnostics") {
 		t.Errorf("expected Doctor stage view in WizardModel, got: %s", view)
 	}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
@@ -123,31 +123,31 @@ func TestWorkspaceModelKeyboardNavigation(t *testing.T) {
 	}
 
 	// Down arrow moves cursor to 1
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyDown})
+	wsModel.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if wsModel.Cursor() != 1 {
 		t.Errorf("expected cursor 1 after KeyDown, got %d", wsModel.Cursor())
 	}
 
 	// 'j' moves cursor to 2
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	wsModel.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if wsModel.Cursor() != 2 {
 		t.Errorf("expected cursor 2 after 'j', got %d", wsModel.Cursor())
 	}
 
 	// Up arrow moves cursor back to 1
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyUp})
+	wsModel.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	if wsModel.Cursor() != 1 {
 		t.Errorf("expected cursor 1 after KeyUp, got %d", wsModel.Cursor())
 	}
 
 	// 'k' moves cursor back to 0
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	wsModel.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	if wsModel.Cursor() != 0 {
 		t.Errorf("expected cursor 0 after 'k', got %d", wsModel.Cursor())
 	}
 
 	// 'k' at 0 clamps to 0
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	wsModel.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	if wsModel.Cursor() != 0 {
 		t.Errorf("expected cursor clamped at 0, got %d", wsModel.Cursor())
 	}
@@ -177,7 +177,7 @@ func TestWorkspaceModelSelectionToggles(t *testing.T) {
 
 	// Pressing [Space] on required item should keep it selected
 	wsModel.SetCursor(requiredIdx)
-	wsModel.Update(tea.KeyMsg{Type: tea.KeySpace})
+	wsModel.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	if !wsModel.Items()[requiredIdx].Selected {
 		t.Errorf("expected required item %d (%s) to remain selected after Space", requiredIdx, wsModel.Items()[requiredIdx].Name)
 	}
@@ -196,20 +196,20 @@ func TestWorkspaceModelSelectionToggles(t *testing.T) {
 
 	// Toggle optional item on with [Space]
 	wsModel.SetCursor(optionalIdx)
-	wsModel.Update(tea.KeyMsg{Type: tea.KeySpace})
+	wsModel.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	if !wsModel.Items()[optionalIdx].Selected {
 		t.Errorf("expected optional item %d to become selected after Space", optionalIdx)
 	}
 
 	// Toggle optional item off with [Space]
-	wsModel.Update(tea.KeyMsg{Type: tea.KeySpace})
+	wsModel.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	if wsModel.Items()[optionalIdx].Selected {
 		t.Errorf("expected optional item %d to become unselected after second Space", optionalIdx)
 	}
 
 	// Toggle All via [A] / [a]
 	// First press -> selects all optional items
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	wsModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	for i, it := range wsModel.Items() {
 		if !it.Selected {
 			t.Errorf("expected item %d (%s) to be selected after ToggleAll", i, it.Name)
@@ -217,7 +217,7 @@ func TestWorkspaceModelSelectionToggles(t *testing.T) {
 	}
 
 	// Second press -> deselects all optional items (required items remain selected)
-	wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	wsModel.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	for i, it := range wsModel.Items() {
 		if it.Required && !it.Selected {
 			t.Errorf("expected required item %d to remain selected after ToggleAll", i)
@@ -385,7 +385,7 @@ func TestWorkspaceModelCloningFailureAndRetry(t *testing.T) {
 	}
 
 	// Attempt 2: Press 'r' / 'R' to retry
-	_, retryCmd := wsModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, retryCmd := wsModel.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if retryCmd == nil {
 		t.Fatalf("expected non-nil tea.Cmd on 'r' retry")
 	}
@@ -450,7 +450,7 @@ func TestWorkspaceModelWizardIntegration(t *testing.T) {
 	})
 
 	root.SetStage(onboarddomain.StageWorkspace)
-	view := root.View()
+	view := root.View().Content
 
 	if !strings.Contains(view, "Workspace") && !strings.Contains(view, "Repositories") {
 		t.Errorf("expected Workspace stage view rendered in WizardModel, got:\n%s", view)

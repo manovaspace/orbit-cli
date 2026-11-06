@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/manovaspace/orbit-cli/pkg/client"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
@@ -195,20 +195,20 @@ func TestIdentityModelTabNavigation(t *testing.T) {
 	}
 
 	// Press Tab -> switches focus to Desired UID (index 1)
-	idModel.Update(tea.KeyMsg{Type: tea.KeyTab})
+	idModel.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if idModel.FocusedIndex() != 1 {
 		t.Errorf("expected focus index 1 after Tab, got %d", idModel.FocusedIndex())
 	}
 
 	// Press Tab again -> switches focus to Server URL or cycles back to 0
-	idModel.Update(tea.KeyMsg{Type: tea.KeyTab})
-	idModel.Update(tea.KeyMsg{Type: tea.KeyTab})
+	idModel.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	idModel.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if idModel.FocusedIndex() != 0 && idModel.FocusedIndex() != 1 && idModel.FocusedIndex() != 2 {
 		t.Errorf("unexpected focus index %d", idModel.FocusedIndex())
 	}
 
 	// Press Shift+Tab -> moves backwards
-	idModel.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	idModel.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 }
 
 func TestIdentityModelClaimSuccess(t *testing.T) {
@@ -344,7 +344,7 @@ func TestIdentityModelClaimFailureAndRetry(t *testing.T) {
 	}
 
 	// Press 'r' to retry
-	_, retryCmd := idModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, retryCmd := idModel.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if retryCmd == nil {
 		t.Errorf("expected non-nil tea.Cmd on 'r' retry")
 	}
@@ -377,7 +377,7 @@ func TestIdentityModelWizardIntegration(t *testing.T) {
 	})
 
 	root.SetStage(onboarddomain.StageIdentity)
-	view := root.View()
+	view := root.View().Content
 
 	if !strings.Contains(view, "Developer Identity & Platform Registration") {
 		t.Errorf("expected Identity stage view rendered in WizardModel, got:\n%s", view)

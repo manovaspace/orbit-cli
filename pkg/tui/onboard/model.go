@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 )
@@ -223,9 +223,8 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.TermTooSmall = (msg.Width < MinTerminalWidth || msg.Height < MinTerminalHeight)
 		return m, nil
 
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			// Persist checkpoint on abort
 			if m.Session != nil && m.SessionManager != nil {
 				_ = m.SessionManager.Save(m.Session)
@@ -254,9 +253,9 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the complete full-screen TUI interface.
-func (m *WizardModel) View() string {
+func (m *WizardModel) View() tea.View {
 	if m.TermTooSmall {
-		return RenderTooSmallWarning(m.Width, m.Height)
+		return newView(RenderTooSmallWarning(m.Width, m.Height))
 	}
 
 	// Header section
@@ -314,11 +313,19 @@ func (m *WizardModel) View() string {
 				strings.Repeat("\n", padding-1),
 				footer,
 			)
-			return content
+			return newView(content)
 		}
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, "", footer)
+	return newView(lipgloss.JoinVertical(lipgloss.Left, content, "", footer))
+}
+
+// newView wraps rendered content in a Bubble Tea view that owns the alternate
+// screen buffer.
+func newView(content string) tea.View {
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 // defaultStageView returns a default formatted card when stage-specific view is initializing.
@@ -336,7 +343,7 @@ func (m *WizardModel) defaultStageView() string {
 // RunWizard runs the Bubble Tea onboarding program in the terminal.
 func RunWizard(opts WizardOptions) error {
 	model := NewWizardModel(opts)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model)
 	_, err := p.Run()
 	return err
 }

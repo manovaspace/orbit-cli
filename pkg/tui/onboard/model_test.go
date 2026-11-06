@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
@@ -32,7 +32,7 @@ func TestWizardModelInitAndResize(t *testing.T) {
 		t.Fatalf("expected updated model to be *WizardModel")
 	}
 
-	view := m.View()
+	view := m.View().Content
 	if len(view) == 0 {
 		t.Errorf("expected non-empty view output")
 	}
@@ -76,7 +76,7 @@ func TestWizardModelTerminalResizeConstraints(t *testing.T) {
 	updated, _ := model.Update(tea.WindowSizeMsg{Width: 60, Height: 15})
 	m := updated.(*tuiOnboard.WizardModel)
 
-	view := m.View()
+	view := m.View().Content
 	if !strings.Contains(view, "too small") && !strings.Contains(view, "60x15") && !strings.Contains(view, "80x24") {
 		t.Errorf("expected terminal too small warning, got: %s", view)
 	}
@@ -85,7 +85,7 @@ func TestWizardModelTerminalResizeConstraints(t *testing.T) {
 	updated, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
 	m = updated.(*tuiOnboard.WizardModel)
 
-	view = m.View()
+	view = m.View().Content
 	if strings.Contains(view, "too small") {
 		t.Errorf("expected normal view without too small warning on 120x35")
 	}
@@ -97,7 +97,7 @@ func TestWizardModelCtrlCQuit(t *testing.T) {
 		SessionManager: sm,
 	})
 
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Errorf("expected non-nil tea.Quit command on Ctrl+C")
 	}
@@ -209,7 +209,7 @@ func TestWizardModelErrorAndLoading(t *testing.T) {
 	if model.ErrorMsg != "something went wrong" {
 		t.Errorf("expected error message to be set")
 	}
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "something went wrong") {
 		t.Errorf("expected error in view, got: %s", view)
 	}
@@ -218,7 +218,7 @@ func TestWizardModelErrorAndLoading(t *testing.T) {
 	if !model.IsLoading || model.LoadingMsg != "Downloading assets..." {
 		t.Errorf("expected loading state to be active")
 	}
-	view = model.View()
+	view = model.View().Content
 	if !strings.Contains(view, "Downloading assets...") {
 		t.Errorf("expected loading msg in view, got: %s", view)
 	}
@@ -240,12 +240,12 @@ func TestWizardModelCustomViewsAndUpdates(t *testing.T) {
 		return m, nil
 	}
 
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "CUSTOM_WELCOME_VIEW") {
 		t.Errorf("expected custom welcome view in output, got: %s", view)
 	}
 
-	model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if !customUpdateCalled {
 		t.Errorf("expected custom stage update handler to be invoked")
 	}

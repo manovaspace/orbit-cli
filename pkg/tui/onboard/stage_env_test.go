@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
@@ -270,7 +270,7 @@ func TestEnvModelRetryKeySuccess(t *testing.T) {
 	envModel.SetHasError(true)
 
 	// [R] press should trigger retry
-	_, cmd := envModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, cmd := envModel.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if cmd == nil {
 		t.Error("expected non-nil cmd from retry [R]")
 	}
@@ -284,7 +284,7 @@ func TestEnvModelSkipKey(t *testing.T) {
 	envModel.SetHasError(true)
 
 	// [S] press should skip to next stage
-	_, _ = envModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	_, _ = envModel.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
 	if root.ActiveStage() != onboarddomain.StageStack {
 		t.Errorf("expected skip to transition to StageStack, got %v", root.ActiveStage())
 	}
@@ -295,7 +295,7 @@ func TestEnvModelWizardIntegration(t *testing.T) {
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	root.SetStage(onboarddomain.StageEnvironment)
 
-	view := root.View()
+	view := root.View().Content
 	if !strings.Contains(view, "Environment") {
 		t.Errorf("expected Environment stage view in WizardModel, got:\n%s", view)
 	}

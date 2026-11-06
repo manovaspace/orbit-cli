@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
@@ -107,7 +107,7 @@ func (m *StackModel) LaunchStack() tea.Cmd {
 }
 
 // Update handles Bubble Tea messages.
-func (m *StackModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *StackModel) Update(msg tea.Msg) (*StackModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -140,7 +140,7 @@ func (m *StackModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if (msg.String() == "r" || msg.String() == "R") && m.hasError {
 			cmds = append(cmds, m.LaunchStack())
 		}

@@ -38,7 +38,7 @@ linters:
               desc: "pkg/pr/domain must not depend on the adapters"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/application"
               desc: "pkg/pr/domain must not depend on the application layer"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/pr/domain is pure and must not style output"
         # The application layer reaches the outside world only through its
         # Forge and Git ports.
@@ -50,7 +50,7 @@ linters:
               desc: "pkg/pr/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/pr/infrastructure"
               desc: "pkg/pr/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/pr/application writes through its injected UI"
         # The workspace domain is pure types and rules.
         workspace-domain:
@@ -63,7 +63,7 @@ linters:
               desc: "pkg/workspace/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/workspace/infrastructure"
               desc: "pkg/workspace/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/workspace/domain is pure and must not style output"
         # The workspace application reaches git and the filesystem only through
         # its ports.
@@ -75,7 +75,7 @@ linters:
               desc: "pkg/workspace/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/workspace/infrastructure"
               desc: "pkg/workspace/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/workspace/application writes through its injected UI"
         # The updater domain is pure types and version rules.
         updater-domain:
@@ -88,7 +88,7 @@ linters:
               desc: "pkg/updater/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/updater/infrastructure"
               desc: "pkg/updater/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/updater/domain is pure and must not style output"
         updater-application:
           files:
@@ -98,7 +98,7 @@ linters:
               desc: "pkg/updater/application reaches the network and binary through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/updater/infrastructure"
               desc: "pkg/updater/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/updater/application writes through its injected UI"
         # The uninstall domain is pure result types.
         uninstall-domain:
@@ -111,7 +111,7 @@ linters:
               desc: "pkg/uninstall/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/uninstall/infrastructure"
               desc: "pkg/uninstall/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/uninstall/domain is pure and must not style output"
         uninstall-application:
           files:
@@ -121,7 +121,7 @@ linters:
               desc: "pkg/uninstall/application reaches the filesystem through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/uninstall/infrastructure"
               desc: "pkg/uninstall/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/uninstall/application writes through its injected UI"
         # The diagnostics domain is pure types and version checks: every probe
         # enters through a port the application layer defines.
@@ -135,7 +135,7 @@ linters:
               desc: "pkg/doctor/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure"
               desc: "pkg/doctor/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/doctor/domain is pure and must not style output"
         # The diagnostics application reaches tools, files, ports and the
         # manifest only through its probe, host and manifest ports.
@@ -147,7 +147,7 @@ linters:
               desc: "pkg/doctor/application reaches external commands through its probe port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure"
               desc: "pkg/doctor/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/doctor/application writes through its injected UI"
         # The audit domain is pure findings and manifest parsers: no process
         # execution and no dependency on the layers above it.
@@ -161,7 +161,7 @@ linters:
               desc: "pkg/audit/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/audit/infrastructure"
               desc: "pkg/audit/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/audit/domain is pure and must not style output"
         # The audit application reaches files, git refs and the registry only
         # through its ports.
@@ -173,7 +173,7 @@ linters:
               desc: "pkg/audit/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/audit/infrastructure"
               desc: "pkg/audit/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/audit/application writes through its injected writer"
         # The environment domain is pure schema and value rules.
         env-domain:
@@ -186,7 +186,7 @@ linters:
               desc: "pkg/env/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/env/infrastructure"
               desc: "pkg/env/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/env/domain is pure and must not style output"
         env-application:
           files:
@@ -196,7 +196,7 @@ linters:
               desc: "pkg/env/application reaches files through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/env/infrastructure"
               desc: "pkg/env/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/env/application writes through its injected UI"
         # The port domain is pure 50-port block arithmetic.
         ports-domain:
@@ -209,7 +209,7 @@ linters:
               desc: "pkg/ports/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure"
               desc: "pkg/ports/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/ports/domain is pure and must not style output"
         ports-application:
           files:
@@ -219,7 +219,7 @@ linters:
               desc: "pkg/ports/application probes through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure"
               desc: "pkg/ports/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/ports/application writes through its injected UI"
         # The assets domain is pure index types and rules.
         assets-domain:
@@ -232,7 +232,7 @@ linters:
               desc: "pkg/assets/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure"
               desc: "pkg/assets/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/assets/domain is pure and must not style output"
         # The assets application reaches the store and filesystem only through
         # its ports.
@@ -244,7 +244,7 @@ linters:
               desc: "pkg/assets/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/assets/infrastructure"
               desc: "pkg/assets/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/assets/application writes through its injected writer"
         # The migrate domain is pure migration types and state rules.
         migrate-domain:
@@ -257,7 +257,7 @@ linters:
               desc: "pkg/migrate/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure"
               desc: "pkg/migrate/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/migrate/domain is pure and must not style output"
         # The migrate application reaches the state file only through its store
         # port.
@@ -269,7 +269,7 @@ linters:
               desc: "pkg/migrate/application reaches git through injected migrations"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure"
               desc: "pkg/migrate/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/migrate/application writes through its injected writer"
         # The CI domain is pure runner and secret rules.
         ci-domain:
@@ -282,7 +282,7 @@ linters:
               desc: "pkg/ci/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/ci/infrastructure"
               desc: "pkg/ci/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/ci/domain is pure and must not style output"
         # The CI application reaches gh, systemctl and secret files only
         # through its command and file ports.
@@ -294,7 +294,7 @@ linters:
               desc: "pkg/ci/application reaches external commands through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/ci/infrastructure"
               desc: "pkg/ci/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/ci/application writes through its injected writer"
         # The config domain is the pure configuration model.
         config-domain:
@@ -307,7 +307,7 @@ linters:
               desc: "pkg/config/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/config/infrastructure"
               desc: "pkg/config/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/config/domain is pure and must not style output"
         # The config application reaches the file and environment through its
         # ports.
@@ -319,7 +319,7 @@ linters:
               desc: "pkg/config/application reaches no external commands"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/config/infrastructure"
               desc: "pkg/config/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/config/application writes through its injected UI"
         # The dev domain is the pure local stack model.
         dev-domain:
@@ -332,7 +332,7 @@ linters:
               desc: "pkg/dev/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/dev/infrastructure"
               desc: "pkg/dev/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/dev/domain is pure and must not style output"
         # The dev application reaches commands, files and TCP probes only
         # through its ports.
@@ -344,7 +344,7 @@ linters:
               desc: "pkg/dev/application reaches external commands through its port"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/dev/infrastructure"
               desc: "pkg/dev/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/dev/application writes through its injected UI"
         # The staff domain is pure directory types and rules.
         staff-domain:
@@ -357,7 +357,7 @@ linters:
               desc: "pkg/staff/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/staff/infrastructure"
               desc: "pkg/staff/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/staff/domain is pure and must not style output"
         # The staff application reaches the control plane and vault only through
         # its ports.
@@ -369,7 +369,7 @@ linters:
               desc: "pkg/staff/application reaches the control plane through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/staff/infrastructure"
               desc: "pkg/staff/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/staff/application writes through its injected writer"
         # The invitation domain is pure token, record and template rules.
         invite-domain:
@@ -382,7 +382,7 @@ linters:
               desc: "pkg/invite/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure"
               desc: "pkg/invite/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/invite/domain is pure and must not style output"
         # The invitation application reaches the store, mailer and vault only
         # through its ports.
@@ -394,7 +394,7 @@ linters:
               desc: "pkg/invite/application reaches external services through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure"
               desc: "pkg/invite/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/invite/application writes through its injected writer"
         # The owner domain is pure vault, challenge and grant rules.
         owner-domain:
@@ -407,7 +407,7 @@ linters:
               desc: "pkg/owner/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure"
               desc: "pkg/owner/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/owner/domain is pure and must not style output"
         # The owner application reaches the vault, auth service, mail and
         # telegram only through its ports.
@@ -419,7 +419,7 @@ linters:
               desc: "pkg/owner/application reaches external services through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure"
               desc: "pkg/owner/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/owner/application writes through its injected UI"
         # The onboarding domain is the pure step, session and claim model.
         onboard-domain:
@@ -432,7 +432,7 @@ linters:
               desc: "pkg/onboard/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure"
               desc: "pkg/onboard/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/onboard/domain is pure and must not style output"
         # The onboarding application reaches the provisioner, session file,
         # filesystem, diagnostics, repositories and stack only through its
@@ -445,7 +445,7 @@ linters:
               desc: "pkg/onboard/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure"
               desc: "pkg/onboard/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/onboard/application writes through its injected UI"
         # The release domain is pure release, gate and demo rules: no process
         # execution and no dependency on the layers above it.
@@ -459,7 +459,7 @@ linters:
               desc: "pkg/release/domain must not depend on the application layer"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/release/infrastructure"
               desc: "pkg/release/domain must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/release/domain is pure and must not style output"
         # The release application reaches gh, git, psql and the dev services
         # only through its ports.
@@ -471,7 +471,7 @@ linters:
               desc: "pkg/release/application reaches external commands through its ports"
             - pkg: "github.com/manovaspace/orbit-cli/pkg/release/infrastructure"
               desc: "pkg/release/application must not depend on the adapters"
-            - pkg: "github.com/charmbracelet/lipgloss"
+            - pkg: "charm.land/lipgloss/v2"
               desc: "pkg/release/application writes through its injected UI"
         # ADR-041 D2 applies to every area: a domain is pure and never reaches
         # the infrastructure or application layer above it.

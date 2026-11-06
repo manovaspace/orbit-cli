@@ -1,6 +1,6 @@
 package render
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Status is the outcome of one check or row. Unknown values render as info so
 // a caller never prints an empty icon.

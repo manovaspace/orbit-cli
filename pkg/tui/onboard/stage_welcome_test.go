@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
@@ -27,7 +27,7 @@ func TestWelcomeStageInputAndValidation(t *testing.T) {
 
 	// Type token "inv_test123"
 	for _, ch := range "inv_test123" {
-		welcome.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		welcome.Update(tea.KeyPressMsg{Code: ch, Text: string(ch)})
 	}
 
 	if welcome.TokenValue() != "inv_test123" {
@@ -64,7 +64,7 @@ func TestWelcomeStageEnterWithEmptyToken(t *testing.T) {
 	welcome.Init()
 
 	// Press Enter without entering token
-	welcome.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	welcome.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if root.ActiveStage() != onboarddomain.StageWelcome {
 		t.Errorf("expected stage to remain StageWelcome on empty token, got: %v", root.ActiveStage())
@@ -85,7 +85,7 @@ func TestWelcomeStageEnterWithValidToken(t *testing.T) {
 	welcome.SetTokenValue("inv_sec_valid_token_999")
 
 	// Submit token
-	welcome.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	welcome.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if root.ActiveStage() != onboarddomain.StageDoctor {
 		t.Errorf("expected transition to StageDoctor on valid token, got: %v", root.ActiveStage())
@@ -109,7 +109,7 @@ func TestWelcomeStageResumeAction(t *testing.T) {
 	welcome.Init()
 
 	// Press 'r' to resume
-	welcome.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	welcome.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 
 	if root.ActiveStage() != onboarddomain.StageWorkspace {
 		t.Errorf("expected active stage to be StageWorkspace after resume, got: %v", root.ActiveStage())
@@ -130,7 +130,7 @@ func TestWelcomeStageDiscardAction(t *testing.T) {
 	welcome.Init()
 
 	// Press 'd' to discard
-	welcome.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	welcome.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 	// View should now display token entry field
 	view := welcome.View()

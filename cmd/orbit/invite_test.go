@@ -771,7 +771,7 @@ func TestInviteCreateWithSendFlag(t *testing.T) {
 		t.Fatalf("invite create --send failed: %v", err)
 	}
 
-	out := buf.String()
+	out := stripANSI(buf.String())
 	if !strings.Contains(out, "Invitation email dispatched to john@example.com") {
 		t.Errorf("output missing dispatch confirmation: %s", out)
 	}
