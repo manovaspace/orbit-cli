@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
@@ -98,6 +99,18 @@ var (
 	StepSeparatorStyle = lipgloss.NewStyle().
 				Foreground(ColorDarkGray)
 )
+
+// inputStyles returns the shared text input styles for the onboarding forms.
+func inputStyles() textinput.Styles {
+	s := textinput.DefaultStyles(true)
+	s.Focused.Prompt = lipgloss.NewStyle().Foreground(ColorPurple).Bold(true)
+	s.Focused.Text = lipgloss.NewStyle().Foreground(ColorCyan)
+	s.Focused.Placeholder = lipgloss.NewStyle().Foreground(ColorGray)
+	s.Blurred.Prompt = s.Focused.Prompt
+	s.Blurred.Text = s.Focused.Text
+	s.Blurred.Placeholder = s.Focused.Placeholder
+	return s
+}
 
 // StepInfo represents a discrete onboarding wizard milestone step.
 type StepInfo struct {

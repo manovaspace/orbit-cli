@@ -98,7 +98,7 @@ func TestAdminInit_APIServer_Success(t *testing.T) {
 		t.Fatalf("admin init via API server failed: %v", err)
 	}
 
-	out := buf.String()
+	out := stripANSI(buf.String())
 	if !strings.Contains(out, "Connecting to Orbit server at "+ts.URL) {
 		t.Errorf("output missing server connection message: %s", out)
 	}
@@ -475,7 +475,7 @@ func TestAdminInit_APIServer_EnvOverride(t *testing.T) {
 		t.Fatalf("admin init with ORBIT_SERVER env failed: %v", err)
 	}
 
-	out := buf.String()
+	out := stripANSI(buf.String())
 	if !strings.Contains(out, "Challenge accepted for admin@example.com") {
 		t.Errorf("output missing dispatch confirmation: %s", out)
 	}

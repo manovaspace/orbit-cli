@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 )
 
@@ -104,7 +104,7 @@ func (m *CompleteModel) Init() tea.Cmd {
 type completeSessionMsg struct{}
 
 // Update handles messages for the completion stage.
-func (m *CompleteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *CompleteModel) Update(msg tea.Msg) (*CompleteModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case completeSessionMsg:
 		if m.parent != nil {
@@ -118,7 +118,7 @@ func (m *CompleteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.dashboard = m.buildDashboard()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Allow q/Ctrl-C to quit from the done screen
 		switch msg.String() {
 		case "q", "Q", "ctrl+c":

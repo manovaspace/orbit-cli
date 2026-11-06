@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/workspace"
@@ -408,7 +408,7 @@ func (m *WorkspaceModel) RunCloner() tea.Cmd {
 }
 
 // Update processes Bubble Tea messages, navigation keystrokes, and parallel clone progress.
-func (m *WorkspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *WorkspaceModel) Update(msg tea.Msg) (*WorkspaceModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -496,35 +496,35 @@ func (m *WorkspaceModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Retry trigger on failure
 		if (msg.String() == "r" || msg.String() == "R") && m.hasError {
 			return m, m.RunCloner()
 		}
 
 		if !m.isCloning {
-			switch msg.Type {
-			case tea.KeyDown:
+			switch {
+			case msg.Code == tea.KeyDown:
 				m.SetCursor(m.cursor + 1)
 				return m, nil
 
-			case tea.KeyUp:
+			case msg.Code == tea.KeyUp:
 				m.SetCursor(m.cursor - 1)
 				return m, nil
 
-			case tea.KeySpace:
+			case msg.Code == tea.KeySpace:
 				m.ToggleSelected(m.cursor)
 				return m, nil
 
-			case tea.KeyEnter:
+			case msg.Code == tea.KeyEnter:
 				selectedTargets := m.SelectedTargets()
 				if len(selectedTargets) > 0 {
 					return m, m.RunCloner()
 				}
 				return m, nil
 
-			case tea.KeyRunes:
-				switch string(msg.Runes) {
+			case len(msg.Text) > 0:
+				switch msg.String() {
 				case "j", "J":
 					m.SetCursor(m.cursor + 1)
 					return m, nil

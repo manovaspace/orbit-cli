@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/healer"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
@@ -186,7 +186,7 @@ func (m *DoctorModel) healableResults() []doctor.DiagnosticResult {
 }
 
 // Update processes Bubble Tea events, messages, and keybindings for the Doctor stage.
-func (m *DoctorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *DoctorModel) Update(msg tea.Msg) (*DoctorModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -230,7 +230,7 @@ func (m *DoctorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh diagnostics after healing
 		return m, m.RunDiagnostics()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "h", "H", "f", "F":
 			if !m.running && !m.healing {

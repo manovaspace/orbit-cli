@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/manovaspace/orbit-cli/pkg/render"
 )
@@ -30,8 +30,8 @@ func TestStatusTable(t *testing.T) {
 			if got := tt.status.Label(); got != tt.label {
 				t.Errorf("Label() = %q, want %q", got, tt.label)
 			}
-			if got := tt.status.Icon(); got != tt.glyph {
-				t.Errorf("Icon() = %q, want %q", got, tt.glyph)
+			if got, want := tt.status.Icon(), tt.style.Render(tt.glyph); got != want {
+				t.Errorf("Icon() = %q, want %q", got, want)
 			}
 			if got := tt.status.Style(); !reflect.DeepEqual(got, tt.style) {
 				t.Errorf("Style() = %+v, want %+v", got, tt.style)

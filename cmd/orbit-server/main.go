@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/config/application"
 	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
 	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"

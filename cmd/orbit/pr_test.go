@@ -362,6 +362,7 @@ func TestPRStatusPatternHumanOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pr status repo-*: %v\nOutput: %s", err, out)
 	}
+	out = stripANSI(out)
 	for _, want := range []string{
 		"Open pull requests",
 		"repo-a",

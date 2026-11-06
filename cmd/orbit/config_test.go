@@ -232,7 +232,7 @@ func TestConfigUnsetCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config unset custom.debug_mode failed: %v", err)
 	}
-	if !strings.Contains(buf.String(), "Unset custom.debug_mode") {
+	if !strings.Contains(stripANSI(buf.String()), "Unset custom.debug_mode") {
 		t.Errorf("expected unset confirmation, got: %s", buf.String())
 	}
 
@@ -246,7 +246,7 @@ func TestConfigUnsetCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config unset server.url failed: %v", err)
 	}
-	if !strings.Contains(buf.String(), "Unset server.url") {
+	if !strings.Contains(stripANSI(buf.String()), "Unset server.url") {
 		t.Errorf("expected unset confirmation for server.url, got: %s", buf.String())
 	}
 

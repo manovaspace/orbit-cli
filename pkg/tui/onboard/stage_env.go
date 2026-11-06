@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/workspace"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
@@ -303,7 +303,7 @@ func (m *EnvModel) RunAutomation() tea.Cmd {
 }
 
 // Update handles Bubble Tea messages for the EnvModel.
-func (m *EnvModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *EnvModel) Update(msg tea.Msg) (*EnvModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -359,7 +359,7 @@ func (m *EnvModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case (msg.String() == "r" || msg.String() == "R") && m.hasError:
 			cmds = append(cmds, m.RunAutomation())

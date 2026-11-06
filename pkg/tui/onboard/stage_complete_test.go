@@ -1,16 +1,23 @@
 package onboard_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	tuiOnboard "github.com/manovaspace/orbit-cli/pkg/tui/onboard"
 )
 
 // ---- stage_complete tests ----
+
+var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*[a-zA-Z]")
+
+func stripANSI(s string) string {
+	return ansiEscape.ReplaceAllString(s, "")
+}
 
 func TestCompletionDashboardRendering(t *testing.T) {
 	dashboard := tuiOnboard.RenderCompletionDashboard(tuiOnboard.DashboardInfo{
@@ -24,13 +31,14 @@ func TestCompletionDashboardRendering(t *testing.T) {
 	if len(dashboard) == 0 {
 		t.Fatal("expected non-empty completion dashboard output")
 	}
-	if !strings.Contains(dashboard, "all set") {
+	plain := stripANSI(dashboard)
+	if !strings.Contains(plain, "all set") {
 		t.Errorf("expected 'all set' in dashboard, got:\n%s", dashboard)
 	}
-	if !strings.Contains(dashboard, "http://localhost:10007") {
+	if !strings.Contains(plain, "http://localhost:10007") {
 		t.Errorf("expected portal URL in dashboard, got:\n%s", dashboard)
 	}
-	if !strings.Contains(dashboard, "5 workspace repositories") {
+	if !strings.Contains(plain, "5 workspace repositories") {
 		t.Errorf("expected repo count in dashboard, got:\n%s", dashboard)
 	}
 }
@@ -58,7 +66,7 @@ func TestCompleteModelQuit(t *testing.T) {
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	cm := tuiOnboard.NewCompleteModel(root)
 
-	_, cmd := cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	_, cmd := cm.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if cmd == nil {
 		t.Error("expected quit cmd on 'q'")
 		return
@@ -75,7 +83,7 @@ func TestCompleteModelWizardIntegration(t *testing.T) {
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	root.SetStage(onboarddomain.StageComplete)
 
-	view := root.View()
+	view := root.View().Content
 	if !strings.Contains(view, "all set") {
 		t.Errorf("expected complete stage view in WizardModel, got:\n%s", view)
 	}
@@ -189,7 +197,7 @@ func TestStackModelRetryKey(t *testing.T) {
 
 	// We can't easily simulate error state without exporting, so test that [R] while
 	// in a normal state still returns a cmd (the LaunchStack cmd).
-	_, cmd := stackModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, cmd := stackModel.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	// When no error, [R] is ignored — cmd may be nil, that's fine.
 	_ = cmd
 }
@@ -199,7 +207,7 @@ func TestStackModelWizardIntegration(t *testing.T) {
 	root := tuiOnboard.NewWizardModel(tuiOnboard.WizardOptions{SessionManager: sm})
 	root.SetStage(onboarddomain.StageStack)
 
-	view := root.View()
+	view := root.View().Content
 	if !strings.Contains(view, "Stack") {
 		t.Errorf("expected Stack stage view in WizardModel, got:\n%s", view)
 	}
