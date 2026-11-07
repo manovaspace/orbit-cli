@@ -16,8 +16,8 @@ orbit pr status [pattern] [flags]
 
 ```
   orbit pr status
-  orbit pr status fryto-ops
-  orbit pr status 'fryto*'
+  orbit pr status falak
+  orbit pr status 'falak*'
   orbit pr status '*'
 ```
 

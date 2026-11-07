@@ -257,8 +257,8 @@ func newPRStatusCmd(dirFlag *string) *cobra.Command {
 		Long: "Displays all open pull requests for the current repository on GitHub.\n\n" +
 			"With a pattern, selects workspace repositories by name instead. Only '*' is special and matches any run of characters; everything else is literal and matching is case-insensitive. Quote the pattern in the shell so it is not glob-expanded.",
 		Example: "  orbit pr status\n" +
-			"  orbit pr status fryto-ops\n" +
-			"  orbit pr status 'fryto*'\n" +
+			"  orbit pr status falak\n" +
+			"  orbit pr status 'falak*'\n" +
 			"  orbit pr status '*'",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
