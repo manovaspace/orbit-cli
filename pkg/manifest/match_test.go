@@ -13,8 +13,8 @@ groups:
     repositories:
       - name: "orbit-auth"
       - name: "orbit-infra"
-      - name: "fryto-ops"
-      - name: "fryto-web"
+      - name: "falak"
+      - name: "falak-web"
       - name: "fryvoice"
       - name: "a.b"
       - name: "axb"
@@ -40,11 +40,11 @@ func TestMatchRepos(t *testing.T) {
 		pattern string
 		want    []string
 	}{
-		{name: "exact", pattern: "fryto-ops", want: []string{"fryto-ops"}},
-		{name: "prefix", pattern: "fryto*", want: []string{"fryto-ops", "fryto-web"}},
-		{name: "suffix", pattern: "*ops", want: []string{"fryto-ops"}},
+		{name: "exact", pattern: "falak", want: []string{"falak"}},
+		{name: "prefix", pattern: "falak*", want: []string{"falak", "falak-web"}},
+		{name: "suffix", pattern: "*lak", want: []string{"falak"}},
 		{name: "infix", pattern: "fry*voice", want: []string{"fryvoice"}},
-		{name: "wildcard only", pattern: "*", want: []string{"orbit-auth", "orbit-infra", "fryto-ops", "fryto-web", "fryvoice", "a.b", "axb", "Some-Thing"}},
+		{name: "wildcard only", pattern: "*", want: []string{"orbit-auth", "orbit-infra", "falak", "falak-web", "fryvoice", "a.b", "axb", "Some-Thing"}},
 		{name: "case insensitive", pattern: "ORBIT-*", want: []string{"orbit-auth", "orbit-infra"}},
 		{name: "no match", pattern: "nope", want: []string{}},
 		{name: "regex dot stays literal", pattern: "a.b", want: []string{"a.b"}},
