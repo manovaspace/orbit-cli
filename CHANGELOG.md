@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.3](https://github.com/manovaspace/orbit-cli/compare/v0.19.2...v0.19.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **self-update:** install exactly the target release and never skip checksums ([844805d](https://github.com/manovaspace/orbit-cli/commit/844805d9a07945079c99385820030172bb2e95c9))
+* **self-update:** install exactly the target release and never skip checksums ([0714ab5](https://github.com/manovaspace/orbit-cli/commit/0714ab578d3b1422b86a4e529a85e941cbc23953)), closes [#109](https://github.com/manovaspace/orbit-cli/issues/109)
+
 ## [0.19.2](https://github.com/manovaspace/orbit-cli/compare/v0.19.1...v0.19.2) (2026-11-08)
 
 
