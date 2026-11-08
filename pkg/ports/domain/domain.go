@@ -53,11 +53,13 @@ type PortAllocation struct {
 // ProjectMapping maps project names/scopes to their assigned 50-port project block IDs.
 type ProjectMapping map[string]int
 
-// DefaultProjectMapping contains the canonical project-to-ID assignments defined in ADR-006 / 50-port model.
+// DefaultProjectMapping contains the canonical project-to-ID assignments of the
+// ADR-058 50-port model. Block 2 belonged to the Fryto client; Fryto is now a
+// tenant of the Falak product, which owns the block.
 var DefaultProjectMapping = ProjectMapping{
 	"orbit-platform": 0,
 	"manova":         1,
-	"fryto":          2,
+	"falak":          2,
 	"jouybari":       3,
 	"jtash":          4,
 	"kohan_kherad":   5,
