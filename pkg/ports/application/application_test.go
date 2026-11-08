@@ -128,7 +128,7 @@ func TestAllocateExhaustionIsFailed(t *testing.T) {
 	for port := 10110; port <= 10149; port++ {
 		probe.inUse[port] = true
 	}
-	_, err := newService(new(bytes.Buffer), probe).Allocate(context.Background(), AllocateInput{Project: "fryto", Service: "x"})
+	_, err := newService(new(bytes.Buffer), probe).Allocate(context.Background(), AllocateInput{Project: "falak", Service: "x"})
 	if err == nil {
 		t.Fatal("exhausted block allocated")
 	}
