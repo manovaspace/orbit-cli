@@ -43,6 +43,8 @@ type Checker struct {
 	Source selfupdate.Source
 	// Client overrides the HTTP client, for tests.
 	Client *http.Client
+	// ExecutablePath overrides the binary to replace, for tests.
+	ExecutablePath string
 }
 
 // New builds a Checker over the standard GitHub source.
@@ -189,9 +191,11 @@ func (c *Checker) CheckCached(ctx context.Context, currentVersion, cacheFile str
 	return result, nil
 }
 
-// SelfUpdate downloads the matching OS/arch binary and atomically replaces the
-// currently running executable.
-func (c *Checker) SelfUpdate(ctx context.Context, currentVersion, repoSlug string) error {
+// SelfUpdate installs exactly targetVersion (for example "v0.19.1") for the
+// current OS/arch and replaces the running executable. It fails when that
+// release or its binary is not published yet. Checksums are verified against
+// checksums.txt; an unverified binary is never installed.
+func (c *Checker) SelfUpdate(ctx context.Context, targetVersion, repoSlug string) error {
 	if repoSlug == "" {
 		repoSlug = domain.DefaultRepoSlug
 	}
@@ -218,40 +222,35 @@ func (c *Checker) SelfUpdate(ctx context.Context, currentVersion, repoSlug strin
 	cfg := selfupdate.Config{
 		Source:  source,
 		Filters: []string{assetFilter},
+		// Every release publishes checksums.txt; installs are always verified against it.
+		Validator: &selfupdate.ChecksumValidator{UniqueFilename: "checksums.txt"},
 	}
-
-	// Configure SHA-256 checksums.txt validator
-	cfg.Validator = &selfupdate.ChecksumValidator{UniqueFilename: "checksums.txt"}
 
 	updater, err := selfupdate.NewUpdater(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize updater: %w", err)
 	}
 
-	verToCompare := currentVersion
-	if verToCompare == "dev" || verToCompare == "" {
-		verToCompare = "0.0.0-dev"
-	}
-
 	repo := selfupdate.ParseSlug(repoSlug)
-	release, err := updater.UpdateSelf(ctx, verToCompare, repo)
+	rel, found, err := updater.DetectVersion(ctx, repo, targetVersion)
 	if err != nil {
-		// If SHA-256 validation failed because release didn't publish checksums, fallback to unvalidated update
-		if strings.Contains(strings.ToLower(err.Error()), "validation") || strings.Contains(strings.ToLower(err.Error()), "checksum") {
-			fallbackUpdater, fErr := selfupdate.NewUpdater(selfupdate.Config{
-				Source:  source,
-				Filters: []string{assetFilter},
-			})
-			if fErr == nil {
-				release, err = fallbackUpdater.UpdateSelf(ctx, verToCompare, repo)
-			}
-		}
+		return fmt.Errorf("find release %s: %w", targetVersion, err)
+	}
+	if !found {
+		return fmt.Errorf("%s has no %s-%s binary yet; try again in a few minutes", targetVersion, runtime.GOOS, runtime.GOARCH)
+	}
+
+	exe := c.ExecutablePath
+	if exe == "" {
+		exe, err = selfupdate.ExecutablePath()
 		if err != nil {
-			return fmt.Errorf("self-update failed: %w", err)
+			return fmt.Errorf("resolve executable path: %w", err)
 		}
 	}
 
-	_ = release
+	if err := updater.UpdateTo(ctx, rel, exe); err != nil {
+		return fmt.Errorf("install %s: %w", rel.Version(), err)
+	}
 	return nil
 }
 
