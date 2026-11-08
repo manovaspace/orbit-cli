@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.1](https://github.com/manovaspace/orbit-cli/compare/v0.19.0...v0.19.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **ports:** block 2 belongs to falak, not fryto ([5c095f8](https://github.com/manovaspace/orbit-cli/commit/5c095f82b00c24cbdb1d5840ecaee76a50c9384f))
+* **ports:** block 2 belongs to falak, not fryto ([3e20a8e](https://github.com/manovaspace/orbit-cli/commit/3e20a8e21b20e9ec968f1ce894cc2c90b3c350a2))
+
 ## [0.19.0](https://github.com/manovaspace/orbit-cli/compare/v0.18.2...v0.19.0) (2026-11-06)
 
 
