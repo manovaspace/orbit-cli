@@ -2,6 +2,8 @@ package releases
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -195,9 +197,11 @@ func TestExpandCachePath(t *testing.T) {
 }
 
 // mockSource implements selfupdate.Source for testing SelfUpdate logic.
+// contents maps an asset ID to the bytes DownloadReleaseAsset returns for it.
 type mockSource struct {
 	releases []selfupdate.SourceRelease
 	err      error
+	contents map[int64]string
 }
 
 func (m *mockSource) ListReleases(_ context.Context, _ selfupdate.Repository) ([]selfupdate.SourceRelease, error) {
@@ -207,18 +211,148 @@ func (m *mockSource) ListReleases(_ context.Context, _ selfupdate.Repository) ([
 	return m.releases, nil
 }
 
-func (m *mockSource) DownloadReleaseAsset(_ context.Context, _ *selfupdate.Release, _ int64) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("dummy binary content")), nil
+func (m *mockSource) DownloadReleaseAsset(_ context.Context, _ *selfupdate.Release, assetID int64) (io.ReadCloser, error) {
+	content, ok := m.contents[assetID]
+	if !ok {
+		return nil, fmt.Errorf("no content for asset %d", assetID)
+	}
+	return io.NopCloser(strings.NewReader(content)), nil
 }
 
-func TestSelfUpdateWithMockSource(t *testing.T) {
-	checker := &Checker{Source: &mockSource{releases: []selfupdate.SourceRelease{}}}
-	if err := checker.SelfUpdate(context.Background(), "v1.0.0", "manova/orbit-cli"); err != nil {
-		t.Errorf("expected no error when no newer releases exist, got: %v", err)
+// testRelease implements selfupdate.SourceRelease.
+type testRelease struct {
+	id     int64
+	tag    string
+	assets []selfupdate.SourceAsset
+}
+
+func (r *testRelease) GetID() int64                        { return r.id }
+func (r *testRelease) GetTagName() string                  { return r.tag }
+func (r *testRelease) GetDraft() bool                      { return false }
+func (r *testRelease) GetPrerelease() bool                 { return false }
+func (r *testRelease) GetPublishedAt() time.Time           { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) }
+func (r *testRelease) GetReleaseNotes() string             { return "" }
+func (r *testRelease) GetName() string                     { return r.tag }
+func (r *testRelease) GetURL() string                      { return "https://example.com/releases/" + r.tag }
+func (r *testRelease) GetAssets() []selfupdate.SourceAsset { return r.assets }
+
+// testAsset implements selfupdate.SourceAsset.
+type testAsset struct {
+	id   int64
+	name string
+	size int
+}
+
+func (a *testAsset) GetID() int64                  { return a.id }
+func (a *testAsset) GetName() string               { return a.name }
+func (a *testAsset) GetSize() int                  { return a.size }
+func (a *testAsset) GetBrowserDownloadURL() string { return "https://example.com/dl/" + a.name }
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
+
+func TestSelfUpdateInstallsExactTargetVersion(t *testing.T) {
+	binName := fmt.Sprintf("orbit-%s-%s", runtime.GOOS, runtime.GOARCH)
+	const newContent = "new binary"
+	goodChecksums := sha256Hex(newContent) + "  " + binName + "\n"
+	oldRelease := &testRelease{id: 1, tag: "v1.0.0", assets: []selfupdate.SourceAsset{
+		&testAsset{id: 10, name: binName, size: 3},
+		&testAsset{id: 11, name: "checksums.txt", size: 1},
+	}}
+	targetRelease := &testRelease{id: 2, tag: "v1.1.0", assets: []selfupdate.SourceAsset{
+		&testAsset{id: 20, name: binName, size: len(newContent)},
+		&testAsset{id: 21, name: "checksums.txt", size: len(goodChecksums)},
+	}}
+	targetNoBinary := &testRelease{id: 3, tag: "v1.1.0", assets: []selfupdate.SourceAsset{
+		&testAsset{id: 31, name: "checksums.txt", size: len(goodChecksums)},
+	}}
+
+	tests := []struct {
+		name            string
+		releases        []selfupdate.SourceRelease
+		listErr         error
+		contents        map[int64]string
+		target          string
+		wantErrContains []string
+		wantContent     string
+	}{
+		{
+			name:            "target release absent",
+			releases:        []selfupdate.SourceRelease{oldRelease},
+			target:          "v1.1.0",
+			wantErrContains: []string{"has no", "binary yet"},
+			wantContent:     "old",
+		},
+		{
+			name:        "target release present with correct checksum",
+			releases:    []selfupdate.SourceRelease{targetRelease, oldRelease},
+			contents:    map[int64]string{20: newContent, 21: goodChecksums},
+			target:      "v1.1.0",
+			wantContent: newContent,
+		},
+		{
+			name:            "checksum mismatch never installs",
+			releases:        []selfupdate.SourceRelease{targetRelease},
+			contents:        map[int64]string{20: newContent, 21: sha256Hex("tampered") + "  " + binName + "\n"},
+			target:          "v1.1.0",
+			wantErrContains: []string{"install 1.1.0", "sha256 validation failed"},
+			wantContent:     "old",
+		},
+		{
+			name:            "target has checksums but no binary",
+			releases:        []selfupdate.SourceRelease{targetNoBinary},
+			contents:        map[int64]string{21: goodChecksums},
+			target:          "v1.1.0",
+			wantErrContains: []string{"has no", "binary yet"},
+			wantContent:     "old",
+		},
+		{
+			name:            "source list error",
+			listErr:         fmt.Errorf("mock network failure"),
+			target:          "v1.1.0",
+			wantErrContains: []string{"find release v1.1.0", "mock network failure"},
+			wantContent:     "old",
+		},
 	}
 
-	errorChecker := &Checker{Source: &mockSource{err: fmt.Errorf("mock network failure")}}
-	if err := errorChecker.SelfUpdate(context.Background(), "v1.0.0", "manova/orbit-cli"); err == nil {
-		t.Error("expected error from failing source, got nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exe := filepath.Join(t.TempDir(), "orbit")
+			if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(exe, 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			checker := &Checker{
+				Source:         &mockSource{releases: tt.releases, err: tt.listErr, contents: tt.contents},
+				ExecutablePath: exe,
+			}
+			err := checker.SelfUpdate(context.Background(), tt.target, "manova/orbit-cli")
+
+			if len(tt.wantErrContains) > 0 {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				for _, want := range tt.wantErrContains {
+					if !strings.Contains(err.Error(), want) {
+						t.Errorf("error %q does not contain %q", err.Error(), want)
+					}
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got, readErr := os.ReadFile(exe)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(got) != tt.wantContent {
+				t.Errorf("executable content = %q, want %q", got, tt.wantContent)
+			}
+		})
 	}
 }

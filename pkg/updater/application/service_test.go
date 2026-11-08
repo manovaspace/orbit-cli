@@ -16,6 +16,8 @@ type fakeUpdater struct {
 	checkErr   error
 	updateErr  error
 	updateCall int
+	// updateTarget records the targetVersion of the last SelfUpdate call.
+	updateTarget string
 }
 
 func (f *fakeUpdater) Check(context.Context, string, string, string) (*domain.UpdateCheckResult, error) {
@@ -26,8 +28,9 @@ func (f *fakeUpdater) CheckCached(context.Context, string, string, time.Duration
 	return f.check, f.checkErr
 }
 
-func (f *fakeUpdater) SelfUpdate(context.Context, string, string) error {
+func (f *fakeUpdater) SelfUpdate(_ context.Context, targetVersion, _ string) error {
 	f.updateCall++
+	f.updateTarget = targetVersion
 	return f.updateErr
 }
 
@@ -86,6 +89,9 @@ func TestSelfUpdateInstallsWhenConfirmed(t *testing.T) {
 	}
 	if !res.Updated || fake.updateCall != 1 {
 		t.Errorf("result = %+v, update calls = %d", res, fake.updateCall)
+	}
+	if fake.updateTarget != "v1.2.0" {
+		t.Errorf("SelfUpdate target = %q, want v1.2.0", fake.updateTarget)
 	}
 	if !strings.Contains(buf.String(), "Successfully updated Orbit to v1.2.0!") {
 		t.Errorf("output = %s", buf.String())

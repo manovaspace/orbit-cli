@@ -17,7 +17,8 @@ import (
 type Updater interface {
 	Check(ctx context.Context, currentVersion, apiURL, repoSlug string) (*domain.UpdateCheckResult, error)
 	CheckCached(ctx context.Context, currentVersion, cacheFile string, ttl time.Duration, apiURL, repoSlug string) (*domain.UpdateCheckResult, error)
-	SelfUpdate(ctx context.Context, currentVersion, repoSlug string) error
+	// SelfUpdate installs exactly targetVersion (for example "v0.19.1") or fails.
+	SelfUpdate(ctx context.Context, targetVersion, repoSlug string) error
 }
 
 // UI carries the decoration cmd/orbit already renders.
@@ -147,7 +148,7 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 
 	fmt.Fprintf(s.out(), "\n%s\n", s.header("Downloading and installing update..."))
 
-	if err := s.Updater.SelfUpdate(ctx, in.CurrentVersion, in.RepoSlug); err != nil {
+	if err := s.Updater.SelfUpdate(ctx, latestVer, in.RepoSlug); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
 			execPath := in.ExecutablePath
 			if execPath == "" {
