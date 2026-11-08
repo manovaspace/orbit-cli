@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/manovaspace/orbit-cli/compare/v0.19.1...v0.19.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **deps:** update github.com/aws/aws-sdk-go-v2/config to v1.33.14 on current main ([31ddaeb](https://github.com/manovaspace/orbit-cli/commit/31ddaeb754e6b014d9dcb6fb79a46f6ba1176447))
+
 ## [0.19.1](https://github.com/manovaspace/orbit-cli/compare/v0.19.0...v0.19.1) (2026-11-08)
 
 
