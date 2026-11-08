@@ -126,7 +126,7 @@ func TestResolveProjectID(t *testing.T) {
 		{"orbit-platform", 0, true},
 		{"manova", 1, true},
 		{"orbit-services", 1, true},
-		{"fryto", 2, true},
+		{"falak", 2, true},
 		{"jouybari", 3, true},
 		{"jtash", 4, true},
 		{"kohan_kherad", 5, true},
