@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.16
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.9
 	github.com/creativeprojects/go-selfupdate v1.7.0
-	github.com/manovaspace/orbit-notifications v0.3.2
+	github.com/manovaspace/orbit-notifications v0.5.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/term v0.47.0
