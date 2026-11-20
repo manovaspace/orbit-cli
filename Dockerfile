@@ -1,5 +1,5 @@
 # Multi-stage build for orbit-server daemon
-FROM golang:1.27.3-alpine AS builder
+FROM golang:1.27.4-alpine AS builder
 
 WORKDIR /src
 

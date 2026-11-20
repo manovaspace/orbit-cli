@@ -1,7 +1,7 @@
 # Development & Scenario Testbed Container for Orbit CLI
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 
 # Install core development tools, networking utilities, and scenario testing tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
