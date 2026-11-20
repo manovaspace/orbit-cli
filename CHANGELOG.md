@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.4](https://github.com/manovaspace/orbit-cli/compare/v0.19.3...v0.19.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **deps:** upgrade Go to 1.27.4 and patch vulnerable modules ([#124](https://github.com/manovaspace/orbit-cli/issues/124)) ([926e76b](https://github.com/manovaspace/orbit-cli/commit/926e76bf8c8b94e3c48feb40ded27807708d6e17))
+
 ## [0.19.3](https://github.com/manovaspace/orbit-cli/compare/v0.19.2...v0.19.3) (2026-11-08)
 
 
