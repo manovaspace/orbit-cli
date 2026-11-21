@@ -15,7 +15,7 @@ func EvaluateHost(r host.Report) DiagnosticResult {
 			Category: "System",
 			Name:     "Host",
 			Status:   StatusOK,
-			Message:  "Supported host: Ubuntu 24.04/26.04 LTS amd64, zsh, ~/.local/bin",
+			Message:  "Supported host: Ubuntu 24.04/26.04 LTS amd64 or macOS arm64/amd64, zsh, ~/.local/bin",
 		}
 	}
 	return DiagnosticResult{
@@ -23,7 +23,7 @@ func EvaluateHost(r host.Report) DiagnosticResult {
 		Name:          "Host",
 		Status:        StatusError,
 		Message:       strings.TrimSpace(host.Format(r)),
-		FixSuggestion: "Use Ubuntu 24.04 or 26.04 LTS (amd64, WSL2 or native), chsh to zsh, and put ~/.local/bin on PATH.",
+		FixSuggestion: "Use Ubuntu 24.04 or 26.04 LTS (amd64, WSL2 or native) or macOS (arm64 or amd64), chsh to zsh, and put ~/.local/bin on PATH.",
 	}
 }
 

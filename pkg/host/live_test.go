@@ -29,3 +29,21 @@ func TestLoginShellFromPasswd(t *testing.T) {
 		t.Fatal("expected empty")
 	}
 }
+
+func TestParseDsclUserShell(t *testing.T) {
+	if got := ParseDsclUserShell("UserShell: /bin/zsh\n"); got != "/bin/zsh" {
+		t.Fatalf("got %q", got)
+	}
+	if got := ParseDsclUserShell("dsAttrTypeNative:UserShell: /bin/bash"); got != "" {
+		t.Fatalf("prefixed line must not match, got %q", got)
+	}
+	if got := ParseDsclUserShell("eDSRecordNotFound"); got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+}
+
+func TestDarwinLoginShell_EnvFallback(t *testing.T) {
+	if got := darwinLoginShell("", "/bin/zsh"); got != "/bin/zsh" {
+		t.Fatalf("empty user must fall back to $SHELL, got %q", got)
+	}
+}
