@@ -4,6 +4,7 @@ package doctor
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure/execprobe"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure/machine"
 	"github.com/manovaspace/orbit-cli/pkg/doctor/infrastructure/recipes"
+	portsdomain "github.com/manovaspace/orbit-cli/pkg/ports/domain"
 	"github.com/manovaspace/orbit-cli/pkg/ports/infrastructure/netprobe"
+	portregistry "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure/registry"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/workspace/infrastructure/manifestfile"
 )
@@ -84,6 +87,7 @@ func NewService(r runner.Runner, out io.Writer, ui application.UI) *application.
 		Probe:    execprobe.New(r),
 		Host:     machine.New(),
 		Ports:    netprobe.New(),
+		Registry: loadPortRegistry,
 		Manifest: manifestfile.New(),
 		Healers:  recipes.NewDefaultRegistry(r),
 		Out:      out,
@@ -104,4 +108,14 @@ func RunDiagnosticsWithOptions(opts DiagnosticOptions) *DoctorReport {
 		Remote:         opts.Remote,
 		AcceptHostKeys: opts.AcceptHostKeys,
 	}).Report
+}
+
+// loadPortRegistry reads ports.yaml under root; an absent file is a nil
+// registry with no error, so the listener check keeps its fixed range.
+func loadPortRegistry(root string) (*portsdomain.Registry, error) {
+	reg, err := portregistry.Find(root)
+	if errors.Is(err, portregistry.ErrNotFound) {
+		return nil, nil
+	}
+	return reg, err
 }

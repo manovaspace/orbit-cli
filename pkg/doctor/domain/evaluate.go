@@ -382,3 +382,37 @@ func EvaluateTypstVersion(rawOutput string, execErr error) DiagnosticResult {
 
 	return DiagnosticResult{Category: category, Name: name, Status: StatusOK, Message: "Typst installed"}
 }
+
+// EvaluateRegistryPortScan evaluates listeners in 10000-17999 against the dev
+// port registry. unregistered lists listeners the registry does not know;
+// retired lists listeners on numbers the registry retired.
+func EvaluateRegistryPortScan(unregistered, retired []int) DiagnosticResult {
+	category := "Ports"
+	name := "Dev Port Registry (10000-17999)"
+
+	if len(unregistered) == 0 && len(retired) == 0 {
+		return DiagnosticResult{
+			Category: category,
+			Name:     name,
+			Status:   StatusOK,
+			Message:  "All listeners in 10000-17999 are in ports.yaml",
+		}
+	}
+
+	sort.Ints(unregistered)
+	sort.Ints(retired)
+	var parts []string
+	if len(unregistered) > 0 {
+		parts = append(parts, fmt.Sprintf("not in ports.yaml: %v", unregistered))
+	}
+	if len(retired) > 0 {
+		parts = append(parts, fmt.Sprintf("retired: %v", retired))
+	}
+	return DiagnosticResult{
+		Category:      category,
+		Name:          name,
+		Status:        StatusWarning,
+		Message:       fmt.Sprintf("Listener(s) in 10000-17999 %s", strings.Join(parts, "; ")),
+		FixSuggestion: "Stop the listener, or register the port in handbook/agents/workspace/ports.yaml (run 'o port check' for the owning repository).",
+	}
+}

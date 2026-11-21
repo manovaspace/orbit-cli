@@ -20,7 +20,7 @@ Available Commands:
   invite      Manage developer onboarding invite tokens
   migrate     Run and inspect workspace state migrations
   onboard     Interactive onboarding wizard with resume, claims, and stack provisioning
-  port        Manage and inspect the hybrid 50-port allocation model
+  port        Inspect, allocate and check dev ports against the port registry
   pr          Manage pull requests and automated delivery
   release     Inspect and promote release pull requests and demo branches
   repair      Attach .git to gitless workspace trees without overwriting files

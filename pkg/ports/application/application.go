@@ -36,11 +36,22 @@ type UI struct {
 	Info    func(string) string
 }
 
-// Service is the port use-case layer.
+// Service is the port use-case layer. Registry is the parsed ports.yaml; nil
+// means no registry was found and the pre-registry behaviour applies.
 type Service struct {
-	Ports Prober
-	Out   io.Writer
-	UI    UI
+	Ports    Prober
+	Out      io.Writer
+	UI       UI
+	Registry *domain.Registry
+}
+
+// projectMapping is the registry's project map when one is loaded, else the
+// built-in ADR-058 mapping.
+func (s *Service) projectMapping() domain.ProjectMapping {
+	if s.Registry != nil {
+		return s.Registry.ProjectMapping()
+	}
+	return domain.DefaultProjectMapping
 }
 
 // Slot is one port inside a project block.
@@ -271,9 +282,11 @@ type AllocateResult struct {
 	Reserved    bool   `json:"reserved"`
 }
 
-// Allocate suggests a bindable dynamic port. It is not a reservation.
+// Allocate suggests a bindable dynamic port. It is not a reservation. With a
+// registry, no registered, reserved, exception or retired number is returned.
 func (s *Service) Allocate(_ context.Context, in AllocateInput) (AllocateResult, error) {
-	projectID, ok := domain.ResolveProjectID(in.Project)
+	mapping := s.projectMapping()
+	projectID, ok := domain.ResolveProjectID(in.Project, mapping)
 	if !ok {
 		if id, err := strconv.Atoi(in.Project); err == nil && id >= 0 {
 			projectID = id
@@ -282,11 +295,16 @@ func (s *Service) Allocate(_ context.Context, in AllocateInput) (AllocateResult,
 	}
 	if !ok {
 		var validProjects []string
-		for k := range domain.DefaultProjectMapping {
+		for k := range mapping {
 			validProjects = append(validProjects, k)
 		}
 		sort.Strings(validProjects)
 		return AllocateResult{}, clierr.Usage(fmt.Sprintf("unknown project %q. Valid projects: %s (or enter project ID number)", in.Project, strings.Join(validProjects, ", ")))
+	}
+
+	if _, end := domain.GetProjectRange(projectID); end > maxPort {
+		return AllocateResult{}, clierr.Usage(fmt.Sprintf("project %d block %d-%d runs past port %d; the largest project ID is %d",
+			projectID, domain.BasePort(projectID), end, maxPort, MaxProjectID()))
 	}
 
 	start, end := domain.GetProjectRange(projectID)
@@ -295,6 +313,11 @@ func (s *Service) Allocate(_ context.Context, in AllocateInput) (AllocateResult,
 	var inUse []int
 	for p, used := range scanResults {
 		if used {
+			inUse = append(inUse, p)
+		}
+	}
+	if s.Registry != nil {
+		for p := range s.Registry.Taken() {
 			inUse = append(inUse, p)
 		}
 	}
@@ -331,6 +354,15 @@ func (s *Service) Allocate(_ context.Context, in AllocateInput) (AllocateResult,
 		EnvVariable: envVariable,
 		Reserved:    false,
 	}, nil
+}
+
+// maxPort is the highest TCP port number.
+const maxPort = 65535
+
+// MaxProjectID is the highest project ID whose 50-port block stays inside
+// maxPort.
+func MaxProjectID() int {
+	return (maxPort - domain.BasePortOffset - domain.BlockSize + 1) / domain.BlockSize
 }
 
 func (s *Service) out() io.Writer {

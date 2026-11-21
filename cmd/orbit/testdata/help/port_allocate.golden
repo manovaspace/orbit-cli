@@ -1,11 +1,15 @@
-Suggest a bindable dynamic port; no reservation is retained
+Suggest a free dynamic port that no registry entry claims; not reserved
 
 Usage:
   orbit port allocate <project> <service> [flags]
 
+Aliases:
+  allocate, alloc
+
 Flags:
-  -h, --help   help for allocate
-      --json   Print the result as a JSON envelope
+  -h, --help          help for allocate
+      --json          Print the result as a JSON envelope
+      --root string   workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file

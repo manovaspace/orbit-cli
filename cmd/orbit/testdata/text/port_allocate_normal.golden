@@ -8,5 +8,6 @@ Port allocation
   Reserved  no
 
   ℹ  not reserved; the port may be taken at bind time
+  hint: add it to handbook/agents/workspace/ports.yaml before the service binds it
 
 ℹ 1 suggested  ○ 0 reserved

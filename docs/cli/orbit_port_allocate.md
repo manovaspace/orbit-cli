@@ -1,6 +1,6 @@
 ## orbit port allocate
 
-Suggest a bindable dynamic port; no reservation is retained
+Suggest a free dynamic port that no registry entry claims; not reserved
 
 ```
 orbit port allocate <project> <service> [flags]
@@ -9,8 +9,9 @@ orbit port allocate <project> <service> [flags]
 ### Options
 
 ```
-  -h, --help   help for allocate
-      --json   Print the result as a JSON envelope
+  -h, --help          help for allocate
+      --json          Print the result as a JSON envelope
+      --root string   workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
 ```
 
 ### Options inherited from parent commands
@@ -21,5 +22,5 @@ orbit port allocate <project> <service> [flags]
 
 ### SEE ALSO
 
-* [orbit port](orbit_port.md)	 - Manage and inspect the hybrid 50-port allocation model
+* [orbit port](orbit_port.md)	 - Inspect, allocate and check dev ports against the port registry
 
