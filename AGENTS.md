@@ -104,9 +104,9 @@ go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port
 ## Session pre-flight
 
 1. `go build -o bin/orbit ./cmd/orbit` — confirm clean build before any changes
-2. `rtk proxy bash scripts/check-agent-cli.sh` — check the installed diagnostic interface using version/help only; if it fails, validate the source build before installing an update
-3. `rtk o doctor --local` — inspect local toolchain without remote probes or repairs, after the compatibility check passes
-4. Optional: `rtk o status orbit` — branch state for this scope
+2. `bash scripts/check-agent-cli.sh` — check the installed diagnostic interface using version/help only; if it fails, validate the source build before installing an update
+3. `o doctor --local` — inspect local toolchain without remote probes or repairs, after the compatibility check passes
+4. Optional: `o status orbit` — branch state for this scope
 
 ## Definition of done
 
