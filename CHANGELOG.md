@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.20.0](https://github.com/manovaspace/orbit-cli/compare/v0.19.4...v0.20.0) (2026-11-21)
+
+
+### Features
+
+* **dev:** add orbit dev tunnel and dev routes from the port registry; fix stale dev endpoints ([#136](https://github.com/manovaspace/orbit-cli/issues/136)) ([d25dddb](https://github.com/manovaspace/orbit-cli/commit/d25dddbad7bd084bf6223dd61411391725cb8647))
+* **host:** support macOS for developer commands; refuse server-only commands and doctor --fix there ([#135](https://github.com/manovaspace/orbit-cli/issues/135)) ([3bf6666](https://github.com/manovaspace/orbit-cli/commit/3bf66668e53435171d363a7298e493cb8746d43f))
+* **port:** read the workspace port registry; add o port check and registry-aware list, allocate and doctor ([#133](https://github.com/manovaspace/orbit-cli/issues/133)) ([02bb88d](https://github.com/manovaspace/orbit-cli/commit/02bb88d61e6db148f50f8c31037933b0b595b5ad))
+
 ## [0.19.4](https://github.com/manovaspace/orbit-cli/compare/v0.19.3...v0.19.4) (2026-11-20)
 
 
