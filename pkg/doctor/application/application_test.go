@@ -471,24 +471,15 @@ func TestResourcesReportHealthyValues(t *testing.T) {
 	}
 }
 
-func TestDevToolsWarnOnMissingRTKHook(t *testing.T) {
+func TestDevToolsReportsOpenCodeOnly(t *testing.T) {
 	probe := newFakeProbe()
-	probe.On("rtk --version", ProbeResult{Output: "rtk 0.49.0"}, nil)
-	probe.On("rtk gain", ProbeResult{Output: "RTK Token Savings\n[warn] No hook installed — run `rtk init -g` for automatic token savings"}, nil)
 	probe.On("opencode --version", ProbeResult{Output: "v2.2.1"}, nil)
 
 	results := (devToolsCheck{probe: probe}).Run(context.Background())
-	byName := map[string]domain.DiagnosticResult{}
-	for _, result := range results {
-		byName[result.Name] = result
+	if len(results) != 1 {
+		t.Fatalf("results = %+v, want only the opencode row", results)
 	}
-	if rtk := byName["RTK"]; rtk.Status != domain.StatusOK {
-		t.Errorf("RTK = %+v, want OK", rtk)
-	}
-	if hook := byName["RTK hook"]; hook.Status != domain.StatusWarning || hook.FixSuggestion != "rtk init -g" {
-		t.Errorf("RTK hook = %+v, want a warning with the init command", hook)
-	}
-	if opencode := byName["opencode"]; opencode.Status != domain.StatusOK {
-		t.Errorf("opencode = %+v, want OK", opencode)
+	if results[0].Name != "opencode" || results[0].Status != domain.StatusOK {
+		t.Errorf("opencode = %+v, want OK", results[0])
 	}
 }
