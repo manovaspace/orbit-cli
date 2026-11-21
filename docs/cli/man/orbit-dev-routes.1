@@ -1,0 +1,43 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-dev-routes - Generate the Caddyfile that serves native dev processes at \&.localhost
+
+
+.SH SYNOPSIS
+\fBorbit dev routes [flags]\fP
+
+
+.SH DESCRIPTION
+Route every registry service with runs: mac and a localhost name (ports.yaml) to http://\&.localhost through Caddy, a reverse proxy to 127.0.0.1:\&. The default prints the Caddyfile on stdout; --write writes it to a path, --list prints a table, and --json prints the list as a JSON envelope.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for routes
+
+.PP
+\fB--json\fP[=false]
+	print the routes as a JSON envelope
+
+.PP
+\fB--list\fP[=false]
+	print the routes as a table (NAME, URL, PORT, SERVICE) instead of the Caddyfile
+
+.PP
+\fB--root\fP=""
+	workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+
+.PP
+\fB--write\fP=""
+	write the Caddyfile to this path (parent directories are created) and print the path
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+
+.SH SEE ALSO
+\fBorbit-dev(1)\fP

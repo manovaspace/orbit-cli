@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-invite-revoke - Revoke active developer onboarding invitations
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit invite revoke [token_or_id] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Marks an invitation token or all active invitations as revoked, preventing further claim attempts.
 
 
 .SH OPTIONS
-.PP
 \fB-a\fP, \fB--all\fP[=false]
 	Revoke all active developer onboarding invitations
 
@@ -26,16 +22,18 @@ Marks an invitation token or all active invitations as revoked, preventing furth
 	help for revoke
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--store-file\fP=""
 	Custom path to invites storage file
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-invite(1)\fP

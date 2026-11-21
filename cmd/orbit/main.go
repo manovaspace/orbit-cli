@@ -190,6 +190,10 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"ci":          true,
 		"audit":       true,
 		"release":     true,
+		// dev tunnel and dev routes print ssh config, authorized_keys lines and
+		// Caddyfiles on stdout; a notice would corrupt redirected output.
+		"tunnel": true,
+		"routes": true,
 	}
 	for _, n := range names {
 		if suppressList[n] {

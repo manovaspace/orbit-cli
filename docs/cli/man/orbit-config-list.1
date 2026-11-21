@@ -2,28 +2,28 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-config-list - List all resolved configuration entries and their sources
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit config list [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Displays all active configuration parameters across defaults, configuration file, environment variables, and flags.
 
 
 .SH OPTIONS
-.PP
 \fB-f\fP, \fB--format\fP="table"
 	Output format: table, json, or yaml
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for list
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
 
 .PP
 \fB--limit\fP=0
@@ -35,11 +35,9 @@ Displays all active configuration parameters across defaults, configuration file
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-config(1)\fP

@@ -225,7 +225,7 @@ func newInviteCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&insecureFlag, "insecure", false, "Bypass owner verification check (development only)")
 	cmd.Flags().BoolVarP(&sendFlag, "send", "m", true, "Dispatch onboarding invitation email via SMTP (default: true)")
 	cmd.Flags().BoolVar(&noSendFlag, "no-send", false, "Suppress dispatching onboarding invitation email")
-	cmd.Flags().BoolVar(&totpFlag, "totp", false, "Generate Authelia-compatible 2FA TOTP secret and embed QR code in setup link")
+	cmd.Flags().BoolVar(&totpFlag, "totp", false, "Generate a 2FA TOTP secret and embed a QR code in the setup link")
 	cmd.Flags().StringVar(&smtpHostFlag, "smtp-host", "", "SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)")
 	cmd.Flags().StringVar(&smtpPortFlag, "smtp-port", "", "SMTP server port (default: $ORBIT_SMTP_PORT or 587)")
 	cmd.Flags().StringVar(&smtpFromFlag, "smtp-from", "", "Sender email address (default: $ORBIT_SMTP_FROM)")

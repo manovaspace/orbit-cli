@@ -20,6 +20,7 @@ const (
 	DefaultScope       = "all"
 	DefaultExpiryDays  = 7
 	DefaultUIOutput    = "table"
+	DefaultTunnelPort  = 22
 )
 
 // DefaultConfigTemplate is written when `config set` creates a new file.
@@ -51,6 +52,10 @@ ui:
   color: true
   output: table
 
+# Developer tunnel to the shared dev services (orbit dev tunnel)
+dev:
+  tunnel_port: 22
+
 # Arbitrary extensions & developer flags
 custom: {}
 `
@@ -78,6 +83,9 @@ func DefaultConfig() *Config {
 		UI: UIConfig{
 			Color:  true,
 			Output: DefaultUIOutput,
+		},
+		Dev: DevConfig{
+			TunnelPort: DefaultTunnelPort,
 		},
 		Custom: make(map[string]interface{}),
 	}
@@ -256,6 +264,17 @@ func (c *Config) Validate() error {
 	if out != "table" && out != "json" && out != "yaml" {
 		return fmt.Errorf("ui.output must be one of 'table', 'json', 'yaml', got %q", c.UI.Output)
 	}
+	if err := validateTunnelPort(c.Dev.TunnelPort); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateTunnelPort accepts a TCP port number for dev.tunnel_port.
+func validateTunnelPort(port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("dev.tunnel_port must be between 1 and 65535, got %d", port)
+	}
 	return nil
 }
 
@@ -376,6 +395,34 @@ func (c *Config) Get(path string) (ConfigEntry, error) {
 			}
 		}
 		return ConfigEntry{}, fmt.Errorf("%w: unknown ui property %q", ErrKeyNotFound, path)
+
+	case "dev":
+		if len(parts) == 2 {
+			switch strings.ToLower(parts[1]) {
+			case "tunnel_host", "tunnelhost":
+				return ConfigEntry{
+					Key:    "dev.tunnel_host",
+					Value:  c.Dev.TunnelHost,
+					Type:   "string",
+					Source: SourceUserFile,
+				}, nil
+			case "tunnel_port", "tunnelport":
+				return ConfigEntry{
+					Key:    "dev.tunnel_port",
+					Value:  strconv.Itoa(c.Dev.TunnelPort),
+					Type:   "int",
+					Source: SourceUserFile,
+				}, nil
+			case "tunnel_identity", "tunnelidentity":
+				return ConfigEntry{
+					Key:    "dev.tunnel_identity",
+					Value:  c.Dev.TunnelIdentity,
+					Type:   "string",
+					Source: SourceUserFile,
+				}, nil
+			}
+		}
+		return ConfigEntry{}, fmt.Errorf("%w: unknown dev property %q", ErrKeyNotFound, path)
 
 	case "custom":
 		if len(parts) == 1 {
@@ -503,6 +550,29 @@ func (c *Config) Set(path, value string) error {
 		}
 		return fmt.Errorf("unknown ui property %q", path)
 
+	case "dev":
+		if len(parts) == 2 {
+			switch strings.ToLower(parts[1]) {
+			case "tunnel_host", "tunnelhost":
+				c.Dev.TunnelHost = v
+				return nil
+			case "tunnel_port", "tunnelport":
+				port, err := strconv.Atoi(v)
+				if err != nil {
+					return fmt.Errorf("invalid dev.tunnel_port %q: %w", v, err)
+				}
+				if err := validateTunnelPort(port); err != nil {
+					return err
+				}
+				c.Dev.TunnelPort = port
+				return nil
+			case "tunnel_identity", "tunnelidentity":
+				c.Dev.TunnelIdentity = v
+				return nil
+			}
+		}
+		return fmt.Errorf("unknown dev property %q", path)
+
 	case "custom":
 		if len(parts) == 1 {
 			return errors.New("cannot set root custom namespace directly; specify a key like custom.foo")
@@ -596,6 +666,22 @@ func (c *Config) Unset(path string) error {
 		}
 		return fmt.Errorf("unknown ui property %q", path)
 
+	case "dev":
+		if len(parts) == 2 {
+			switch strings.ToLower(parts[1]) {
+			case "tunnel_host", "tunnelhost":
+				c.Dev.TunnelHost = defaults.Dev.TunnelHost
+				return nil
+			case "tunnel_port", "tunnelport":
+				c.Dev.TunnelPort = defaults.Dev.TunnelPort
+				return nil
+			case "tunnel_identity", "tunnelidentity":
+				c.Dev.TunnelIdentity = defaults.Dev.TunnelIdentity
+				return nil
+			}
+		}
+		return fmt.Errorf("unknown dev property %q", path)
+
 	case "custom":
 		if len(parts) == 1 {
 			c.Custom = make(map[string]interface{})
@@ -623,6 +709,9 @@ func (c *Config) Entries() []ConfigEntry {
 		{Key: "defaults.expiry_days", Value: strconv.Itoa(c.Defaults.ExpiryDays), Type: "int", Source: SourceUserFile},
 		{Key: "ui.color", Value: strconv.FormatBool(c.UI.Color), Type: "bool", Source: SourceUserFile},
 		{Key: "ui.output", Value: c.UI.Output, Type: "string", Source: SourceUserFile},
+		{Key: "dev.tunnel_host", Value: c.Dev.TunnelHost, Type: "string", Source: SourceUserFile},
+		{Key: "dev.tunnel_port", Value: strconv.Itoa(c.Dev.TunnelPort), Type: "int", Source: SourceUserFile},
+		{Key: "dev.tunnel_identity", Value: c.Dev.TunnelIdentity, Type: "string", Source: SourceUserFile},
 	}
 
 	if c.Custom != nil {

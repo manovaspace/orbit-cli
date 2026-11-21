@@ -270,11 +270,9 @@ func TestPortalOutput(t *testing.T) {
 
 	for _, want := range []string{
 		"Orbit Local Developer Portal",
-		"http://localhost:10007",
-		"http://auth.internal.manova.space:10000",
-		"http://git.internal.manova.space:10000",
-		"http://mail.internal.manova.space:10000",
-		"http://grafana.internal.manova.space:10000",
+		"http://localhost:10003",
+		"https://mailpit.internal.manova.space",
+		"https://grafana.internal.manova.space",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q:\n%s", want, out.String())

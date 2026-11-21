@@ -30,7 +30,7 @@ orbit invite create [email] [flags]
       --smtp-host string     SMTP server host (default: $ORBIT_SMTP_HOST or mail.manova.space)
       --smtp-port string     SMTP server port (default: $ORBIT_SMTP_PORT or 587)
       --store-file string    Custom path to invites storage file
-      --totp                 Generate Authelia-compatible 2FA TOTP secret and embed QR code in setup link
+      --totp                 Generate a 2FA TOTP secret and embed a QR code in the setup link
 ```
 
 ### Options inherited from parent commands

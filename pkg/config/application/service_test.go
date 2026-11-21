@@ -93,8 +93,8 @@ func TestPrecedenceResolution(t *testing.T) {
 		}
 
 		entries := res.ListEntries()
-		if len(entries) != 10 {
-			t.Fatalf("expected 10 default entries, got %d", len(entries))
+		if len(entries) != 13 {
+			t.Fatalf("expected 13 default entries, got %d", len(entries))
 		}
 
 		for _, e := range entries {
@@ -413,4 +413,30 @@ func TestResolveValidation(t *testing.T) {
 			t.Errorf("expected error for invalid ORBIT_UI_OUTPUT, got nil")
 		}
 	})
+}
+
+func TestResolveDevTunnelFromFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("dev:\n  tunnel_host: demo@203.0.113.10\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Resolve(ResolveOptions{ConfigPath: path})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if res.Config.Dev.TunnelHost != "demo@203.0.113.10" || res.Config.Dev.TunnelPort != domain.DefaultTunnelPort {
+		t.Fatalf("dev = %+v, want host from file and default port 22", res.Config.Dev)
+	}
+	var found bool
+	for _, e := range res.ListEntries() {
+		if e.Key == "dev.tunnel_host" {
+			found = true
+			if e.Source != SourceUserFile || e.Value != "demo@203.0.113.10" {
+				t.Errorf("dev.tunnel_host entry = %+v", e)
+			}
+		}
+	}
+	if !found {
+		t.Error("dev.tunnel_host missing from entries")
+	}
 }

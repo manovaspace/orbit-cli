@@ -1,0 +1,37 @@
+## orbit dev tunnel
+
+Forward the shared dev services over SSH to 127.0.0.1
+
+### Synopsis
+
+Forward every registry service and exception with runs: shared (ports.yaml) from the dev tunnel host to 127.0.0.1 with ssh -L. The host comes from --host or dev.tunnel_host, the SSH port from --ssh-port or dev.tunnel_port. The command runs in the foreground; Ctrl-C ends it. --print shows the ssh command, --ssh-config prints a Host block for ~/.ssh/config, --authorized-key prints the server-side authorized_keys line for a public key file, and --json prints the plan.
+
+```
+orbit dev tunnel [flags]
+```
+
+### Options
+
+```
+      --authorized-key string   print the server authorized_keys line for this ssh public key file (.pub)
+  -h, --help                    help for tunnel
+      --host string             SSH destination user@host (default: dev.tunnel_host)
+      --identity string         private key file for the tunnel, passed as ssh -i (default: dev.tunnel_identity; ~ expands to your home)
+      --json                    print the tunnel plan (host, port, forwards, command) as a JSON envelope and do not run ssh
+      --only strings            forward only these registry service names, comma separated
+      --print                   print the ssh command and exit
+      --root string             workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+      --ssh-config              print a Host orbit-dev block for ~/.ssh/config and exit
+      --ssh-port int            SSH port of the tunnel host (default: dev.tunnel_port)
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
+### SEE ALSO
+
+* [orbit dev](orbit_dev.md)	 - Control and orchestrate local development stacks and containers
+

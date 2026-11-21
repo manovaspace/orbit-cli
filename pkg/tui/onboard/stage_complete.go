@@ -12,9 +12,7 @@ import (
 // DashboardInfo holds the service URLs for the completion screen.
 type DashboardInfo struct {
 	PortalURL  string
-	AuthURL    string
 	MailpitURL string
-	GitURL     string
 	TotalRepos int
 }
 
@@ -29,9 +27,7 @@ func RenderCompletionDashboard(info DashboardInfo) string {
 
 	links := []struct{ label, url string }{
 		{"Orbit Portal", info.PortalURL},
-		{"Authelia Auth", info.AuthURL},
 		{"Mailpit", info.MailpitURL},
-		{"Forgejo Git", info.GitURL},
 	}
 
 	var rows []string
@@ -81,10 +77,8 @@ func NewCompleteModel(parent *WizardModel) *CompleteModel {
 // buildDashboard assembles DashboardInfo from the parent session and renders.
 func (m *CompleteModel) buildDashboard() string {
 	info := DashboardInfo{
-		PortalURL:  "http://localhost:10007",
-		AuthURL:    "http://auth.internal.manova.space:10000",
-		MailpitURL: "http://mail.internal.manova.space:10000",
-		GitURL:     "http://git.internal.manova.space:10000",
+		PortalURL:  "http://localhost:10003",
+		MailpitURL: "https://mailpit.internal.manova.space",
 	}
 
 	if m.parent != nil && m.parent.Session != nil {
