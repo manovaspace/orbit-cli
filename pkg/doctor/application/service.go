@@ -11,6 +11,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/doctor/domain"
 	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	portsdomain "github.com/manovaspace/orbit-cli/pkg/ports/domain"
 )
 
 // ProbeResult is the combined output of one external probe.
@@ -47,6 +48,10 @@ type Host interface {
 type Ports interface {
 	Scan(start, end int) map[int]bool
 }
+
+// PortRegistry loads the dev port registry under a workspace root. A nil
+// registry with a nil error means the file is absent.
+type PortRegistry func(root string) (*portsdomain.Registry, error)
 
 // Manifest loads workspace.yaml for the workspace integrity check.
 type Manifest interface {
@@ -87,11 +92,28 @@ type Service struct {
 	Host     Host
 	Ports    Ports
 	Manifest Manifest
+	Registry PortRegistry
 	Healers  *domain.HealerRegistry
 	Extra    ExtraCheck
 
 	Out io.Writer
 	UI  UI
+}
+
+// portsCheck builds the listener check, loading the registry under root when
+// the service has a loader.
+func (s *Service) portsCheck(root string) portsCheck {
+	check := portsCheck{ports: s.Ports}
+	if s.Registry == nil || root == "" {
+		return check
+	}
+	reg, err := s.Registry(root)
+	if err != nil {
+		check.registryErr = err
+		return check
+	}
+	check.registry = reg
+	return check
 }
 
 // Diagnose runs the selected checks. It never heals: only Heal with an
@@ -105,7 +127,7 @@ func (s *Service) Diagnose(ctx context.Context, opts Options) Result {
 	if opts.Remote {
 		registry.Register(dockerCheck{probe: s.Probe, host: s.Host})
 		registry.Register(sshCheck{probe: s.Probe, host: s.Host, remote: true, acceptHostKeys: opts.AcceptHostKeys})
-		registry.Register(portsCheck{ports: s.Ports})
+		registry.Register(s.portsCheck(opts.WorkspaceRoot))
 	} else {
 		registry.Register(staticCheck{name: "docker-local", results: []domain.DiagnosticResult{
 			{Category: domain.CategoryContainer, Name: "Docker CLI", Status: domain.StatusUnverified, Message: "Daemon connectivity unverified (local mode)"},

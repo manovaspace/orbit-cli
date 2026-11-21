@@ -1,0 +1,7 @@
+waypoint.localhost {
+	reverse_proxy host.docker.internal:10053
+}
+
+old.localhost {
+	reverse_proxy localhost:10026
+}

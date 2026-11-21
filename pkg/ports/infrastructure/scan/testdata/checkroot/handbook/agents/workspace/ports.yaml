@@ -1,0 +1,125 @@
+# Dev host port registry (ADR-058). The only place a host port number is decided.
+#
+# Generated from this file: the tables in docs/orbit/architecture/orbit-dev-ports.md
+# (bun run ports:doc). Read by orbit-cli: `o port list`, `o port check`,
+# `o port allocate`, `o dev tunnel` and `o dev routes`.
+#
+# Fields per service:
+#   port      host port (10000 + 50 x project id + slot)
+#   project   project name from `projects`
+#   name      service name, unique inside the project
+#   proto     tcp | http | grpc | smtp
+#   runs      shared: one instance on the server for every environment; a Mac
+#                     reaches it through `o dev tunnel` on the same port
+#             mac:    runs on the developer machine as a native process that
+#                     reads PORT and binds 127.0.0.1
+#             server: a host bind on the server that a Mac never needs
+#   repos     repositories allowed to bind this port (workspace paths)
+#   bind      address the server listens on (shared services only; default 127.0.0.1)
+#   localhost name for http://<name>.localhost on a Mac (http services that run on a Mac)
+#   note      optional
+#
+# Rules: dev binds use 127.0.0.1 only. Production binds only 80 and 443 on the
+# host; services reach each other on the Docker network. Retired numbers are
+# never reused within a year of retirement.
+
+version: 1
+base: 10000
+block_size: 50
+fixed_slots: 10
+
+projects:
+  - { id: 0, name: orbit-platform }
+  - { id: 1, name: manova }
+  - { id: 2, name: falak }
+  - { id: 3, name: jouybari }
+  - { id: 4, name: jtash }
+  - { id: 5, name: kohan_kherad }
+
+services:
+  # orbit-platform (0): 10000-10049
+  - { port: 10000, project: orbit-platform, name: postgres, proto: tcp, runs: shared, repos: [orbit/orbit-infra], note: "one Postgres for every environment; separate database and role per service and environment" }
+  - { port: 10001, project: orbit-platform, name: orbit-api-gateway, proto: http, runs: mac, repos: [orbit/orbit-api-gateway, clients/manova/manova-infra], localhost: gateway }
+  - { port: 10002, project: orbit-platform, name: orbit-frontend-template, proto: http, runs: mac, repos: [orbit/orbit-frontend], localhost: template }
+  - { port: 10003, project: orbit-platform, name: dev-portal, proto: http, runs: server, repos: [orbit/orbit-infra] }
+  - { port: 10004, project: orbit-platform, name: grafana, proto: http, runs: shared, repos: [orbit/orbit-infra] }
+  - { port: 10006, project: orbit-platform, name: nats, proto: tcp, runs: shared, bind: 10.0.0.1, repos: [orbit/orbit-message-bus, orbit/orbit-infra] }
+  - { port: 10008, project: orbit-platform, name: keycloak, proto: http, runs: server, repos: [orbit/orbit-infra], note: "Caddy only" }
+  - { port: 10009, project: orbit-platform, name: orbit-staff, proto: http, runs: server, repos: [orbit/orbit-staff] }
+  - { port: 10010, project: orbit-platform, name: orbit-auth-grpc, proto: grpc, runs: mac, repos: [orbit/orbit-auth, clients/manova/manova-infra] }
+  - { port: 10011, project: orbit-platform, name: orbit-auth-health, proto: http, runs: mac, repos: [orbit/orbit-auth, clients/manova/manova-infra], localhost: auth, note: "also serves GET /v1/flags" }
+  - { port: 10012, project: orbit-platform, name: orbit-notifications-grpc, proto: grpc, runs: mac, repos: [orbit/orbit-notifications, clients/manova/manova-infra] }
+  - { port: 10013, project: orbit-platform, name: orbit-notifications-health, proto: http, runs: mac, repos: [orbit/orbit-notifications, clients/manova/manova-infra] }
+  - { port: 10014, project: orbit-platform, name: orbit-api-gateway-health, proto: http, runs: mac, repos: [orbit/orbit-api-gateway, clients/manova/manova-infra] }
+  - { port: 10015, project: orbit-platform, name: orbit-server, proto: http, runs: server, repos: [clients/manova/manova-infra] }
+  - { port: 10016, project: orbit-platform, name: orbit-billing-grpc, proto: grpc, runs: mac, repos: [orbit/orbit-billing] }
+  - { port: 10017, project: orbit-platform, name: orbit-billing-health, proto: http, runs: mac, repos: [orbit/orbit-billing] }
+  - { port: 10018, project: orbit-platform, name: orbit-render-grpc, proto: grpc, runs: mac, repos: [orbit/orbit-render] }
+  - { port: 10019, project: orbit-platform, name: orbit-render-health, proto: http, runs: mac, repos: [orbit/orbit-render] }
+  - { port: 10020, project: orbit-platform, name: prometheus, proto: http, runs: shared, repos: [orbit/orbit-infra, orbit/orbit-observability] }
+  - { port: 10021, project: orbit-platform, name: alertmanager, proto: http, runs: shared, repos: [orbit/orbit-infra, orbit/orbit-observability] }
+  - { port: 10022, project: orbit-platform, name: otlp-grpc, proto: grpc, runs: shared, repos: [orbit/orbit-infra, orbit/orbit-observability] }
+  - { port: 10023, project: orbit-platform, name: otlp-http, proto: http, runs: shared, repos: [orbit/orbit-infra, orbit/orbit-observability] }
+  - { port: 10024, project: orbit-platform, name: mailpit-smtp, proto: smtp, runs: shared, repos: [orbit/orbit-infra] }
+  - { port: 10025, project: orbit-platform, name: mailpit-ui, proto: http, runs: shared, repos: [orbit/orbit-infra] }
+  - { port: 10027, project: orbit-platform, name: storybook, proto: http, runs: mac, repos: [manovaspace/design-system], localhost: storybook }
+  - { port: 10028, project: orbit-platform, name: workspace-share, proto: http, runs: server, repos: [orbit/orbit-infra] }
+  - { port: 10029, project: orbit-platform, name: nats-monitor, proto: http, runs: shared, bind: 10.0.0.1, repos: [orbit/orbit-message-bus, orbit/orbit-infra] }
+  - { port: 10030, project: orbit-platform, name: handbook, proto: http, runs: mac, repos: [handbook], localhost: handbook }
+  - { port: 10031, project: orbit-platform, name: orbit-staff-health, proto: http, runs: server, repos: [orbit/orbit-staff] }
+  - { port: 10032, project: orbit-platform, name: uptime-kuma, proto: http, runs: server, repos: [orbit/orbit-infra], note: "was 10850" }
+
+  # manova (1): 10050-10099
+  - { port: 10051, project: manova, name: waypoint-api, proto: http, runs: mac, repos: [clients/manova/waypoint-api, clients/manova/manova-infra], localhost: waypoint-api, note: "was 11110" }
+  - { port: 10052, project: manova, name: gub, proto: http, runs: mac, repos: [clients/manova/gub, clients/manova/manova-infra], localhost: gub, note: "was 11003" }
+  - { port: 10053, project: manova, name: waypoint-web, proto: http, runs: mac, repos: [clients/manova/waypoint], localhost: waypoint, note: "was 11002" }
+  - { port: 10055, project: manova, name: waypoint-api-health, proto: http, runs: mac, repos: [clients/manova/waypoint-api, clients/manova/manova-infra], note: "was 11111" }
+  - { port: 10060, project: manova, name: waypoint-redirect, proto: http, runs: mac, repos: [clients/manova/waypoint-redirect, clients/manova/manova-infra], localhost: waypoint-redirect, note: "was 11100" }
+  - { port: 10061, project: manova, name: bulwark, proto: http, runs: server, repos: [clients/manova/manova-mail] }
+  - { port: 10062, project: manova, name: stalwart-http, proto: http, runs: server, repos: [clients/manova/manova-mail] }
+  - { port: 10064, project: manova, name: garage-s3, proto: http, runs: server, repos: [clients/manova/manova-infra] }
+  - { port: 10065, project: manova, name: garage-admin, proto: http, runs: server, repos: [clients/manova/manova-infra] }
+  - { port: 10066, project: manova, name: manova-frontend, proto: http, runs: mac, repos: [clients/manova/manova-frontend], localhost: manova, note: "was 11000" }
+  - { port: 10067, project: manova, name: website, proto: http, runs: server, repos: [clients/manova/manova-infra], note: "was 11001" }
+  - { port: 10068, project: manova, name: goldstein-staging, proto: http, runs: server, repos: [clients/manova/manova-infra], note: "was 11004" }
+  - { port: 10070, project: manova, name: tgbot-health, proto: http, runs: server, repos: [clients/manova/tgbot], note: "was 11123" }
+  - { port: 10071, project: manova, name: tgbot-health-2, proto: http, runs: server, repos: [clients/manova/tgbot], note: "was 11124" }
+  - { port: 10072, project: manova, name: tgbot-health-3, proto: http, runs: server, repos: [clients/manova/tgbot], note: "was 11126" }
+
+  # falak (2): 10100-10149
+  - { port: 10101, project: falak, name: api, proto: http, runs: mac, repos: [clients/manova/falak, clients/manova/manova-infra], localhost: falak-api }
+  - { port: 10102, project: falak, name: web, proto: http, runs: mac, repos: [clients/manova/falak], localhost: falak }
+  - { port: 10103, project: falak, name: console, proto: http, runs: mac, repos: [clients/manova/falak], localhost: falak-console }
+  - { port: 10108, project: falak, name: identity, proto: http, runs: mac, repos: [clients/manova/falak, clients/manova/manova-infra], note: "split mode" }
+  - { port: 10110, project: falak, name: inventory, proto: http, runs: mac, repos: [clients/manova/falak, clients/manova/manova-infra], note: "split mode" }
+  - { port: 10111, project: falak, name: expenses, proto: http, runs: mac, repos: [clients/manova/falak, clients/manova/manova-infra], note: "split mode" }
+  - { port: 10112, project: falak, name: web-storybook, proto: http, runs: mac, repos: [clients/manova/falak], localhost: falak-storybook, note: "was 10103, which collided with the console" }
+
+  # jouybari (3): 10150-10199
+  - { port: 10152, project: jouybari, name: stock-web, proto: http, runs: mac, repos: [clients/jouybari/stock], localhost: jouybari-stock, note: "was 17000" }
+
+  # jtash (4): 10200-10249
+  - { port: 10202, project: jtash, name: frontend, proto: http, runs: mac, repos: [clients/jtash/frontend], localhost: jtash, note: "was 12000" }
+
+  # kohan_kherad (5): 10250-10299
+  - { port: 10252, project: kohan_kherad, name: website, proto: http, runs: mac, repos: [clients/kohan_kherad/website], localhost: kohan-kherad, note: "was 14000" }
+
+# Fixed slots held for a future service; nothing binds them yet.
+reserved:
+  - { port: 10005, project: orbit-platform, name: health-aggregate }
+  - { port: 10007, project: orbit-platform, name: caddy-ingress }
+
+# Ports outside the blocks that are accepted on purpose. Each has a reason and
+# an exit condition; `o port check` reports any other number outside the blocks.
+exceptions:
+  - { port: 10334, name: redis, runs: shared, repos: [orbit/orbit-infra], reason: "shared manova-redis, loopback only; moving it restarts every consumer", until: "next planned Redis restart" }
+  - { port: 11006, name: immich, runs: server, repos: [clients/meow/pishidolfini, clients/manova/manova-infra], reason: "production host bind", until: "production moves onto the Docker network (manovaspace/handbook#210)" }
+  - { port: 11007, name: pishidolfini-static, runs: server, repos: [clients/meow/pishidolfini, clients/manova/manova-infra], reason: "production host bind", until: "manovaspace/handbook#210" }
+
+# Retired numbers: never bind them again. `o port check` reports any use.
+retired:
+  - { port: 10026, was: unleash, retired: 2026-11-21 }
+  - { port: 10517, was: otlp-grpc (legacy), retired: 2026-11-21 }
+  - { port: 10825, was: mailpit-ui (legacy), retired: 2026-11-21 }
+  - { port: 10850, was: uptime-kuma (legacy), retired: 2026-11-21 }
+  - { port: 11379, was: waypoint redis (legacy; use redis 10334), retired: 2026-11-21 }

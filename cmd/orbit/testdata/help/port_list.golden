@@ -1,14 +1,15 @@
-List base ports and deterministic slots for all registered projects
+With a handbook/agents/workspace/ports.yaml registry, list every registered service by port with a live listener probe. Without one, list the 50-port project blocks. --limit and --page page projects, or services when a registry is found.
 
 Usage:
   orbit port list [flags]
 
 Flags:
-  -h, --help        help for list
-      --json        Print the result as a JSON envelope
-      --limit int   maximum projects per page (0 = all)
-      --page int    page number to display (default 1)
-      --scan        Momentarily attempt IPv4 loopback binds; no reservation is retained
+  -h, --help          help for list
+      --json          Print the result as a JSON envelope
+      --limit int     maximum projects (or services, with a registry) per page (0 = all)
+      --page int      page number to display (default 1)
+      --root string   workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+      --scan          Momentarily attempt loopback binds for every block slot (no effect with a registry, which always probes)
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file
