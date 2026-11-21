@@ -22,7 +22,6 @@ const (
 	agentCheckAll        = "handbook/agents/scripts/check-all.mjs"
 	agentSetupMCP        = "handbook/agents/setup-mcp.py"
 	agentOpencode        = "handbook/agents/opencode/manova-implementer.md"
-	agentRTKRule         = "handbook/agents/rules/rtk.mdc"
 	agentInstallArtifact = "handbook/agents/install-artifacts.json"
 	handbookEval         = "handbook/packages/handbook-mcp/eval.mjs"
 )
@@ -134,17 +133,6 @@ func (s *Service) Agents(ctx context.Context) (result Result) {
 		ran++
 	} else {
 		report.AddUnverified("agents: " + agentSetupMCP + " not found (MCP configuration unverified)")
-	}
-
-	if !s.rtkHookPresent() {
-		report.Add(domain.Finding{
-			ID:       "agents.rtk-hook",
-			Severity: domain.SeverityWarn,
-			Subject:  "RTK",
-			Actual:   "hook not detected",
-			Expected: "RTK installed for agent shell output",
-			Fix:      "install the RTK hook from handbook/agents",
-		})
 	}
 
 	if !s.Files.Exists(filepath.Join(s.Root, filepath.FromSlash(agentOpencode))) {
@@ -530,14 +518,6 @@ func (s *Service) latestUpstream(ctx context.Context, tool string) (string, erro
 		return s.Registry.Latest(ctx, tool)
 	}
 	return "", fmt.Errorf("unknown upstream tool %q", tool)
-}
-
-func (s *Service) rtkHookPresent() bool {
-	if s.Files.Exists(filepath.Join(s.Root, filepath.FromSlash(agentRTKRule))) {
-		return true
-	}
-	data, err := s.Files.ReadFile(filepath.Join(s.Root, filepath.FromSlash(agentInstallArtifact)))
-	return err == nil && strings.Contains(string(data), "rtk")
 }
 
 // addRetiredNameFindings warns about retired names still mentioned by active

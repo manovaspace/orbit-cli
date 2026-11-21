@@ -18,8 +18,7 @@ func (c resourcesCheck) Run(context.Context) []domain.DiagnosticResult {
 	return domain.EvaluateResources(c.host.Resources())
 }
 
-// devToolsCheck reports the agent tooling the workspace relies on: RTK (and
-// whether its hook is installed) and opencode.
+// devToolsCheck reports the agent runtime the workspace relies on: opencode.
 type devToolsCheck struct {
 	probe Probe
 }
@@ -27,12 +26,6 @@ type devToolsCheck struct {
 func (c devToolsCheck) Name() string { return "dev-tools" }
 
 func (c devToolsCheck) Run(ctx context.Context) []domain.DiagnosticResult {
-	rtkOut, rtkErr := c.probe.Run(ctx, ShortCommandTimeout, "rtk", "--version")
-	results := []domain.DiagnosticResult{domain.EvaluateRTK(rtkOut.Output, rtkErr)}
-	if rtkErr == nil {
-		gainOut, gainErr := c.probe.Run(ctx, DefaultCommandTimeout, "rtk", "gain")
-		results = append(results, domain.EvaluateRTKHook(gainOut.Output, gainErr))
-	}
 	opencodeOut, opencodeErr := c.probe.Run(ctx, ShortCommandTimeout, "opencode", "--version")
-	return append(results, domain.EvaluateOpenCode(opencodeOut.Output, opencodeErr))
+	return []domain.DiagnosticResult{domain.EvaluateOpenCode(opencodeOut.Output, opencodeErr)}
 }
