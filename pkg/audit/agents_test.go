@@ -30,7 +30,6 @@ func agentWorkspace(t *testing.T) string {
 	writeFixtureFile(t, root, "handbook/agents/setup-mcp.py", "# fixture\n")
 	writeFixtureFile(t, root, "handbook/agents/opencode/manova-implementer.md", "---\nname: implementer\n---\n")
 	writeFixtureFile(t, root, "handbook/packages/handbook-mcp/eval.mjs", "// fixture\n")
-	writeFixtureFile(t, root, "handbook/agents/rules/rtk.mdc", "RTK\n")
 	return root
 }
 
@@ -122,7 +121,6 @@ func TestAgentsSkipsMissingEvalAsUnverified(t *testing.T) {
 	writeFixtureFile(t, root, "handbook/agents/scripts/check-all.mjs", "// fixture\n")
 	writeFixtureFile(t, root, "handbook/agents/setup-mcp.py", "# fixture\n")
 	writeFixtureFile(t, root, "handbook/agents/opencode/manova-implementer.md", "---\n---\n")
-	writeFixtureFile(t, root, "handbook/agents/rules/rtk.mdc", "RTK\n")
 	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
 	service.Commands = &fakeCommands{
 		answers: []commandAnswer{{

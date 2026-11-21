@@ -5,7 +5,7 @@ import "testing"
 func TestActiveDocPath(t *testing.T) {
 	cases := map[string]bool{
 		"handbook/docs/orbit/guides/development-workflow.md":        true,
-		"handbook/agents/rules/rtk.mdc":                             false,
+		"handbook/agents/rules/quality-gate-timing.mdc":             false,
 		"handbook/agents/skills/manova-delivery.md":                 true,
 		"handbook/docs/superpowers/plans/2026-11-02-plan.md":        false,
 		"handbook/docs/superpowers/specs/2026-11-02-spec.md":        false,

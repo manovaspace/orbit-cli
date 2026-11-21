@@ -59,7 +59,6 @@ func TestAgentsEvalLeavesNoFilesInTheHandbook(t *testing.T) {
 	writeAuditFixture(t, root, "handbook/agents/scripts/check-all.mjs", "// fixture\n")
 	writeAuditFixture(t, root, "handbook/agents/setup-mcp.py", "# fixture\n")
 	writeAuditFixture(t, root, "handbook/agents/opencode/manova-implementer.md", "---\n---\n")
-	writeAuditFixture(t, root, "handbook/agents/rules/rtk.mdc", "RTK\n")
 	writeAuditFixture(t, root, "handbook/packages/handbook-mcp/eval.mjs", "// fixture\n")
 	writeAuditFixture(t, root, "handbook/packages/handbook-mcp/eval-results.json", "old results\n")
 
