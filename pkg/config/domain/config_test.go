@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -524,8 +525,8 @@ func TestEntriesFlattening(t *testing.T) {
 		cfg := DefaultConfig()
 		entries := cfg.Entries()
 
-		if len(entries) != 10 {
-			t.Fatalf("expected 10 core entries, got %d", len(entries))
+		if len(entries) != 13 {
+			t.Fatalf("expected 13 core entries, got %d", len(entries))
 		}
 
 		entryMap := make(map[string]ConfigEntry)
@@ -534,7 +535,7 @@ func TestEntriesFlattening(t *testing.T) {
 			if e.Source != SourceUserFile {
 				t.Errorf("entry %s has unexpected source %s", e.Key, e.Source)
 			}
-			if e.Value == "" && e.Key != "assets.endpoint" {
+			if e.Value == "" && e.Key != "assets.endpoint" && e.Key != "dev.tunnel_host" && e.Key != "dev.tunnel_identity" {
 				t.Errorf("entry %s has unexpected empty value", e.Key)
 			}
 		}
@@ -550,6 +551,9 @@ func TestEntriesFlattening(t *testing.T) {
 			"defaults.expiry_days",
 			"ui.color",
 			"ui.output",
+			"dev.tunnel_host",
+			"dev.tunnel_port",
+			"dev.tunnel_identity",
 		}
 
 		for _, k := range expectedKeys {
@@ -572,8 +576,8 @@ func TestEntriesFlattening(t *testing.T) {
 		}
 
 		entries := cfg.Entries()
-		if len(entries) != 13 {
-			t.Fatalf("expected 13 total entries (10 core + 3 custom), got %d: %+v", len(entries), entries)
+		if len(entries) != 16 {
+			t.Fatalf("expected 16 total entries (13 core + 3 custom), got %d: %+v", len(entries), entries)
 		}
 
 		entryMap := make(map[string]ConfigEntry)
@@ -597,4 +601,84 @@ func TestEntriesFlattening(t *testing.T) {
 			t.Errorf("custom.deep.nested.port mismatch: %+v", port)
 		}
 	})
+}
+
+func TestDevTunnelKeys(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Dev.TunnelHost != "" || cfg.Dev.TunnelPort != 22 {
+		t.Fatalf("default dev = %+v, want empty host and port 22", cfg.Dev)
+	}
+
+	if err := cfg.Set("dev.tunnel_host", "demo@203.0.113.10"); err != nil {
+		t.Fatalf("Set host: %v", err)
+	}
+	if err := cfg.Set("dev.tunnel_port", "2222"); err != nil {
+		t.Fatalf("Set port: %v", err)
+	}
+	host, err := cfg.Get("dev.tunnel_host")
+	if err != nil || host.Value != "demo@203.0.113.10" || host.Type != "string" {
+		t.Fatalf("Get host = %+v, %v", host, err)
+	}
+	port, err := cfg.Get("dev.tunnel_port")
+	if err != nil || port.Value != "2222" || port.Type != "int" {
+		t.Fatalf("Get port = %+v, %v", port, err)
+	}
+
+	if err := cfg.Unset("dev.tunnel_port"); err != nil {
+		t.Fatalf("Unset port: %v", err)
+	}
+	if cfg.Dev.TunnelPort != 22 {
+		t.Errorf("port after unset = %d, want 22", cfg.Dev.TunnelPort)
+	}
+	if err := cfg.Unset("dev.tunnel_host"); err != nil {
+		t.Fatalf("Unset host: %v", err)
+	}
+	if cfg.Dev.TunnelHost != "" {
+		t.Errorf("host after unset = %q, want empty", cfg.Dev.TunnelHost)
+	}
+}
+
+func TestDevTunnelPortValidation(t *testing.T) {
+	for _, bad := range []string{"0", "65536", "-1", "ssh"} {
+		cfg := DefaultConfig()
+		if err := cfg.Set("dev.tunnel_port", bad); err == nil {
+			t.Errorf("Set dev.tunnel_port %q: want error", bad)
+		}
+	}
+
+	cfg := DefaultConfig()
+	cfg.Dev.TunnelPort = 70000
+	if err := cfg.Validate(); err == nil {
+		t.Error("Validate with port 70000: want error")
+	}
+}
+
+func TestDevUnknownProperty(t *testing.T) {
+	cfg := DefaultConfig()
+	if _, err := cfg.Get("dev.nope"); !errors.Is(err, ErrKeyNotFound) {
+		t.Errorf("Get dev.nope err = %v, want ErrKeyNotFound", err)
+	}
+	if err := cfg.Set("dev.nope", "x"); err == nil {
+		t.Error("Set dev.nope: want error")
+	}
+}
+
+func TestDevTunnelIdentityKey(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Dev.TunnelIdentity != "" {
+		t.Fatalf("default identity = %q, want empty", cfg.Dev.TunnelIdentity)
+	}
+	if err := cfg.Set("dev.tunnel_identity", "~/.ssh/orbit_dev_tunnel"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	entry, err := cfg.Get("dev.tunnel_identity")
+	if err != nil || entry.Value != "~/.ssh/orbit_dev_tunnel" || entry.Type != "string" {
+		t.Fatalf("Get = %+v, %v (~ must be stored, not expanded)", entry, err)
+	}
+	if err := cfg.Unset("dev.tunnel_identity"); err != nil {
+		t.Fatalf("Unset: %v", err)
+	}
+	if cfg.Dev.TunnelIdentity != "" {
+		t.Errorf("identity after unset = %q", cfg.Dev.TunnelIdentity)
+	}
 }

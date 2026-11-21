@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-invite-create - Generate a cryptographically signed onboarding invitation token
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit invite create [email] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Generates a HMAC-SHA256 signed invite token for a developer email address with specified scope and expiration.
 
 
 .SH OPTIONS
-.PP
 \fB--email\fP=""
 	Developer email address
 
@@ -36,6 +32,10 @@ Generates a HMAC-SHA256 signed invite token for a developer email address with s
 .PP
 \fB-i\fP, \fB--interactive\fP[=false]
 	Interactive wizard for generating developer invitations
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
 
 .PP
 \fB-n\fP, \fB--name\fP=""
@@ -83,15 +83,13 @@ Generates a HMAC-SHA256 signed invite token for a developer email address with s
 
 .PP
 \fB--totp\fP[=false]
-	Generate Authelia-compatible 2FA TOTP secret and embed QR code in setup link
+	Generate a 2FA TOTP secret and embed a QR code in the setup link
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-invite(1)\fP

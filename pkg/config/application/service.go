@@ -141,6 +141,9 @@ func (s *Service) Resolve(opts ResolveOptions) (*domain.ResolvedConfig, error) {
 		"defaults.expiry_days": {Key: "defaults.expiry_days", Value: strconv.Itoa(cfg.Defaults.ExpiryDays), Type: "int", Source: domain.SourceDefault, SourceRef: "default"},
 		"ui.color":             {Key: "ui.color", Value: strconv.FormatBool(cfg.UI.Color), Type: "bool", Source: domain.SourceDefault, SourceRef: "default"},
 		"ui.output":            {Key: "ui.output", Value: cfg.UI.Output, Type: "string", Source: domain.SourceDefault, SourceRef: "default"},
+		"dev.tunnel_host":      {Key: "dev.tunnel_host", Value: cfg.Dev.TunnelHost, Type: "string", Source: domain.SourceDefault, SourceRef: "default"},
+		"dev.tunnel_port":      {Key: "dev.tunnel_port", Value: strconv.Itoa(cfg.Dev.TunnelPort), Type: "int", Source: domain.SourceDefault, SourceRef: "default"},
+		"dev.tunnel_identity":  {Key: "dev.tunnel_identity", Value: cfg.Dev.TunnelIdentity, Type: "string", Source: domain.SourceDefault, SourceRef: "default"},
 	}
 	var customEntries []domain.ConfigEntry
 
@@ -161,6 +164,7 @@ func (s *Service) Resolve(opts ResolveOptions) (*domain.ResolvedConfig, error) {
 		fileCfg.Assets = cfg.Assets
 		fileCfg.Defaults = cfg.Defaults
 		fileCfg.UI = cfg.UI
+		fileCfg.Dev = cfg.Dev
 		fileCfg.Custom = make(map[string]interface{})
 
 		if err := yaml.Unmarshal(data, &fileCfg); err == nil {
@@ -218,6 +222,20 @@ func (s *Service) Resolve(opts ResolveOptions) (*domain.ResolvedConfig, error) {
 				if _, ok := uMap["output"]; ok {
 					cfg.UI.Output = fileCfg.UI.Output
 					entriesMap["ui.output"] = &domain.ConfigEntry{Key: "ui.output", Value: cfg.UI.Output, Type: "string", Source: domain.SourceUserFile, SourceRef: path}
+				}
+			}
+			if dMap, ok := rawMap["dev"].(map[string]interface{}); ok {
+				if _, ok := dMap["tunnel_host"]; ok {
+					cfg.Dev.TunnelHost = fileCfg.Dev.TunnelHost
+					entriesMap["dev.tunnel_host"] = &domain.ConfigEntry{Key: "dev.tunnel_host", Value: cfg.Dev.TunnelHost, Type: "string", Source: domain.SourceUserFile, SourceRef: path}
+				}
+				if _, ok := dMap["tunnel_port"]; ok {
+					cfg.Dev.TunnelPort = fileCfg.Dev.TunnelPort
+					entriesMap["dev.tunnel_port"] = &domain.ConfigEntry{Key: "dev.tunnel_port", Value: strconv.Itoa(cfg.Dev.TunnelPort), Type: "int", Source: domain.SourceUserFile, SourceRef: path}
+				}
+				if _, ok := dMap["tunnel_identity"]; ok {
+					cfg.Dev.TunnelIdentity = fileCfg.Dev.TunnelIdentity
+					entriesMap["dev.tunnel_identity"] = &domain.ConfigEntry{Key: "dev.tunnel_identity", Value: cfg.Dev.TunnelIdentity, Type: "string", Source: domain.SourceUserFile, SourceRef: path}
 				}
 			}
 			if fileCfg.Custom != nil {
@@ -327,6 +345,9 @@ func (s *Service) Resolve(opts ResolveOptions) (*domain.ResolvedConfig, error) {
 		"defaults.expiry_days",
 		"ui.color",
 		"ui.output",
+		"dev.tunnel_host",
+		"dev.tunnel_port",
+		"dev.tunnel_identity",
 	}
 
 	entries := make([]domain.ConfigEntry, 0, len(coreKeys)+len(customEntries))

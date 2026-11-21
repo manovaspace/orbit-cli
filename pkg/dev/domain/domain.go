@@ -20,18 +20,17 @@ type Endpoint struct {
 	URL  string `json:"url"`
 }
 
-// PortalURL is the local developer portal.
-const PortalURL = "http://localhost:10007"
+// PortalURL is the local developer portal (registry dev-portal, 10003). 10007 is
+// a reserved Caddy slot and is not the portal.
+const PortalURL = "http://localhost:10003"
 
 // Endpoints lists the local developer URLs shown by `dev portal` and the
 // `dev up` banner.
 func Endpoints() []Endpoint {
 	return []Endpoint{
 		{Name: "Developer Portal", URL: PortalURL},
-		{Name: "Authelia SSO", URL: "http://auth.internal.manova.space:10000"},
-		{Name: "Forgejo Git", URL: "http://git.internal.manova.space:10000"},
-		{Name: "Mailpit", URL: "http://mail.internal.manova.space:10000"},
-		{Name: "Grafana", URL: "http://grafana.internal.manova.space:10000"},
+		{Name: "Mailpit", URL: "https://mailpit.internal.manova.space"},
+		{Name: "Grafana", URL: "https://grafana.internal.manova.space"},
 	}
 }
 
@@ -49,8 +48,7 @@ func CoreServices() []CoreService {
 	return []CoreService{
 		{Name: "Postgres", Host: "127.0.0.1", Port: 10000, URL: "postgres://orbit@localhost:10000/orbit"},
 		{Name: "NATS", Host: "127.0.0.1", Port: 10006, URL: "nats://localhost:10006"},
-		{Name: "LLDAP", Host: "127.0.0.1", Port: 3890, URL: "ldap://localhost:3890"},
-		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, FallbackPort: 10443, URL: "http://localhost:80"},
+		{Name: "Caddy Ingress", Host: "127.0.0.1", Port: 80, URL: "http://localhost:80"},
 		{Name: "Mailpit", Host: "127.0.0.1", Port: 10025, URL: "http://localhost:10025"},
 	}
 }

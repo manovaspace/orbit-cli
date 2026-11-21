@@ -40,6 +40,17 @@ type UIConfig struct {
 	Output string `yaml:"output" json:"output"` // "table", "json", "yaml"
 }
 
+// DevConfig holds the developer tunnel settings used by `orbit dev tunnel`.
+type DevConfig struct {
+	// TunnelHost is the SSH destination, for example user@host. Empty until set.
+	TunnelHost string `yaml:"tunnel_host,omitempty" json:"tunnel_host,omitempty"`
+	// TunnelPort is the SSH port of TunnelHost.
+	TunnelPort int `yaml:"tunnel_port" json:"tunnel_port"`
+	// TunnelIdentity is the private key file for the tunnel. A leading ~ is
+	// expanded to the home directory when the tunnel runs, not when stored.
+	TunnelIdentity string `yaml:"tunnel_identity,omitempty" json:"tunnel_identity,omitempty"`
+}
+
 type Config struct {
 	Version  int                    `yaml:"version" json:"version"`
 	Server   ServerConfig           `yaml:"server" json:"server"`
@@ -47,6 +58,7 @@ type Config struct {
 	Assets   AssetsConfig           `yaml:"assets" json:"assets"`
 	Defaults DefaultsConfig         `yaml:"defaults" json:"defaults"`
 	UI       UIConfig               `yaml:"ui" json:"ui"`
+	Dev      DevConfig              `yaml:"dev" json:"dev"`
 	Custom   map[string]interface{} `yaml:"custom,omitempty" json:"custom,omitempty"`
 }
 

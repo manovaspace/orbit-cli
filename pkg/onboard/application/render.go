@@ -151,7 +151,7 @@ func (s *Service) renderSummary(workspaceRoot string, sess *domain.SessionState)
 		}
 	}
 	if totpVal != "" {
-		extraDetails = fmt.Sprintf("\nAuthelia 2FA:   %s\n                %s",
+		extraDetails = fmt.Sprintf("\n2FA:            %s\n                %s",
 			s.UI.InfoText("TOTP Enrollment Ready"),
 			s.UI.Subtle(totpVal),
 		)

@@ -21,10 +21,8 @@ func stripANSI(s string) string {
 
 func TestCompletionDashboardRendering(t *testing.T) {
 	dashboard := tuiOnboard.RenderCompletionDashboard(tuiOnboard.DashboardInfo{
-		PortalURL:  "http://localhost:10007",
-		AuthURL:    "http://auth.internal.manova.space:10000",
-		MailpitURL: "http://mail.internal.manova.space:10000",
-		GitURL:     "http://git.internal.manova.space:10000",
+		PortalURL:  "http://localhost:10003",
+		MailpitURL: "https://mailpit.internal.manova.space",
 		TotalRepos: 5,
 	})
 
@@ -35,7 +33,7 @@ func TestCompletionDashboardRendering(t *testing.T) {
 	if !strings.Contains(plain, "all set") {
 		t.Errorf("expected 'all set' in dashboard, got:\n%s", dashboard)
 	}
-	if !strings.Contains(plain, "http://localhost:10007") {
+	if !strings.Contains(plain, "http://localhost:10003") {
 		t.Errorf("expected portal URL in dashboard, got:\n%s", dashboard)
 	}
 	if !strings.Contains(plain, "5 workspace repositories") {
@@ -122,8 +120,8 @@ func TestStackModelViewRendering(t *testing.T) {
 	if !strings.Contains(view, "Stack") {
 		t.Errorf("expected 'Stack' in view, got:\n%s", view)
 	}
-	if !strings.Contains(view, "Forgejo") {
-		t.Errorf("expected 'Forgejo' service in view, got:\n%s", view)
+	if !strings.Contains(view, "Mailpit") {
+		t.Errorf("expected 'Mailpit' service in view, got:\n%s", view)
 	}
 }
 

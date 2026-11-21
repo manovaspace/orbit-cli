@@ -180,7 +180,7 @@ func TestDevJSONEnvelopes(t *testing.T) {
 			t.Fatalf("dev portal --json: %v", err)
 		}
 		data := envelopeData(t, requireEnvelope(t, out))
-		if data["url"] != "http://localhost:10007" {
+		if data["url"] != "http://localhost:10003" {
 			t.Errorf("url = %v", data["url"])
 		}
 	})

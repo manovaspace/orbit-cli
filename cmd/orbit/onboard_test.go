@@ -592,8 +592,8 @@ func TestOnboardTOTPPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("onboard failed: %v\nOutput: %s", err, out)
 	}
-	if !strings.Contains(out, "Authelia 2FA") {
-		t.Errorf("expected Authelia 2FA in summary card: %s", out)
+	if !strings.Contains(out, "2FA:") {
+		t.Errorf("expected 2FA in summary card: %s", out)
 	}
 	if !strings.Contains(out, "otpauth://totp/Orbit:totp-dev") {
 		t.Errorf("expected TOTP URI in summary card: %s", out)
