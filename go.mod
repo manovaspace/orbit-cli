@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.115.0
 	github.com/creativeprojects/go-selfupdate v1.7.1
-	github.com/manovaspace/orbit-notifications v0.5.0
+	github.com/manovaspace/orbit-notifications v0.5.2
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.59.0
 	golang.org/x/term v0.48.0
@@ -84,6 +84,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
-
-// The imported mail templates do not use observability; exclude its invalid placeholder.
-exclude github.com/manovaspace/orbit-observability v0.0.0
