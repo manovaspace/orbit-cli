@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "10000:5432"
+  grafana:
+    ports:
+      - "127.0.0.1:10004:3000"
+      - "0.0.0.0:10025:8025"
+      - "${MAILPIT_PORT:-10099}:1025"
+      - "10024:1025"

@@ -1,0 +1,8 @@
+{
+	"name": "waypoint-api",
+	"scripts": {
+		"dev": "next dev --port 10051",
+		"start": "PORT=10010 node dist/server.js",
+		"lint": "eslint ."
+	}
+}

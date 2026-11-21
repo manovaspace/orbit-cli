@@ -1,13 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	portsapp "github.com/manovaspace/orbit-cli/pkg/ports/application"
 	portsdomain "github.com/manovaspace/orbit-cli/pkg/ports/domain"
 	"github.com/manovaspace/orbit-cli/pkg/ports/infrastructure/netprobe"
+	portregistry "github.com/manovaspace/orbit-cli/pkg/ports/infrastructure/registry"
 	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
@@ -23,15 +27,46 @@ func newPortService(out io.Writer) *portsapp.Service {
 	}
 }
 
-func newPortCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "port",
-		Short: "Manage and inspect the hybrid 50-port allocation model",
-		Long:  "Inspect project port ranges (50-port blocks), deterministic service slots (0-9), and suggest ports (10-49) after a momentary IPv4 loopback bind probe. Suggestions are not durable reservations.",
+// loadPortRegistry reads handbook/agents/workspace/ports.yaml under root (the
+// workspace root when root is empty). A missing registry returns nil with no
+// error so the commands keep their pre-registry behaviour; a malformed one is
+// a failure.
+func loadPortRegistry(root string) (*portsdomain.Registry, string, error) {
+	if root == "" {
+		root = findWorkspaceRoot("")
 	}
+	path := filepath.Join(root, filepath.FromSlash(portregistry.RelPath))
+	reg, err := portregistry.Find(root)
+	if errors.Is(err, portregistry.ErrNotFound) {
+		return nil, path, nil
+	}
+	if err != nil {
+		return nil, path, clierr.Wrap(err, clierr.Failed("port registry unreadable"))
+	}
+	return reg, path, nil
+}
+
+func newPortCmd() *cobra.Command {
+	var jsonFlag bool
+	cmd := &cobra.Command{
+		Use: "port",
+		// Args rejects an unknown subcommand as a usage error (exit 3). Cobra
+		// skips argument checks on a command without RunE, so RunE is needed.
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if jsonFlag {
+				return emitPortFailure(cmd.OutOrStdout(), true, clierr.Usage("port needs a subcommand: list, allocate or check"))
+			}
+			return cmd.Help()
+		},
+		Short: "Inspect, allocate and check dev ports against the port registry",
+		Long:  "Read the dev port registry (handbook/agents/workspace/ports.yaml, ADR-058) and enforce it. list shows registered services with a listener probe; allocate suggests a free port that no registry entry claims; check scans repositories for unregistered, retired, misplaced and open-bind ports. Without a registry, list shows the 50-port project blocks and allocate uses the loopback bind probe alone. Suggestions are not durable reservations.",
+	}
+	cmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Print usage errors as a JSON envelope")
 
 	cmd.AddCommand(newPortListCmd())
 	cmd.AddCommand(newPortAllocateCmd())
+	cmd.AddCommand(newPortCheckCmd())
 
 	return cmd
 }
@@ -42,24 +77,35 @@ func newPortListCmd() *cobra.Command {
 		pageFlag    int
 		limitFlag   int
 		jsonFlag    bool
+		rootFlag    string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List base ports and deterministic slots for all registered projects",
+		Short: "List registered services (ports.yaml) or base ports for all projects",
+		Long:  "With a handbook/agents/workspace/ports.yaml registry, list every registered service by port with a live listener probe. Without one, list the 50-port project blocks. --limit and --page page projects, or services when a registry is found.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
-			result, err := newPortService(io.Discard).List(cmd.Context(), portsapp.ListOptions{
-				Scan:  scanNetwork,
-				Page:  pageFlag,
-				Limit: limitFlag,
-			})
+			reg, registryPath, err := loadPortRegistry(rootFlag)
 			if err != nil {
-				if jsonFlag {
-					_ = output.Write(out, output.Failure(err))
-				}
-				return err
+				return emitPortFailure(out, jsonFlag, err)
+			}
+			service := newPortService(io.Discard)
+			service.Registry = reg
+			opts := portsapp.ListOptions{Scan: scanNetwork, Page: pageFlag, Limit: limitFlag}
+
+			if reg != nil {
+				result := service.ListServices(cmd.Context(), opts)
+				return render.Emit(out, jsonFlag, result, func(p *render.Printer) error {
+					renderServiceList(p, result, registryPath)
+					return nil
+				})
+			}
+
+			result, err := service.List(cmd.Context(), opts)
+			if err != nil {
+				return emitPortFailure(out, jsonFlag, err)
 			}
 			if jsonFlag {
 				return output.Write(out, output.Success(result))
@@ -71,32 +117,45 @@ func newPortListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&scanNetwork, "scan", false, "Momentarily attempt IPv4 loopback binds; no reservation is retained")
+	cmd.Flags().BoolVar(&scanNetwork, "scan", false, "Momentarily attempt loopback binds for every block slot (no effect with a registry, which always probes)")
 	cmd.Flags().IntVar(&pageFlag, "page", 1, "page number to display")
-	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum projects per page (0 = all)")
+	cmd.Flags().IntVar(&limitFlag, "limit", 0, "maximum projects (or services, with a registry) per page (0 = all)")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	cmd.Flags().StringVar(&rootFlag, "root", "", "workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)")
 	return cmd
 }
 
+// emitPortFailure writes the JSON failure envelope when requested and returns err.
+func emitPortFailure(out io.Writer, jsonFlag bool, err error) error {
+	return render.EmitFailure(out, jsonFlag, err)
+}
+
 func newPortAllocateCmd() *cobra.Command {
-	var jsonFlag bool
+	var (
+		jsonFlag bool
+		rootFlag string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "allocate <project> <service>",
-		Short: "Suggest a bindable dynamic port; no reservation is retained",
-		Args:  cobra.ExactArgs(2),
+		Use:     "allocate <project> <service>",
+		Aliases: []string{"alloc"},
+		Short:   "Suggest a free dynamic port that no registry entry claims; not reserved",
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 
-			result, err := newPortService(io.Discard).Allocate(cmd.Context(), portsapp.AllocateInput{
+			reg, _, err := loadPortRegistry(rootFlag)
+			if err != nil {
+				return emitPortFailure(out, jsonFlag, err)
+			}
+			service := newPortService(io.Discard)
+			service.Registry = reg
+			result, err := service.Allocate(cmd.Context(), portsapp.AllocateInput{
 				Project: args[0],
 				Service: args[1],
 			})
 			if err != nil {
-				if jsonFlag {
-					_ = output.Write(out, output.Failure(err))
-				}
-				return err
+				return emitPortFailure(out, jsonFlag, err)
 			}
 			if jsonFlag {
 				return output.Write(out, output.Success(result))
@@ -109,6 +168,7 @@ func newPortAllocateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
+	cmd.Flags().StringVar(&rootFlag, "root", "", "workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)")
 	return cmd
 }
 
@@ -235,6 +295,7 @@ func renderPortAllocate(p *render.Printer, result portsapp.AllocateResult) {
 		[2]string{"Reserved", "no"},
 	)
 	p.Line(render.StatusInfo, "not reserved; the port may be taken at bind time")
+	p.Hint("add it to handbook/agents/workspace/ports.yaml before the service binds it")
 
 	reserved := 0
 	if result.Reserved {
@@ -243,5 +304,53 @@ func renderPortAllocate(p *render.Printer, result portsapp.AllocateResult) {
 	p.Summary(
 		render.SummaryPart{Status: render.StatusInfo, Count: 1, Label: "suggested"},
 		render.SummaryPart{Status: render.StatusSkipped, Count: reserved, Label: "reserved"},
+	)
+}
+
+// renderServiceList writes the registered services table and a summary of how
+// many listen right now.
+func renderServiceList(p *render.Printer, result portsapp.ServiceListResult, registryPath string) {
+	p.Title("Port registry")
+	p.KV("Registry", registryPath)
+	p.KV("Services", fmt.Sprintf("%d", result.TotalServices))
+	if result.Limit > 0 {
+		p.KV("Showing", fmt.Sprintf("showing %d-%d of %d (page %d/%d)", result.Start+1, result.End, result.TotalServices, result.Page, result.TotalPages))
+	}
+
+	if len(result.Services) == 0 {
+		p.Empty(render.Plural(0, "service", "services"))
+		p.Blank()
+		return
+	}
+
+	tbl := table.New(
+		table.Column{Title: "PORT", HeaderStyle: render.Header, MinWidth: 6},
+		table.Column{Title: "PROJECT", HeaderStyle: render.Header, MinWidth: 14},
+		table.Column{Title: "SERVICE", HeaderStyle: render.Header, CellStyle: render.Bold, MinWidth: 24},
+		table.Column{Title: "RUNS", HeaderStyle: render.Header, MinWidth: 6},
+		table.Column{Title: "LISTENING", HeaderStyle: render.Header, MinWidth: 12},
+		table.Column{Title: "REPOS", HeaderStyle: render.Header, MinWidth: 20, Flexible: true},
+	)
+	listening := 0
+	for _, svc := range result.Services {
+		state := render.StatusOK.Icon() + " free"
+		if svc.Listening {
+			state = render.StatusWarn.Icon() + " listening"
+			listening++
+		}
+		repos := ""
+		for i, r := range svc.Repos {
+			if i > 0 {
+				repos += ", "
+			}
+			repos += r
+		}
+		tbl.AddRow(fmt.Sprintf("%d", svc.Port), svc.Project, svc.Service, svc.Runs, state, repos)
+	}
+	_ = p.Table(tbl)
+
+	p.Summary(
+		render.SummaryPart{Status: render.StatusInfo, Count: len(result.Services), Label: "registered"},
+		render.SummaryPart{Status: render.StatusWarn, Count: listening, Label: "listening"},
 	)
 }

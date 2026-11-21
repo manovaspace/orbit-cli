@@ -2,10 +2,12 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/doctor/domain"
+	portsdomain "github.com/manovaspace/orbit-cli/pkg/ports/domain"
 )
 
 // Timeouts for diagnostic probes: toolchain versions are slower than the
@@ -122,15 +124,44 @@ func (c sshCheck) Run(ctx context.Context) []domain.DiagnosticResult {
 	return append(results, domain.EvaluateGitHubSSH(out.Output, err))
 }
 
-// portsCheck scans the standard dev port range for unexpected bindings.
+// portsCheck reports listeners in the dev port range. With a registry it
+// checks 10000-17999 against ports.yaml; without one it keeps the fixed
+// 10000-10300 scan. registryErr is set when ports.yaml exists but cannot be read.
 type portsCheck struct {
-	ports Ports
+	ports       Ports
+	registry    *portsdomain.Registry
+	registryErr error
 }
 
 func (c portsCheck) Name() string { return "ports" }
 
 func (c portsCheck) Run(context.Context) []domain.DiagnosticResult {
-	return []domain.DiagnosticResult{domain.EvaluatePortScan(c.ports.Scan(10000, 10300))}
+	if c.registryErr != nil {
+		return []domain.DiagnosticResult{{
+			Category: domain.CategoryPorts,
+			Name:     "Dev Port Registry",
+			Status:   domain.StatusWarning,
+			Message:  fmt.Sprintf("ports.yaml could not be read: %v", c.registryErr),
+		}}
+	}
+	if c.registry == nil {
+		return []domain.DiagnosticResult{domain.EvaluatePortScan(c.ports.Scan(10000, 10300))}
+	}
+
+	var unregistered, retired []int
+	for port, used := range c.ports.Scan(portsdomain.ScanLow, portsdomain.ScanHigh) {
+		if !used {
+			continue
+		}
+		owner := c.registry.Lookup(port)
+		switch owner.Kind {
+		case portsdomain.OwnerNone:
+			unregistered = append(unregistered, port)
+		case portsdomain.OwnerRetired:
+			retired = append(retired, port)
+		}
+	}
+	return []domain.DiagnosticResult{domain.EvaluateRegistryPortScan(unregistered, retired)}
 }
 
 // optionalToolsCheck reports on Caddy and Typst.
