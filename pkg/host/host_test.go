@@ -38,7 +38,9 @@ func TestEvaluate_Failures(t *testing.T) {
 		mut  func(*Input)
 		code string
 	}{
-		{"darwin", func(i *Input) { i.GOOS = "darwin" }, "os"},
+		{"darwin_bash_shell", func(i *Input) { i.GOOS = "darwin"; i.LoginShell = "/bin/bash" }, "shell"},
+		{"darwin_386", func(i *Input) { i.GOOS = "darwin"; i.GOARCH = "386" }, "arch"},
+		{"linux_arm64_still_fails", func(i *Input) { i.GOARCH = "arm64" }, "arch"},
 		{"windows", func(i *Input) { i.GOOS = "windows" }, "os"},
 		{"debian", func(i *Input) { i.OSRelease["ID"] = "debian" }, "os"},
 		{"ubuntu2204", func(i *Input) { i.OSRelease["VERSION_ID"] = "22.04" }, "os"},
@@ -69,12 +71,62 @@ func TestEvaluate_Failures(t *testing.T) {
 	}
 }
 
+func darwinInput() Input {
+	return Input{
+		GOOS:       "darwin",
+		GOARCH:     "arm64",
+		OSRelease:  map[string]string{},
+		Virt:       "native",
+		LoginShell: "/bin/zsh",
+		Home:       "/Users/dev",
+		Path:       "/usr/bin:/Users/dev/.local/bin",
+	}
+}
+
+func TestEvaluate_DarwinOK(t *testing.T) {
+	for _, arch := range []string{"arm64", "amd64"} {
+		in := darwinInput()
+		in.GOARCH = arch
+		r := Evaluate(in)
+		if !r.OK || r.Platform != "darwin" {
+			t.Fatalf("darwin/%s: expected OK on darwin, got %#v", arch, r)
+		}
+	}
+}
+
+func TestEvaluate_DarwinBashFailsShell(t *testing.T) {
+	in := darwinInput()
+	in.LoginShell = "/bin/bash"
+	r := Evaluate(in)
+	if r.OK || len(r.Failures) != 1 || r.Failures[0].Code != "shell" {
+		t.Fatalf("expected only shell failure, got %#v", r.Failures)
+	}
+}
+
+func TestEvaluate_LinuxNonUbuntuFails(t *testing.T) {
+	in := okInput()
+	in.OSRelease = map[string]string{"ID": "debian", "VERSION_ID": "12"}
+	r := Evaluate(in)
+	if r.OK || r.Platform != "linux" || r.Failures[0].Code != "os" {
+		t.Fatalf("linux debian must fail os, got %#v", r)
+	}
+}
+
+func TestEvaluate_PlatformSet(t *testing.T) {
+	if r := Evaluate(okInput()); r.Platform != "linux" {
+		t.Fatalf("linux platform: %q", r.Platform)
+	}
+	if r := Evaluate(darwinInput()); r.Platform != "darwin" {
+		t.Fatalf("darwin platform: %q", r.Platform)
+	}
+}
+
 func TestFormat_ListsOnlyFailures(t *testing.T) {
 	in := okInput()
 	in.GOOS = "darwin"
 	in.Path = "/usr/bin"
 	msg := Format(Evaluate(in))
-	if msg == "" || !strings.Contains(msg, "Orbit requires") || !strings.Contains(msg, "orbit doctor") {
+	if msg == "" || !strings.Contains(msg, "Orbit supports Ubuntu 24.04 or 26.04 LTS (amd64) and macOS (arm64 or amd64)") || !strings.Contains(msg, "orbit doctor") {
 		t.Fatalf("unexpected message: %q", msg)
 	}
 }

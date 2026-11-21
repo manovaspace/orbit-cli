@@ -69,7 +69,7 @@ func TestEvaluateHost(t *testing.T) {
 	if ok.Status != StatusOK || ok.Category != "System" || ok.Name != "Host" {
 		t.Errorf("ok result = %+v", ok)
 	}
-	if ok.Message != "Supported host: Ubuntu 24.04/26.04 LTS amd64, zsh, ~/.local/bin" {
+	if ok.Message != "Supported host: Ubuntu 24.04/26.04 LTS amd64 or macOS arm64/amd64, zsh, ~/.local/bin" {
 		t.Errorf("unexpected OK message: %q", ok.Message)
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
@@ -46,6 +47,9 @@ func doctorUI() doctorapp.UI {
 	}
 }
 
+// doctorGOOS is the platform `doctor --fix` checks; tests override it.
+var doctorGOOS = runtime.GOOS
+
 func newDoctorCmd() *cobra.Command {
 	var (
 		jsonOutput                    bool
@@ -71,6 +75,13 @@ func newDoctorCmd() *cobra.Command {
 			}
 			if acceptHostKeys && (!remote || !fix) {
 				err := clierr.Usage("--accept-host-keys requires --remote --fix")
+				if jsonOutput {
+					_ = output.Write(out, output.Failure(err))
+				}
+				return err
+			}
+			if fix && doctorGOOS == "darwin" {
+				err := clierr.Usage("--fix installs Linux packages and is not available on macOS; install the missing tools yourself (see the doctor fix suggestions)")
 				if jsonOutput {
 					_ = output.Write(out, output.Failure(err))
 				}

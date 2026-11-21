@@ -82,20 +82,121 @@ if [ -z "${ORBIT_VERSION:-}" ]; then
   if [ -n "$LATEST_TAG" ]; then
     ORBIT_RELEASE_VERSION="$LATEST_TAG"
   else
-    ORBIT_RELEASE_VERSION="v0.9.4"
+    ORBIT_RELEASE_VERSION="v0.19.4"
   fi
 else
   ORBIT_RELEASE_VERSION="$ORBIT_VERSION"
 fi
 
+# macOS path: developer CLI only. Never installs packages, never runs sudo,
+# docker, caddy or node, and never changes the login shell.
+install_darwin() {
+  local uname_m="$1"
+  shift
+
+  local asset_arch=""
+  case "$uname_m" in
+    arm64) asset_arch="arm64" ;;
+    x86_64|amd64) asset_arch="amd64" ;;
+    *)
+      echo -e "${ERR}Error: Unsupported macOS architecture '${uname_m}' (arm64 or amd64 required)${RESET}" >&2
+      exit 1
+      ;;
+  esac
+
+  local tool
+  for tool in curl shasum; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo -e "${ERR}Error: ${tool} is required to install Orbit on macOS${RESET}" >&2
+      exit 1
+    fi
+  done
+
+  local login_shell
+  login_shell="$(dscl . -read "/Users/$(id -un)" UserShell 2>/dev/null | awk '/^UserShell:/ {print $2}' || true)"
+  login_shell="${login_shell:-${SHELL:-}}"
+  if [ "$(basename "${login_shell:-}")" != "zsh" ]; then
+    echo -e "${WARN}Hint: login shell is '${login_shell:-unknown}', not zsh. Run: chsh -s /bin/zsh${RESET}"
+  fi
+
+  local asset="orbit-darwin-${asset_arch}"
+  local base_url="https://github.com/${REPO}/releases/download/${ORBIT_RELEASE_VERSION}"
+
+  echo -e "\n${BOLD}${BLUE}Orbit Platform — macOS Developer CLI Installer${RESET}"
+  echo -e "Version: ${CYAN}${ORBIT_RELEASE_VERSION}${RESET} · Target: macOS / ${asset_arch} · Destination: ${INSTALL_DIR}/orbit\n"
+
+  if [ "$YES_FLAG" = false ] && [ "${ORBIT_YES:-}" != "1" ]; then
+    if ! prompt_confirm "  ${BOLD}Install Orbit CLI ${ORBIT_RELEASE_VERSION}?${RESET} (Y/n) [y]: " "y"; then
+      echo -e "\n  ${GRAY}Installation cancelled. No changes were made to your system.${RESET}\n"
+      exit 0
+    fi
+    echo ""
+  fi
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+
+  echo -e "  ${GRAY}↓ Downloading ${asset} and checksums.txt from GitHub...${RESET}"
+  curl -fsSL "${base_url}/${asset}" -o "${tmp_dir}/${asset}"
+  curl -fsSL "${base_url}/checksums.txt" -o "${tmp_dir}/checksums.txt"
+
+  local expected actual
+  expected="$(awk -v f="$asset" '{ sub(/^\*/, "", $2) } $2 == f { print $1; exit }' "${tmp_dir}/checksums.txt")"
+  if [ -z "$expected" ]; then
+    echo -e "${ERR}Error: ${asset} is not listed in checksums.txt for ${ORBIT_RELEASE_VERSION}${RESET}" >&2
+    exit 1
+  fi
+  actual="$(shasum -a 256 "${tmp_dir}/${asset}" | awk '{ print $1 }')"
+  if [ "$actual" != "$expected" ]; then
+    echo -e "${ERR}Error: SHA-256 mismatch for ${asset} (expected ${expected}, got ${actual})${RESET}" >&2
+    exit 1
+  fi
+  echo -e "    ${GREEN}✔${RESET} SHA-256 verified"
+
+  mkdir -p "$INSTALL_DIR"
+  cp "${tmp_dir}/${asset}" "${INSTALL_DIR}/orbit"
+  chmod 755 "${INSTALL_DIR}/orbit"
+  xattr -d com.apple.quarantine "${INSTALL_DIR}/orbit" 2>/dev/null || true
+  ln -sf "orbit" "${INSTALL_DIR}/o" 2>/dev/null || true
+
+  mkdir -p "$HOME"
+  touch "${HOME}/.zshrc"
+  if ! grep -q 'export PATH=.*\.local/bin' "${HOME}/.zshrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.zshrc"
+  fi
+
+  echo -e "    ${GREEN}✔${RESET} Orbit CLI installed to ${INSTALL_DIR}/orbit"
+
+  local non_flag_args=()
+  local arg
+  for arg in "$@"; do
+    if [ "$arg" != "-y" ] && [ "$arg" != "--yes" ] && [ "$arg" != "--cli-only" ]; then
+      non_flag_args+=("$arg")
+    fi
+  done
+  if [ ${#non_flag_args[@]} -gt 0 ]; then
+    exec "${INSTALL_DIR}/orbit" "${non_flag_args[@]}"
+  fi
+
+  echo -e "\n  ${GREEN}✔${RESET} ${BOLD}Orbit ${ORBIT_RELEASE_VERSION} installed successfully!${RESET}\n"
+  echo -e "  ${BOLD}Installed to:${RESET}  ${INSTALL_DIR}/orbit"
+  echo -e "  ${BOLD}Commands:${RESET}      ${CYAN}orbit${RESET}, ${CYAN}o${RESET}"
+  echo -e "  ${BOLD}Scope:${RESET}         developer commands only (server commands are Linux-only)\n"
+  exit 0
+}
+
 # Host validation
-OS="$(uname -s)"
+OS="${ORBIT_INSTALL_UNAME_S:-$(uname -s)}"
+if [ "$OS" = "Darwin" ]; then
+  install_darwin "${ORBIT_INSTALL_UNAME_M:-$(uname -m)}" "$@"
+fi
 if [ "$OS" != "Linux" ]; then
-  echo -e "${ERR}Error: Orbit requires Linux (Ubuntu 24.04 or 26.04 LTS, amd64)${RESET}" >&2
+  echo -e "${ERR}Error: Orbit requires Linux (Ubuntu 24.04 or 26.04 LTS, amd64) or macOS (arm64 or amd64)${RESET}" >&2
   exit 1
 fi
 
-ARCH="$(uname -m)"
+ARCH="${ORBIT_INSTALL_UNAME_M:-$(uname -m)}"
 case "$ARCH" in
   x86_64|amd64) ;;
   *)

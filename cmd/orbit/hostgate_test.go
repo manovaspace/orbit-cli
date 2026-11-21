@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/host"
 	"github.com/spf13/cobra"
 )
@@ -33,8 +34,110 @@ func TestEnforceHost_Allowlist(t *testing.T) {
 	if err := enforceHost(init, fail); err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(errBuf.String(), "Orbit requires") {
+	if !strings.Contains(errBuf.String(), "Orbit supports") {
 		t.Fatalf("stderr: %s", errBuf.String())
+	}
+}
+
+// hostTree builds orbit -> dev -> up, orbit -> ci -> runner -> vps, orbit -> port -> list,
+// orbit -> pr -> status and orbit -> ci -> secrets so tests use real parent chains.
+func hostTree() map[string]*cobra.Command {
+	root := &cobra.Command{Use: "orbit"}
+	cmds := map[string]*cobra.Command{}
+	add := func(parent *cobra.Command, key, use string) {
+		c := &cobra.Command{Use: use}
+		parent.AddCommand(c)
+		cmds[key] = c
+	}
+	add(root, "dev", "dev")
+	add(cmds["dev"], "dev up", "up")
+	add(cmds["dev"], "dev logs", "logs")
+	add(root, "ci", "ci")
+	add(cmds["ci"], "ci runner", "runner")
+	add(cmds["ci runner"], "ci runner vps", "vps")
+	add(cmds["ci"], "ci secrets", "secrets")
+	add(root, "migrate", "migrate")
+	add(cmds["migrate"], "migrate status", "status")
+	add(root, "port", "port")
+	add(cmds["port"], "port list", "list")
+	add(root, "pr", "pr")
+	add(cmds["pr"], "pr status", "status")
+	add(root, "init", "init")
+	return cmds
+}
+
+func darwinReport() host.Report {
+	return host.Report{OK: true, Platform: "darwin"}
+}
+
+func linuxReport() host.Report {
+	return host.Report{OK: true, Platform: "linux"}
+}
+
+func TestEnforceHost_DarwinServerOnlyRefused(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
+	t.Setenv("ORBIT_TESTBED", "")
+	cmds := hostTree()
+	for _, key := range []string{"dev up", "dev logs", "ci runner", "ci runner vps", "migrate status"} {
+		err := enforceHost(cmds[key], darwinReport)
+		if err == nil {
+			t.Fatalf("%s must be refused on darwin", key)
+		}
+		want := "orbit " + key + ": server-only; not available on macOS"
+		if err.Error() != want {
+			t.Fatalf("%s: got %q want %q", key, err.Error(), want)
+		}
+		if clierr.ExitCode(err) != clierr.ExitUsage {
+			t.Fatalf("%s: exit %d, want usage (%d)", key, clierr.ExitCode(err), clierr.ExitUsage)
+		}
+	}
+}
+
+func TestEnforceHost_DarwinDeveloperCommandsAllowed(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
+	t.Setenv("ORBIT_TESTBED", "")
+	cmds := hostTree()
+	for _, key := range []string{"port list", "pr status", "ci secrets", "init"} {
+		if err := enforceHost(cmds[key], darwinReport); err != nil {
+			t.Fatalf("%s must be allowed on darwin: %v", key, err)
+		}
+	}
+}
+
+func TestEnforceHost_LinuxAllowsServerCommands(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
+	t.Setenv("ORBIT_TESTBED", "")
+	cmds := hostTree()
+	for _, key := range []string{"dev up", "ci runner vps", "migrate status"} {
+		if err := enforceHost(cmds[key], linuxReport); err != nil {
+			t.Fatalf("%s must be allowed on linux: %v", key, err)
+		}
+	}
+}
+
+func TestEnforceHost_DarwinBashStillFailsHostGate(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
+	t.Setenv("ORBIT_TESTBED", "")
+	cmds := hostTree()
+	errBuf := &bytes.Buffer{}
+	cmds["port list"].SetErr(errBuf)
+	bad := func() host.Report {
+		return host.Report{OK: false, Platform: "darwin", Failures: []host.Failure{{Code: "shell", Message: "login shell must be zsh"}}}
+	}
+	if err := enforceHost(cmds["port list"], bad); err == nil {
+		t.Fatal("darwin with bash must fail the host gate")
+	}
+	if !strings.Contains(errBuf.String(), "Orbit supports") || !strings.Contains(errBuf.String(), "shell: login shell must be zsh") {
+		t.Fatalf("stderr: %s", errBuf.String())
+	}
+}
+
+func TestEnforceHost_SkipBypassAllowsDarwinServerCommand(t *testing.T) {
+	t.Setenv("ORBIT_SKIP_HOSTGATE", "1")
+	t.Setenv("ORBIT_TESTBED", "")
+	cmds := hostTree()
+	if err := enforceHost(cmds["dev up"], darwinReport); err != nil {
+		t.Fatalf("ORBIT_SKIP_HOSTGATE must bypass: %v", err)
 	}
 }
 
