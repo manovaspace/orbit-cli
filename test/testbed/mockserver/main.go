@@ -521,7 +521,7 @@ func (s *MockServer) handleOnboardClaim(w http.ResponseWriter, r *http.Request) 
 		Credentials: onboarddomain.Credentials{
 			ForgejoUsername: uid,
 			ForgejoMCPToken: "mock-forgejo-token-" + uid,
-			WireGuardConfig: "[Interface]\nPrivateKey = mock-wg-key\nAddress = 10.0.0.2/32\n\n[Peer]\nPublicKey = mock-peer-key\nEndpoint = vpn.dev.manova.space:51820\nAllowedIPs = 10.0.0.0/16\n",
+			WireGuardConfig: "[Interface]\nPrivateKey = mock-wg-key\nAddress = 10.0.0.2/32\n\n[Peer]\nPublicKey = mock-peer-key\nEndpoint = vpn.internal.manova.space:51820\nAllowedIPs = 10.0.0.0/16\n",
 		},
 		Workspace: onboarddomain.WorkspaceInfo{
 			GitRemoteBase:        "http://git.internal.manova.space:3000",
@@ -672,7 +672,7 @@ func (s *MockServer) handleStaffCreate(w http.ResponseWriter, r *http.Request) {
 		DisplayName:     strings.TrimSpace(in.DisplayName),
 		FirstName:       strings.TrimSpace(in.FirstName),
 		LastName:        strings.TrimSpace(in.LastName),
-		Mail:            uid + "@dev.manova.space",
+		Mail:            uid + "@internal.manova.space",
 		PersonalForward: strings.TrimSpace(in.PersonalForward),
 		Groups:          groups,
 		Status:          "active",
@@ -866,7 +866,7 @@ func (s *MockServer) handleStaffRecreate(w http.ResponseWriter, r *http.Request)
 	member := &client.StaffMember{
 		UID:             uid,
 		DisplayName:     strings.TrimSpace(in.DisplayName),
-		Mail:            uid + "@dev.manova.space",
+		Mail:            uid + "@internal.manova.space",
 		PersonalForward: strings.TrimSpace(in.PersonalForward),
 		Groups:          groups,
 		Status:          "active",

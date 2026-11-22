@@ -8,10 +8,10 @@ services:
       orbit-test-net:
         aliases:
           - orbit-test-edge
-          - orbit.dev.manova.space
-          - staff.dev.manova.space
-          - git.dev.manova.space
-          - assets.dev.manova.space
+          - orbit.internal.manova.space
+          - staff.internal.manova.space
+          - git.internal.manova.space
+          - assets.internal.manova.space
     expose:
       - "8080"
       - "10800"
@@ -39,10 +39,10 @@ services:
         aliases:
           - orbit-test-client
     links:
-      - orbit-test-edge:orbit.dev.manova.space
-      - orbit-test-edge:staff.dev.manova.space
-      - orbit-test-edge:git.dev.manova.space
-      - orbit-test-edge:assets.dev.manova.space
+      - orbit-test-edge:orbit.internal.manova.space
+      - orbit-test-edge:staff.internal.manova.space
+      - orbit-test-edge:git.internal.manova.space
+      - orbit-test-edge:assets.internal.manova.space
     depends_on:
       orbit-test-edge:
         condition: service_healthy
@@ -52,10 +52,10 @@ services:
     working_dir: /workspace/orbit-cli
     environment:
       - ORBIT_EDGE_HOST=orbit-test-edge
-      - ORBIT_API_URL=http://orbit.dev.manova.space:8080
-      - ORBIT_STAFF_URL=http://staff.dev.manova.space:10800
-      - ORBIT_S3_ENDPOINT=http://assets.dev.manova.space:9000
-      - ORBIT_FORGEJO_URL=http://git.dev.manova.space:3000
+      - ORBIT_API_URL=http://orbit.internal.manova.space:8080
+      - ORBIT_STAFF_URL=http://staff.internal.manova.space:10800
+      - ORBIT_S3_ENDPOINT=http://assets.internal.manova.space:9000
+      - ORBIT_FORGEJO_URL=http://git.internal.manova.space:3000
       - ORBIT_STAFF_HMAC_SECRET=orbit-dev-insecure-staff-hmac-secret-32bytes
       - ORBIT_SIGNING_SECRET=orbit-dev-insecure-invitation-signing-secret-key-32bytes
       - ORBIT_NON_INTERACTIVE=1

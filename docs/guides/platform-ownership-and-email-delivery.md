@@ -20,7 +20,7 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 | `orbit admin init` after verify | Generates a **new** local secret; does not import the server fingerprint |
 | `orbit admin status` / `rotate-secret` / `verify` | Local vault only (`verify` is hermetic; it does not call the API) |
 | `orbit invite create` | Signs locally from `owner.json` and SMTP-sends from the workstation (not the Orbit HTTPS API) |
-| `orbit staff` | HMAC client to `https://staff.dev.manova.space` (`ORBIT_STAFF_URL`); needs verified `owner.json`. Includes `recreate` and `reset-password --totp`. Server not live. |
+| `orbit staff` | HMAC client to `https://staff.internal.manova.space` (`ORBIT_STAFF_URL`); needs verified `owner.json`. Includes `recreate` and `reset-password --totp`. Server not live. |
 
 ---
 
@@ -346,7 +346,7 @@ server:
   url: https://orbit.manova.space
   timeout: 30s
 staff:
-  url: https://staff.dev.manova.space
+  url: https://staff.internal.manova.space
 assets:
   bucket: manova-assets
   endpoint: https://assets.manova.space
@@ -394,7 +394,7 @@ orbit config list
 |---|---|---|---|
 | `server.url` | string | Orbit API server endpoint URL | `https://orbit.manova.space` |
 | `server.timeout` | duration | API client request timeout | `30s` |
-| `staff.url` | string | Staff control plane API URL | `https://staff.dev.manova.space` |
+| `staff.url` | string | Staff control plane API URL | `https://staff.internal.manova.space` |
 | `assets.bucket` | string | Cloudflare R2 bucket for private assets | `manova-assets` |
 | `assets.endpoint` | string | R2 asset CDN endpoint URL | `https://assets.manova.space` |
 | `assets.auto_pull` | bool | Automatically pull missing assets on dev startup | `true` |
@@ -600,7 +600,7 @@ Environment variables take precedence over configuration file settings:
 | `ORBIT_SERVER` | `ORBIT_SERVER_URL` | Orbit API server URL | `https://orbit.manova.space` |
 | `ORBIT_ADMIN_EMAIL` | `ORBIT_OWNER_EMAIL` | Administrator owner email | `admin@manova.space` |
 | `ORBIT_ADMIN_NAME` | `ORBIT_OWNER_NAME` | Administrator display name | `Alireza` |
-| `ORBIT_STAFF_URL` | — | orbit-staff HMAC API (`orbit staff --server`) | `https://staff.dev.manova.space` |
+| `ORBIT_STAFF_URL` | — | orbit-staff HMAC API (`orbit staff --server`) | `https://staff.internal.manova.space` |
 
 ### Server Daemon Environment Variables
 

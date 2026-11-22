@@ -24,7 +24,7 @@ assert_file_exists "${CONFIG_FILE}" "config.yaml created on disk"
 assert_file_mode "${CONFIG_FILE}" "600" "config.yaml sealed with mode 0600"
 
 log_step "Setting core configuration properties (server.url, assets.bucket, defaults.scope)..."
-set_url=$(run_orbit config set server.url "http://orbit.dev.manova.space:8080")
+set_url=$(run_orbit config set server.url "http://orbit.internal.manova.space:8080")
 assert_contains "${set_url}" "Set server.url" "server.url updated successfully"
 
 set_bucket=$(run_orbit config set assets.bucket "custom-media-bucket")
@@ -39,12 +39,12 @@ assert_contains "${set_custom}" "Set custom.api_token" "custom.api_token saved"
 
 log_step "Verifying configuration display via orbit config show..."
 show_out=$(run_orbit config show)
-assert_contains "${show_out}" "http://orbit.dev.manova.space:8080" "server.url visible in show"
+assert_contains "${show_out}" "http://orbit.internal.manova.space:8080" "server.url visible in show"
 assert_contains "${show_out}" "custom-media-bucket" "assets.bucket visible in show"
 
 log_step "Verifying JSON output formatting..."
 show_json=$(run_orbit config show --format json)
-assert_json_field "${show_json}" ".server.url" "http://orbit.dev.manova.space:8080" "JSON config output matches"
+assert_json_field "${show_json}" ".server.url" "http://orbit.internal.manova.space:8080" "JSON config output matches"
 assert_json_field "${show_json}" ".assets.bucket" "custom-media-bucket" "JSON bucket matches"
 
 log_step "Verifying raw plaintext retrieval via orbit config get..."

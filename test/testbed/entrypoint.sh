@@ -16,7 +16,7 @@ fi
 if [ -n "${ORBIT_EDGE_HOST:-}" ]; then
     EDGE_IP=$(getent hosts "${ORBIT_EDGE_HOST}" | awk '{ print $1 }' | head -n1)
     if [ -n "${EDGE_IP}" ]; then
-        for alias in orbit.dev.manova.space staff.dev.manova.space git.dev.manova.space assets.dev.manova.space; do
+        for alias in orbit.internal.manova.space staff.internal.manova.space git.internal.manova.space assets.internal.manova.space; do
             if ! grep -q "[[:space:]]${alias}" /etc/hosts; then
                 if [ "$(id -u)" = "0" ]; then
                     echo "${EDGE_IP} ${alias}" >> /etc/hosts
