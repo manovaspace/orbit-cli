@@ -100,6 +100,8 @@ go run ./cmd/orbit-server --dev --addr :8080 --smtp-host mail.manova.space --smt
 | Generated CLI markdown | `orbit/orbit-cli/docs/cli/` (`orbit doc -f markdown`) |
 | Generated man pages | `orbit/orbit-cli/docs/cli/man/` (`orbit doc -f man`) |
 | Ownership & email delivery (repo) | `orbit/orbit-cli/docs/guides/platform-ownership-and-email-delivery.md` |
+| Tier-1 invariants and their tests | `docs/testing/tier1-invariants.md` |
+| Agent `--json` / `--format json` contract | `docs/agent-json-contract.md` |
 
 ## Session pre-flight
 

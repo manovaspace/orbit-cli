@@ -23,20 +23,35 @@ func (s *Service) Show(path string) (*domain.Config, error) {
 	return res.Config.Masked(), nil
 }
 
-// Get returns one resolved entry.
+// Get returns one resolved entry with secret values masked as SecretMask.
 func (s *Service) Get(path, key string) (domain.ConfigEntry, error) {
+	return s.get(path, key, true)
+}
+
+// GetRaw returns one resolved entry with secret values in plaintext. Only the
+// `config get --raw` command may use it.
+func (s *Service) GetRaw(path, key string) (domain.ConfigEntry, error) {
+	return s.get(path, key, false)
+}
+
+func (s *Service) get(path, key string, mask bool) (domain.ConfigEntry, error) {
 	res, err := s.Resolve(ResolveOptions{ConfigPath: path})
 	if err != nil {
 		return domain.ConfigEntry{}, clierr.Wrap(err, clierr.Failed("failed to resolve configuration"))
 	}
-	entry, err := res.Config.Get(key)
+	cfg := res.Config
+	if mask {
+		cfg = cfg.Masked()
+	}
+	entry, err := cfg.Get(key)
 	if err != nil {
 		return domain.ConfigEntry{}, clierr.Usage(err.Error())
 	}
 	return entry, nil
 }
 
-// List returns every resolved entry and its source.
+// List returns every resolved entry and its source. Custom entries are built
+// from masked data, so secret values are SecretMask.
 func (s *Service) List(path string) ([]domain.ConfigEntry, error) {
 	res, err := s.Resolve(ResolveOptions{ConfigPath: path})
 	if err != nil {
@@ -55,11 +70,16 @@ func (s *Service) Set(path, key, value string) (SetResult, error) {
 		return SetResult{}, clierr.Usage(err.Error())
 	}
 
+	// The key name decides whether the value is echoed. IsSecretKey on the full
+	// dotted key also matches any ancestor segment, the same rule as Masked.
 	result := SetResult{
 		Key:           key,
 		Value:         value,
 		Path:          path,
 		SecretWarning: domain.IsSecretKey(key),
+	}
+	if result.SecretWarning && value != "" {
+		result.Value = domain.SecretMask
 	}
 	if result.SecretWarning {
 		fmt.Fprintf(s.out(), "%s Warning: '%s' resembles a secret. Storing secrets in config.yaml is discouraged.\n", s.UI.Warn, key)
@@ -67,7 +87,7 @@ func (s *Service) Set(path, key, value string) (SetResult, error) {
 	if err := s.Store.SetInFile(path, key, value); err != nil {
 		return result, clierr.Wrap(err, clierr.Failed("failed to persist configuration"))
 	}
-	fmt.Fprintf(s.out(), "%s Set %s = %s (%s)\n", s.UI.OK, s.bold(key), s.code(value), s.subtle(path))
+	fmt.Fprintf(s.out(), "%s Set %s = %s (%s)\n", s.UI.OK, s.bold(key), s.code(result.Value), s.subtle(path))
 	return result, nil
 }
 
@@ -240,7 +260,7 @@ func (s *Service) Resolve(opts ResolveOptions) (*domain.ResolvedConfig, error) {
 			}
 			if fileCfg.Custom != nil {
 				cfg.Custom = fileCfg.Custom
-				domain.FlattenCustomMap("custom", cfg.Custom, &customEntries)
+				domain.FlattenCustomMap("custom", domain.MaskCustom(cfg.Custom), &customEntries)
 				for i := range customEntries {
 					customEntries[i].Source = domain.SourceUserFile
 					customEntries[i].SourceRef = path

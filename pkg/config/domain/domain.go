@@ -715,15 +715,69 @@ func (c *Config) Entries() []ConfigEntry {
 	}
 
 	if c.Custom != nil {
-		FlattenCustomMap("custom", c.Custom, &entries)
+		FlattenCustomMap("custom", MaskCustom(c.Custom), &entries)
 	}
 
 	return entries
 }
 
+// SecretMask is the value rendered in place of every secret.
+const SecretMask = "********"
+
+// Masked returns a deep copy of c in which every secret value is replaced by
+// SecretMask. The receiver is never modified. A secret value is any leaf under
+// a custom key whose name, or any ancestor's name, satisfies IsSecretKey.
+// Empty values stay empty so an unset secret is not shown as set.
 func (c *Config) Masked() *Config {
 	cpy := *c
+	cpy.Custom = MaskCustom(c.Custom)
 	return &cpy
+}
+
+// MaskCustom returns a deep copy of m with secret values replaced by SecretMask.
+// It walks map[string]interface{}, map[interface{}]interface{} and []interface{}.
+// A nil map stays nil. m itself is not modified.
+func MaskCustom(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	out, _ := maskValue(m, false).(map[string]interface{})
+	return out
+}
+
+func maskValue(v interface{}, secret bool) interface{} {
+	switch t := v.(type) {
+	case nil:
+		return nil
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, val := range t {
+			out[k] = maskValue(val, secret || IsSecretKey(k))
+		}
+		return out
+	case map[interface{}]interface{}:
+		out := make(map[interface{}]interface{}, len(t))
+		for k, val := range t {
+			out[k] = maskValue(val, secret || IsSecretKey(fmt.Sprint(k)))
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, val := range t {
+			out[i] = maskValue(val, secret)
+		}
+		return out
+	case string:
+		if secret && t != "" {
+			return SecretMask
+		}
+		return t
+	default:
+		if secret {
+			return SecretMask
+		}
+		return v
+	}
 }
 
 // NormalizePath splits a dotted key and resolves the documented aliases.
