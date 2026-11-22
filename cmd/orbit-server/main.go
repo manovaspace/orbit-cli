@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -19,7 +20,9 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/config/application"
 	"github.com/manovaspace/orbit-cli/pkg/config/infrastructure/osfile"
 	invitesmtp "github.com/manovaspace/orbit-cli/pkg/invite/infrastructure/smtp"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/devprovisioner"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/disabledprovisioner"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/server"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sqlite"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
@@ -30,6 +33,8 @@ import (
 const (
 	DefaultSecretEnv      = "ORBIT_SIGNING_SECRET"
 	DefaultFallbackSecret = "orbit-dev-insecure-invitation-signing-secret-key-32bytes"
+	// DevModeEnv enables development defaults when set to a true value and no --dev flag is given.
+	DevModeEnv = "ORBIT_SERVER_DEV"
 )
 
 var (
@@ -97,6 +102,7 @@ type serverOptions struct {
 	disablePublicChallenges bool
 	dbPath                  string
 	trustedProxies          []string
+	dev                     bool
 }
 
 // DefaultDBPath returns the resolved default path to the SQLite database file.
@@ -169,6 +175,7 @@ and serves the canonical developer onboarding script.`,
 	cmd.Flags().StringVar(&opts.dbPath, "db-path", "", "Alias for --db")
 	_ = cmd.Flags().MarkHidden("db-path")
 	cmd.Flags().StringSliceVar(&opts.trustedProxies, "trusted-proxies", nil, "List of trusted reverse proxy CIDRs or IP addresses")
+	cmd.Flags().BoolVar(&opts.dev, "dev", false, "Enable development defaults (in-memory dev provisioner, fallback signing secret). INSECURE; also enabled by $ORBIT_SERVER_DEV=1. The --dev flag overrides the env var")
 
 	// Version subcommand for parity
 	versionCmd := &cobra.Command{
@@ -244,8 +251,34 @@ func resolveSMTPConfig(opts *serverOptions) invitesmtp.MailerConfig {
 	}
 }
 
+// resolveDevMode reports whether development defaults are enabled. An explicit
+// --dev flag (flagSet) wins over the environment; otherwise envValue must parse
+// as a true boolean (e.g. "1", "true"). Anything else means production mode.
+func resolveDevMode(flagSet, flagValue bool, envValue string) bool {
+	if flagSet {
+		return flagValue
+	}
+	on, err := strconv.ParseBool(strings.TrimSpace(envValue))
+	return err == nil && on
+}
+
+// selectProvisioner returns the in-memory dev provisioner only in dev mode.
+// Production mode gets a provisioner that refuses every request.
+func selectProvisioner(dev bool) domain.Provisioner {
+	if dev {
+		return devprovisioner.NewDevProvisioner()
+	}
+	return disabledprovisioner.New()
+}
+
 func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	out := cmd.OutOrStdout()
+
+	// 0. Resolve run mode. Production unless --dev or $ORBIT_SERVER_DEV is set.
+	dev := resolveDevMode(cmd.Flags().Changed("dev"), opts.dev, os.Getenv(DevModeEnv))
+	if dev {
+		slog.Warn("orbit-server running in DEV mode: in-memory provisioner and fallback signing secret are enabled (INSECURE)")
+	}
 
 	// 1. Resolve workstation configuration from file
 	_, _ = (&application.Service{Store: osfile.New(), Env: osfile.NewEnv()}).Resolve(application.ResolveOptions{
@@ -256,8 +289,11 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	smtpCfg := resolveSMTPConfig(opts)
 	mailer := invitesmtp.NewSMTPMailer(smtpCfg)
 
-	// 3. Resolve signing secret
-	secret, secretSource := resolveSigningSecret(opts.signingSecret, opts.ownerStorePath)
+	// 3. Resolve signing secret (fails in production when nothing is configured)
+	secret, secretSource, err := resolveSigningSecret(opts.signingSecret, opts.ownerStorePath, dev)
+	if err != nil {
+		return fmt.Errorf("failed to start orbit-server: %w", err)
+	}
 
 	// 4. Resolve and Initialize SQLite Database
 	dbPath := opts.dbPath
@@ -296,7 +332,7 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	serverCfg := server.ServerConfig{
 		Addr:                    opts.addr,
 		Secret:                  []byte(secret),
-		Provisioner:             devprovisioner.NewDevProvisioner(),
+		Provisioner:             selectProvisioner(dev),
 		Store:                   db,
 		RateLimitStore:          db.RateLimits(),
 		ChallengeManager:        challengeMgr,
@@ -328,6 +364,11 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 
 	fmt.Fprintln(out, titleStyle.Render("Orbit Infrastructure Daemon (orbit-server)"))
 	fmt.Fprintf(out, "  %s  HTTP listener active on http://%s\n", iconOK, boldStyle.Render(actualAddr))
+	if dev {
+		fmt.Fprintf(out, "  %s  Mode: %s\n", iconOK, infoStyle.Render("DEV (INSECURE development defaults)"))
+	} else {
+		fmt.Fprintf(out, "  %s  Mode: %s\n", iconOK, boldStyle.Render("production (provisioning disabled)"))
+	}
 	fmt.Fprintf(out, "  %s  SQLite database: %s\n", iconOK, subtleStyle.Render(dbPath))
 	fmt.Fprintf(out, "  %s  Mail gateway: %s\n", iconOK, subtleStyle.Render(smtpCfg.Host+":"+smtpCfg.Port))
 	if secretSource != "" {
@@ -368,25 +409,35 @@ func runServer(cmd *cobra.Command, opts *serverOptions) error {
 	}
 }
 
-func resolveSigningSecret(flagSecret, ownerStorePath string) (string, string) {
+// resolveSigningSecret returns the signing secret and a human-readable source.
+// Order: --signing-secret flag, $ORBIT_SIGNING_SECRET, sealed owner vault. The
+// insecure DefaultFallbackSecret is used only in dev mode; in production it is
+// an error when nothing is configured.
+func resolveSigningSecret(flagSecret, ownerStorePath string, dev bool) (string, string, error) {
 	if strings.TrimSpace(flagSecret) != "" {
-		return strings.TrimSpace(flagSecret), "provided via CLI flag"
+		return strings.TrimSpace(flagSecret), "provided via CLI flag", nil
 	}
 
 	if val := strings.TrimSpace(os.Getenv("ORBIT_SIGNING_SECRET")); val != "" {
-		return val, "loaded from $ORBIT_SIGNING_SECRET"
+		return val, "loaded from $ORBIT_SIGNING_SECRET", nil
 	}
 
 	ownerStore := ownerfilestore.NewStore(ownerStorePath)
 	if rec, err := ownerStore.LoadOwner(); err == nil && rec != nil && rec.RootSigningSecret != "" {
-		return rec.RootSigningSecret, fmt.Sprintf("sealed owner vault (%s)", rec.Email)
+		return rec.RootSigningSecret, fmt.Sprintf("sealed owner vault (%s)", rec.Email), nil
 	}
 
-	return DefaultFallbackSecret, "development fallback secret (INSECURE)"
+	if dev {
+		return DefaultFallbackSecret, "development fallback secret (INSECURE)", nil
+	}
+
+	return "", "", errors.New("no signing secret configured: set --signing-secret, $ORBIT_SIGNING_SECRET, or seal an owner vault with `orbit admin init` (the insecure development fallback requires --dev or $ORBIT_SERVER_DEV=1)")
 }
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
+		// The root command silences cobra errors, so startup failures are reported here.
+		slog.Error("orbit-server exited with error", "error", err)
 		os.Exit(1)
 	}
 }

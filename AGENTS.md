@@ -80,7 +80,7 @@ Run `orbit --help` / `orbit <cmd> --help`; generated reference lives in `docs/cl
 ### Edge Daemon
 
 ```bash
-go run ./cmd/orbit-server --addr :8080 --smtp-host mail.manova.space --smtp-port 587
+go run ./cmd/orbit-server --dev --addr :8080 --smtp-host mail.manova.space --smtp-port 587
 ```
 
 ## Structure & Packages

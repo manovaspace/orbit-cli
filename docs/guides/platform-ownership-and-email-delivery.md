@@ -75,11 +75,15 @@ The `orbit-server` daemon runs the HTTP onboarding API, handles developer claim 
 
 ### Starting the Server Daemon Directly
 
-```bash
-# Start server with default port (:8080)
-orbit-server
+`orbit-server` runs in **production mode** by default. In production mode:
 
-# With custom listen address
+- A signing secret is required. Resolution order: `--signing-secret`, `$ORBIT_SIGNING_SECRET`, then the sealed owner vault. If none is set, startup fails with `no signing secret configured: ...`. There is no fallback secret.
+- Provisioning is disabled. `POST /api/v1/onboard/claim` returns `500` with `provisioning is not available on this server`. `/healthz` stays `200`.
+
+`--dev` (or `ORBIT_SERVER_DEV=1`; the flag wins over the env var) enables development defaults: the in-memory dev provisioner and the insecure fallback signing secret. Never use it on a shared or production host.
+
+```bash
+# Production: signing secret from the environment or sealed owner vault
 orbit-server --addr :8080
 
 # With explicit SMTP credentials and custom signing secret
@@ -91,6 +95,9 @@ orbit-server \
   --smtp-pass "$SMTP_PASSWORD" \
   --smtp-from "Orbit Platform <noreply@manova.space>" \
   --signing-secret "$ORBIT_SIGNING_SECRET"
+
+# Local development only: dev provisioner and fallback signing secret (INSECURE)
+orbit-server --dev --addr :8080
 ```
 
 ### Running as a systemd Service
