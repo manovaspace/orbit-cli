@@ -484,7 +484,7 @@ if [ "$PROCEED_FULL" = true ] && [ "$HAS_SYSTEM_CHANGES" = true ]; then
   # 3. Go compiler (>= 1.26)
   if [ "$NEED_GO" = true ]; then
     echo -e "  ${GRAY}• Installing Go compiler (latest stable)...${RESET}"
-    GO_TARBALL_VER="$(curl -fsSL 'https://go.dev/dl/?mode=json' 2>/dev/null | grep -o '"version": "go[0-9.]*"' | head -n 1 | cut -d '"' -f 4 || echo "go1.26.0")"
+    GO_TARBALL_VER="$(curl -fsSL 'https://go.dev/dl/?mode=json' 2>/dev/null | grep -o '"version": "go[0-9.]*"' | head -n 1 | cut -d '"' -f 4 || echo "go1.27.4")"
     GO_FILE="${GO_TARBALL_VER}.linux-amd64.tar.gz"
     TMP_GO="$(mktemp -d)"
     download "https://go.dev/dl/${GO_FILE}" "${TMP_GO}/${GO_FILE}"

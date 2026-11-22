@@ -84,13 +84,13 @@ type GoHealer struct {
 	IsRoot  func() bool
 }
 
-// NewGoHealer creates a GoHealer with default parameters (Go 1.26.4).
+// NewGoHealer creates a GoHealer with default parameters (Go 1.27.4).
 func NewGoHealer(shell Shell) *GoHealer {
-	return &GoHealer{Shell: shell, Version: "1.26.4", GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, IsRoot: defaultIsRoot}
+	return &GoHealer{Shell: shell, Version: "1.27.4", GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, IsRoot: defaultIsRoot}
 }
 
 // Name returns the identifier of the healer.
-func (h *GoHealer) Name() string { return "Go 1.26" }
+func (h *GoHealer) Name() string { return "Go 1.27" }
 
 // CanHeal checks whether the result represents a missing or outdated Go installation.
 func (h *GoHealer) CanHeal(result domain.DiagnosticResult) bool {
@@ -107,7 +107,7 @@ func (h *GoHealer) CanHeal(result domain.DiagnosticResult) bool {
 	return strings.Contains(strings.ToLower(result.Message), "go compiler")
 }
 
-// Heal installs Go 1.26 to /usr/local/go and configures environment PATH.
+// Heal installs Go 1.27 to /usr/local/go and configures environment PATH.
 func (h *GoHealer) Heal(ctx context.Context, progress func(step string)) error {
 	if progress == nil {
 		progress = func(string) {}
@@ -128,7 +128,7 @@ func (h *GoHealer) Heal(ctx context.Context, progress func(step string)) error {
 	}
 	version := h.Version
 	if version == "" {
-		version = "1.26.4"
+		version = "1.27.4"
 	}
 	isRootUser := defaultIsRoot()
 	if h.IsRoot != nil {

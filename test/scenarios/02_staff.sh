@@ -62,7 +62,7 @@ log_step "Inspecting staff member bob..."
 get_out=$(run_orbit staff get bob --server "${ORBIT_STAFF_URL}")
 assert_contains "${get_out}" "uid    bob" "Get confirms UID bob"
 assert_contains "${get_out}" "name   Bob Jones" "Get confirms name"
-assert_contains "${get_out}" "mail   bob@dev.manova.space" "Get confirms staff mailbox"
+assert_contains "${get_out}" "mail   bob@internal.manova.space" "Get confirms staff mailbox"
 assert_contains "${get_out}" "fwd    bob@example.com" "Get confirms forward"
 assert_contains "${get_out}" "status active" "Get confirms active status"
 

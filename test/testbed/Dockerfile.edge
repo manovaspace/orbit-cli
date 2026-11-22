@@ -27,10 +27,10 @@ WORKDIR /app
 COPY --from=builder /bin/orbit-mockserver /usr/local/bin/orbit-mockserver
 
 # Ports exposed inside the isolated Docker network:
-# :8080   - Edge & Onboarding API (orbit.dev.manova.space)
-# :10800  - Staff Control Plane API (staff.dev.manova.space)
-# :9000   - S3 / R2 Mock Storage (assets.dev.manova.space)
-# :3000   - Forgejo Mock API & SSH Key registry (git.dev.manova.space)
+# :8080   - Edge & Onboarding API (orbit.internal.manova.space)
+# :10800  - Staff Control Plane API (staff.internal.manova.space)
+# :9000   - S3 / R2 Mock Storage (assets.internal.manova.space)
+# :3000   - Forgejo Mock API & SSH Key registry (git.internal.manova.space)
 EXPOSE 8080 10800 9000 3000
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=2s --retries=3 \

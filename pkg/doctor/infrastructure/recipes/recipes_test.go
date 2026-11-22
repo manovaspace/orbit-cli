@@ -41,7 +41,7 @@ func (s *fakeShell) last() string {
 
 func TestDefaultRegistryNames(t *testing.T) {
 	reg := NewDefaultRegistry(runner.Exec{})
-	names := []string{"Go 1.26", "Bun", "Node.js 24 LTS", "Git", "Docker Compose", "Docker Daemon", "Caddy Reverse Proxy", "Typst Compiler", "Zsh & Shell Profile"}
+	names := []string{"Go 1.27", "Bun", "Node.js 24 LTS", "Git", "Docker Compose", "Docker Daemon", "Caddy Reverse Proxy", "Typst Compiler", "Zsh & Shell Profile"}
 	if len(reg.All()) != len(names) {
 		t.Fatalf("healers = %d, want %d", len(reg.All()), len(names))
 	}
