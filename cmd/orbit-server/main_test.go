@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +17,8 @@ import (
 
 	invitedomain "github.com/manovaspace/orbit-cli/pkg/invite/domain"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/domain"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/devprovisioner"
+	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/disabledprovisioner"
 	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sqlite"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
@@ -45,6 +48,7 @@ func TestServerCmd_Flags(t *testing.T) {
 		{"store", ""},
 		{"owner-store", ""},
 		{"db", ""},
+		{"dev", "false"},
 		{"version", "false"},
 	}
 
@@ -263,18 +267,18 @@ func TestServerCmd_HealthAndGracefulShutdown(t *testing.T) {
 
 func TestResolveSigningSecret(t *testing.T) {
 	// Case 1: Flag secret takes highest precedence
-	sec, src := resolveSigningSecret("my-flag-secret", "")
-	if sec != "my-flag-secret" || !strings.Contains(src, "flag") {
-		t.Errorf("expected flag secret, got %s (%s)", sec, src)
+	sec, src, err := resolveSigningSecret("my-flag-secret", "", false)
+	if err != nil || sec != "my-flag-secret" || !strings.Contains(src, "flag") {
+		t.Errorf("expected flag secret, got %s (%s, err=%v)", sec, src, err)
 	}
 
 	// Case 2: Env var (ORBIT_SIGNING_SECRET)
 	for _, envKey := range []string{"ORBIT_SIGNING_SECRET"} {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "env-secret-123456789012345678901234") // gitleaks:allow
-			s, srcInfo := resolveSigningSecret("", "")
-			if s != "env-secret-123456789012345678901234" || !strings.Contains(srcInfo, envKey) {
-				t.Errorf("expected %s secret, got %s (%s)", envKey, s, srcInfo)
+			s, srcInfo, err := resolveSigningSecret("", "", false)
+			if err != nil || s != "env-secret-123456789012345678901234" || !strings.Contains(srcInfo, envKey) {
+				t.Errorf("expected %s secret, got %s (%s, err=%v)", envKey, s, srcInfo, err)
 			}
 		})
 	}
@@ -283,9 +287,9 @@ func TestResolveSigningSecret(t *testing.T) {
 	for _, legacyEnv := range []string{"ORBIT_INVITE_SECRET", "ORBIT_JWT_SECRET", "MANOVA_INVITE_SECRET", "MANOVA_JWT_SECRET"} {
 		t.Run("ignore_"+legacyEnv, func(t *testing.T) {
 			t.Setenv(legacyEnv, "legacy-secret-12345678901234567890")
-			s, srcInfo := resolveSigningSecret("", "")
+			s, srcInfo, err := resolveSigningSecret("", "", true)
 			if s == "legacy-secret-12345678901234567890" || strings.Contains(srcInfo, legacyEnv) {
-				t.Errorf("expected %s to be ignored, got %s (%s)", legacyEnv, s, srcInfo)
+				t.Errorf("expected %s to be ignored, got %s (%s, err=%v)", legacyEnv, s, srcInfo, err)
 			}
 		})
 	}
@@ -294,7 +298,7 @@ func TestResolveSigningSecret(t *testing.T) {
 	tmpDir := t.TempDir()
 	ownerPath := filepath.Join(tmpDir, "ownerdomain.json")
 	store := ownerfilestore.NewStore(ownerPath)
-	err := store.SaveOwner(&ownerdomain.OwnerRecord{
+	err = store.SaveOwner(&ownerdomain.OwnerRecord{
 		Email:             "admin@manova.space",
 		RootSigningSecret: "owner-secret-12345678901234567890", // gitleaks:allow
 		VerifiedAt:        time.Now(),
@@ -303,15 +307,100 @@ func TestResolveSigningSecret(t *testing.T) {
 		t.Fatalf("failed to save owner record: %v", err)
 	}
 
-	sec, src = resolveSigningSecret("", ownerPath)
-	if sec != "owner-secret-12345678901234567890" || !strings.Contains(src, "admin@manova.space") {
-		t.Errorf("expected owner vault secret, got %s (%s)", sec, src)
+	sec, src, err = resolveSigningSecret("", ownerPath, false)
+	if err != nil || sec != "owner-secret-12345678901234567890" || !strings.Contains(src, "admin@manova.space") {
+		t.Errorf("expected owner vault secret, got %s (%s, err=%v)", sec, src, err)
 	}
 
-	// Case 5: Fallback
-	sec, src = resolveSigningSecret("", filepath.Join(tmpDir, "nonexistent.json"))
-	if sec != DefaultFallbackSecret || !strings.Contains(src, "fallback") {
-		t.Errorf("expected fallback secret, got %s (%s)", sec, src)
+	// Case 5: Nothing configured, production mode: error, no fallback secret
+	t.Setenv("ORBIT_SIGNING_SECRET", "")
+	missingOwner := filepath.Join(tmpDir, "nonexistent.json")
+	sec, _, err = resolveSigningSecret("", missingOwner, false)
+	if err == nil {
+		t.Fatalf("expected error in production mode with no secret configured, got secret %q", sec)
+	}
+	if sec != "" || strings.Contains(err.Error(), DefaultFallbackSecret) {
+		t.Errorf("production mode must not return the fallback secret, got %q (err=%v)", sec, err)
+	}
+
+	// Case 6: Nothing configured, dev mode: fallback secret
+	sec, src, err = resolveSigningSecret("", missingOwner, true)
+	if err != nil || sec != DefaultFallbackSecret || !strings.Contains(src, "fallback") {
+		t.Errorf("expected fallback secret in dev mode, got %s (%s, err=%v)", sec, src, err)
+	}
+}
+
+func TestResolveDevMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		flagSet  bool
+		flagVal  bool
+		envVal   string
+		expected bool
+	}{
+		{"default is production", false, false, "", false},
+		{"env 1 enables dev", false, false, "1", true},
+		{"env true enables dev", false, false, "true", true},
+		{"env 0 is production", false, false, "0", false},
+		{"unparseable env is production", false, false, "yes", false},
+		{"flag enables dev", true, true, "", true},
+		{"flag false overrides env", true, false, "1", false},
+		{"flag true with env 0", true, true, "0", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveDevMode(tt.flagSet, tt.flagVal, tt.envVal); got != tt.expected {
+				t.Errorf("resolveDevMode(%v, %v, %q) = %v, want %v", tt.flagSet, tt.flagVal, tt.envVal, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSelectProvisioner(t *testing.T) {
+	ctx := context.Background()
+
+	// Production: refusing provisioner
+	prod := selectProvisioner(false)
+	if _, ok := prod.(*disabledprovisioner.Provisioner); !ok {
+		t.Fatalf("expected *disabledprovisioner.Provisioner in production mode, got %T", prod)
+	}
+	if _, err := prod.Provision(ctx, domain.ClaimRequest{DesiredUID: "alice"}); !errors.Is(err, disabledprovisioner.ErrUnavailable) {
+		t.Errorf("expected provision to be refused in production mode, got %v", err)
+	}
+	if err := prod.Rollback(ctx, "alice"); !errors.Is(err, disabledprovisioner.ErrUnavailable) {
+		t.Errorf("expected rollback to be refused in production mode, got %v", err)
+	}
+	if err := prod.Health(ctx); err != nil {
+		t.Errorf("expected health to stay ok in production mode, got %v", err)
+	}
+
+	// Dev: in-memory dev provisioner
+	if _, ok := selectProvisioner(true).(*devprovisioner.DevProvisioner); !ok {
+		t.Errorf("expected *devprovisioner.DevProvisioner in dev mode, got %T", selectProvisioner(true))
+	}
+}
+
+func TestServerCmd_ProductionFailsWithoutSigningSecret(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("ORBIT_SIGNING_SECRET", "")
+	t.Setenv(DevModeEnv, "")
+
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{
+		"--addr", "127.0.0.1:0",
+		"--db", filepath.Join(tmp, "orbit.db"),
+		"--owner-store", filepath.Join(tmp, "owner.json"),
+		"--config", filepath.Join(tmp, "missing.yaml"),
+	})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "no signing secret configured") {
+		t.Fatalf("expected startup failure without signing secret in production mode, got %v", err)
+	}
+	if strings.Contains(buf.String(), DefaultFallbackSecret) {
+		t.Errorf("startup output must not contain the fallback secret")
 	}
 }
 
@@ -347,6 +436,7 @@ func TestServer_E2E_FullLifecycle(t *testing.T) {
 		"--db", dbPath,
 		"--signing-secret", secret,
 		"--trusted-proxies", "127.0.0.1/32,10.0.0.0/8",
+		"--dev", // claim flow exercises the in-memory dev provisioner
 	})
 
 	errChan := make(chan error, 1)
