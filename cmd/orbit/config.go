@@ -147,7 +147,16 @@ func newConfigGetCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			cfgPath := getConfigPath(cmd)
 
-			entry, err := newConfigService(io.Discard).Get(cfgPath, args[0])
+			svc := newConfigService(io.Discard)
+			var (
+				entry domain.ConfigEntry
+				err   error
+			)
+			if rawFlag {
+				entry, err = svc.GetRaw(cfgPath, args[0])
+			} else {
+				entry, err = svc.Get(cfgPath, args[0])
+			}
 			if err != nil {
 				writeConfigFailure(out, jsonFlag, err)
 				return err
@@ -166,7 +175,7 @@ func newConfigGetCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&rawFlag, "raw", false, "Print raw value without trailing newline or formatting")
+	cmd.Flags().BoolVar(&rawFlag, "raw", false, "Print the value as stored, without formatting; secret values are shown in plaintext")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd
 }
