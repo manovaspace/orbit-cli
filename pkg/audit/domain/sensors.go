@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	prdomain "github.com/manovaspace/orbit-cli/pkg/pr/domain"
 )
 
 // CommonsLibraryRepos are the open-commons library repositories. Their own
@@ -113,11 +115,13 @@ type MergedCheck struct {
 	Bucket string // pass, fail, pending, skipping
 }
 
-// MergedPullRequest is one merged pull request read from GitHub.
+// MergedPullRequest is one merged pull request read from GitHub. HeadRef is the
+// head branch name; it decides whether the pull request needed CI.
 type MergedPullRequest struct {
 	Number   int
 	Title    string
 	URL      string
+	HeadRef  string
 	MergedAt time.Time
 	Comments []string
 	Checks   []MergedCheck
@@ -135,6 +139,21 @@ func (p MergedPullRequest) HasOverride() bool {
 
 // NoChecks reports whether GitHub reported no checks at all.
 func (p MergedPullRequest) NoChecks() bool { return len(p.Checks) == 0 }
+
+// RequiresCI reports whether the pull request came from a release or Renovate
+// branch, which must pass a real CI check before it merges.
+func (p MergedPullRequest) RequiresCI() bool { return prdomain.RequiresCI(p.HeadRef) }
+
+// HasPassingCI reports whether a check passed that is not the secret scan. The
+// secret scan runs on every push and does not show that CI ran.
+func (p MergedPullRequest) HasPassingCI() bool {
+	for _, check := range p.Checks {
+		if check.Bucket == "pass" && !prdomain.IsSecretScan(check.Name) {
+			return true
+		}
+	}
+	return false
+}
 
 // FailingChecks returns the names of checks that did not pass. Pending and
 // unknown states count as failing: the pull request merged before they

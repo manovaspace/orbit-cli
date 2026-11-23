@@ -73,7 +73,7 @@ func (c *Client) MergedPullRequests(ctx context.Context, slug string, since time
 		"--state", "merged",
 		"--search", domain.MergedSearch(since),
 		"--limit", "200",
-		"--json", "number,title,url,mergedAt,comments,statusCheckRollup",
+		"--json", "number,title,url,headRefName,mergedAt,comments,statusCheckRollup",
 	)
 	if err != nil {
 		return nil, ghError(err, res)
@@ -82,6 +82,7 @@ func (c *Client) MergedPullRequests(ctx context.Context, slug string, since time
 		Number   int    `json:"number"`
 		Title    string `json:"title"`
 		URL      string `json:"url"`
+		HeadRef  string `json:"headRefName"`
 		MergedAt string `json:"mergedAt"`
 		Comments []struct {
 			Body string `json:"body"`
@@ -104,7 +105,7 @@ func (c *Client) MergedPullRequests(ctx context.Context, slug string, since time
 		if !mergedAt.IsZero() && mergedAt.Before(since) {
 			continue
 		}
-		pr := domain.MergedPullRequest{Number: row.Number, Title: row.Title, URL: row.URL, MergedAt: mergedAt}
+		pr := domain.MergedPullRequest{Number: row.Number, Title: row.Title, URL: row.URL, HeadRef: row.HeadRef, MergedAt: mergedAt}
 		for _, comment := range row.Comments {
 			pr.Comments = append(pr.Comments, comment.Body)
 		}
@@ -158,7 +159,9 @@ func (c *Client) ActionsUsage(ctx context.Context, owner string) (domain.Actions
 func rollupBucket(status, conclusion, state string) string {
 	if state != "" {
 		switch strings.ToUpper(state) {
-		case "SUCCESS", "NEUTRAL", "SKIPPED":
+		case "SKIPPED":
+			return "skipping"
+		case "SUCCESS", "NEUTRAL":
 			return "pass"
 		case "FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STALE":
 			return "fail"
@@ -167,7 +170,9 @@ func rollupBucket(status, conclusion, state string) string {
 		}
 	}
 	switch strings.ToUpper(conclusion) {
-	case "SUCCESS", "NEUTRAL", "SKIPPED":
+	case "SKIPPED":
+		return "skipping"
+	case "SUCCESS", "NEUTRAL":
 		return "pass"
 	case "FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
 		return "fail"

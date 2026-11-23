@@ -108,3 +108,28 @@ func TestMergedSince(t *testing.T) {
 		t.Errorf("MergedSearch = %q", got)
 	}
 }
+
+func TestMergedPullRequestCIRequirement(t *testing.T) {
+	tests := []struct {
+		name         string
+		pr           MergedPullRequest
+		wantRequires bool
+		wantPassing  bool
+	}{
+		{name: "FeatureEmpty", pr: MergedPullRequest{HeadRef: "feat/x"}},
+		{name: "ReleaseEmpty", pr: MergedPullRequest{HeadRef: "release-please--branches--main"}, wantRequires: true},
+		{name: "ReleaseSecretOnly", pr: MergedPullRequest{HeadRef: "changeset-release/main", Checks: []MergedCheck{{Name: "secret-scan / gitleaks", Bucket: "pass"}}}, wantRequires: true},
+		{name: "RenovatePassingCI", pr: MergedPullRequest{HeadRef: "renovate/x", Checks: []MergedCheck{{Name: "ci", Bucket: "pass"}}}, wantRequires: true, wantPassing: true},
+		{name: "RenovateSkippedCI", pr: MergedPullRequest{HeadRef: "renovate/x", Checks: []MergedCheck{{Name: "ci", Bucket: "skipping"}}}, wantRequires: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.pr.RequiresCI(); got != tt.wantRequires {
+				t.Errorf("RequiresCI() = %v, want %v", got, tt.wantRequires)
+			}
+			if got := tt.pr.HasPassingCI(); got != tt.wantPassing {
+				t.Errorf("HasPassingCI() = %v, want %v", got, tt.wantPassing)
+			}
+		})
+	}
+}

@@ -210,3 +210,39 @@ func TestListOpenRejectsBadJSON(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 }
+
+func TestHeadRefArgsAndParses(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"changeset-release/main"}`}, nil)
+
+	head, err := New(fake).HeadRef(context.Background(), testRepo, "7")
+	if err != nil {
+		t.Fatalf("HeadRef: %v", err)
+	}
+	want := []string{"pr", "view", "7", "-R", "manovaspace/orbit-test", "--json", "headRefName"}
+	if got := fake.Calls()[0].Args; !reflect.DeepEqual(got, want) {
+		t.Errorf("args = %v, want %v", got, want)
+	}
+	if head != "changeset-release/main" {
+		t.Errorf("head = %q, want changeset-release/main", head)
+	}
+}
+
+func TestHeadRefRejectsMissingBranch(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":""}`}, nil)
+
+	if _, err := New(fake).HeadRef(context.Background(), testRepo, "7"); err == nil {
+		t.Fatal("expected an error for an empty head branch, got nil")
+	}
+}
+
+func TestHeadRefReportsGHError(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh pr view", runner.Result{Stderr: "Could not resolve to a PullRequest\n", ExitCode: 1}, errors.New("exit status 1"))
+
+	_, err := New(fake).HeadRef(context.Background(), testRepo, "99")
+	if err == nil || !strings.Contains(err.Error(), "Could not resolve") {
+		t.Fatalf("err = %v, want gh stderr", err)
+	}
+}

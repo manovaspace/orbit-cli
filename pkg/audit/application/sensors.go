@@ -238,26 +238,36 @@ func (s *Service) Merges(ctx context.Context, days int, remote bool) (result Res
 			if pr.HasOverride() {
 				continue
 			}
-			failing := pr.FailingChecks()
-			if len(failing) == 0 && !pr.NoChecks() {
+			reason := mergeBypassReason(pr)
+			if reason == "" {
 				continue
-			}
-			reason := "no checks reported"
-			if len(failing) > 0 {
-				reason = "checks failed: " + strings.Join(failing, ", ")
 			}
 			report.Add(domain.Finding{
 				ID:       "merges.bypass",
 				Severity: domain.SeverityError,
 				Subject:  fmt.Sprintf("%s#%d", repo.Path, pr.Number),
 				Actual:   reason,
-				Expected: "checks passed or an override: comment recorded",
-				Fix:      fmt.Sprintf("require checks or post `override: <reason>` before merging %s", pr.URL),
+				Expected: "no failed checks, and a passing CI check on release and Renovate pull requests, or an override: comment recorded",
+				Fix:      fmt.Sprintf("require a passing CI check on release and Renovate pull requests, or post `override: <reason>` before merging %s", pr.URL),
 			})
 		}
 	}
 
 	return Result{Report: report, Detail: fmt.Sprintf("%d repositories checked for merges in the last %d days", checked, days)}
+}
+
+// mergeBypassReason explains why a merged pull request got past the merge gate,
+// or returns "" when it did not. Failed or pending checks always count. A
+// release or Renovate pull request also needs a passing CI check; any other
+// pull request may merge with no checks, skipped checks or only the secret scan.
+func mergeBypassReason(pr domain.MergedPullRequest) string {
+	if failing := pr.FailingChecks(); len(failing) > 0 {
+		return "checks failed: " + strings.Join(failing, ", ")
+	}
+	if pr.RequiresCI() && !pr.HasPassingCI() {
+		return "no CI check passed"
+	}
+	return ""
 }
 
 // Tests reports repositories with no test files, excluding the static-only

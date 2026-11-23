@@ -16,6 +16,8 @@ import (
 type fakeForge struct {
 	checks     [][]domain.Check
 	checksErr  error
+	head       string // head branch of every pull request; blank means feat/gate-test
+	headErr    error
 	created    domain.PullRequest
 	createErr  error
 	mergeErr   error
@@ -64,6 +66,17 @@ func (f *fakeForge) Checks(_ context.Context, _ domain.Repo, _ string) ([]domain
 		f.checks = f.checks[1:]
 	}
 	return next, nil
+}
+
+func (f *fakeForge) HeadRef(_ context.Context, _ domain.Repo, _ string) (string, error) {
+	f.calls = append(f.calls, "head")
+	if f.headErr != nil {
+		return "", f.headErr
+	}
+	if f.head == "" {
+		return "feat/gate-test", nil
+	}
+	return f.head, nil
 }
 
 func (f *fakeForge) Comment(_ context.Context, _ domain.Repo, _ string, body string) error {
@@ -242,7 +255,7 @@ func TestMergeRefusesPending(t *testing.T) {
 }
 
 func TestMergeRefusesNoChecks(t *testing.T) {
-	forge := &fakeForge{}
+	forge := &fakeForge{head: "release-please--branches--main"}
 	svc, _ := newTestService(forge, newFakeGit())
 
 	_, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions())
@@ -258,7 +271,7 @@ func TestMergeRefusesNoChecks(t *testing.T) {
 }
 
 func TestMergeAllowsNoChecksWithFlag(t *testing.T) {
-	forge := &fakeForge{}
+	forge := &fakeForge{head: "renovate/golang-x-net-0.x"}
 	svc, _ := newTestService(forge, newFakeGit())
 	opts := mergeOptions()
 	opts.AllowNoChecks = true
@@ -268,6 +281,96 @@ func TestMergeAllowsNoChecksWithFlag(t *testing.T) {
 	}
 	if forge.count("merge") != 1 {
 		t.Errorf("expected one merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeFeaturePRWithoutChecksMerges(t *testing.T) {
+	cases := map[string][]domain.Check{
+		"NoChecks":       {},
+		"AllSkipped":     {{Name: "deploy", Bucket: "skipping"}},
+		"SecretScanOnly": {{Name: "secret-scan / gitleaks", Bucket: "pass"}},
+	}
+	for name, checks := range cases {
+		t.Run(name, func(t *testing.T) {
+			forge := &fakeForge{checks: [][]domain.Check{checks}}
+			svc, out := newTestService(forge, newFakeGit())
+
+			if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err != nil {
+				t.Fatalf("expected feature PR to merge without --allow-no-checks, got: %v\nOutput: %s", err, out.String())
+			}
+			if forge.count("merge") != 1 {
+				t.Errorf("expected one merge call, got: %v", forge.calls)
+			}
+			if strings.Contains(out.String(), "--allow-no-checks") {
+				t.Errorf("feature PR must not mention --allow-no-checks: %s", out.String())
+			}
+		})
+	}
+}
+
+func TestMergeFeaturePRStillRefusesFailureAndPending(t *testing.T) {
+	forge := &fakeForge{checks: [][]domain.Check{{{Name: "secret-scan / gitleaks", Bucket: "fail"}}}}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err == nil {
+		t.Fatal("expected a failed secret scan to refuse the merge, got nil")
+	}
+	if forge.count("merge") != 0 {
+		t.Errorf("expected no merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeReleasePRRequiresPassingCI(t *testing.T) {
+	cases := []struct {
+		name   string
+		checks []domain.Check
+		want   string
+	}{
+		{name: "AllSkipped", checks: []domain.Check{{Name: "ci", Bucket: "skipping"}, {Name: "secret-scan / gitleaks", Bucket: "skipping"}}, want: "no CI check passed"},
+		{name: "SecretScanOnly", checks: []domain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}}, want: "no CI check passed"},
+		{name: "NoChecks", want: "no checks reported"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			forge := &fakeForge{head: "changeset-release/main", checks: [][]domain.Check{tt.checks}}
+			svc, _ := newTestService(forge, newFakeGit())
+
+			_, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions())
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err = %v, want it to contain %q", err, tt.want)
+			}
+			if forge.count("merge") != 0 {
+				t.Errorf("expected no merge call, got: %v", forge.calls)
+			}
+		})
+	}
+}
+
+func TestMergeReleasePRMergesWithPassingCI(t *testing.T) {
+	forge := &fakeForge{
+		head:   "release-please--branches--main",
+		checks: [][]domain.Check{{{Name: "secret-scan / gitleaks", Bucket: "pass"}, {Name: "ci", Bucket: "pass"}}},
+	}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err != nil {
+		t.Fatalf("expected release PR with passing CI to merge, got: %v", err)
+	}
+	if forge.count("merge") != 1 {
+		t.Errorf("expected one merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeRefusesWhenHeadBranchUnreadable(t *testing.T) {
+	forge := &fakeForge{headErr: errors.New("gh: could not resolve pull request")}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	_, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions())
+	if err == nil || !strings.Contains(err.Error(), "could not read the pull request head branch") {
+		t.Fatalf("err = %v", err)
+	}
+	if forge.count("merge") != 0 || forge.count("checks") != 0 {
+		t.Errorf("expected no checks or merge call, got: %v", forge.calls)
 	}
 }
 
