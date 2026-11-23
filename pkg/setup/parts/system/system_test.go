@@ -43,6 +43,8 @@ func (m mapFS) Symlink(string, string) error                { return errReadOnly
 func (m mapFS) Readlink(string) (string, error)             { return "", errReadOnly }
 func (m mapFS) Remove(string) error                         { return errReadOnly }
 func (m mapFS) Rename(string, string) error                 { return errReadOnly }
+func (m mapFS) ReadDir(string) ([]os.DirEntry, error)       { return nil, errReadOnly }
+func (m mapFS) RemoveAll(string) error                      { return errReadOnly }
 
 func noLookPath(string) (string, error) { return "", errors.New("not found") }
 

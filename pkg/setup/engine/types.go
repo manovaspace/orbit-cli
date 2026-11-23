@@ -29,6 +29,8 @@ type FS interface {
 	Readlink(path string) (string, error)
 	Remove(path string) error
 	Rename(oldpath, newpath string) error
+	ReadDir(path string) ([]os.DirEntry, error)
+	RemoveAll(path string) error
 }
 
 // OSFS implements FS with package os.
@@ -47,6 +49,8 @@ func (OSFS) Symlink(oldname, newname string) error        { return os.Symlink(ol
 func (OSFS) Readlink(path string) (string, error)         { return os.Readlink(path) }
 func (OSFS) Remove(path string) error                     { return os.Remove(path) }
 func (OSFS) Rename(oldpath, newpath string) error         { return os.Rename(oldpath, newpath) }
+func (OSFS) ReadDir(path string) ([]os.DirEntry, error)   { return os.ReadDir(path) }
+func (OSFS) RemoveAll(path string) error                  { return os.RemoveAll(path) }
 
 // State is everything a part may read or act through. Manifest is nil until the handbook
 // is cloned; Reload refreshes it before each part runs during Apply.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"strings"
 	"testing"
 
@@ -29,6 +30,8 @@ func (m mapFS) Symlink(string, string) error                { return errReadOnly
 func (m mapFS) Readlink(string) (string, error)             { return "", errReadOnly }
 func (m mapFS) Remove(string) error                         { return errReadOnly }
 func (m mapFS) Rename(string, string) error                 { return errReadOnly }
+func (m mapFS) ReadDir(string) ([]os.DirEntry, error)       { return nil, errReadOnly }
+func (m mapFS) RemoveAll(string) error                      { return errReadOnly }
 
 func (m mapFS) Stat(path string) (fs.FileInfo, error) {
 	if _, ok := m.files[path]; ok {
