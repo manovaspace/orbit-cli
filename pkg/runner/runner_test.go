@@ -81,3 +81,13 @@ func TestExecCancelledContext(t *testing.T) {
 		t.Errorf("error %v does not wrap context.Canceled", err)
 	}
 }
+
+func TestExecRunEnvOverrides(t *testing.T) {
+	res, err := Exec{}.RunEnv(context.Background(), "", []string{"FOO=bar"}, "sh", "-c", "echo $FOO")
+	if err != nil {
+		t.Fatalf("RunEnv: %v", err)
+	}
+	if res.Stdout != "bar\n" {
+		t.Errorf("Stdout = %q, want %q", res.Stdout, "bar\n")
+	}
+}
