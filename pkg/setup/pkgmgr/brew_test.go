@@ -14,7 +14,7 @@ import (
 func TestBrewMissingUsesListVersions(t *testing.T) {
 	run := &runnertest.Fake{}
 	run.On("brew list --versions git", runner.Result{Stdout: "git 2.47.0\n"}, nil)
-	run.On("brew list --versions gh", runner.Result{}, errors.New("exit 1"))
+	run.On("brew list --versions gh", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
 	s := &engine.State{Platform: "darwin", Run: run, Tty: &runnertest.Fake{}, FS: mapFS{}}
 	mgr, err := ForLookPath(s, func(string) (string, error) { return "/x/bun", nil })
 	if err != nil {

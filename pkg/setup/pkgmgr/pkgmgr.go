@@ -67,18 +67,21 @@ func (c common) recipe(name string) (spec.Package, error) {
 	return p, nil
 }
 
-// queryOutput runs a read-only query and returns its stdout. A failing command (non-zero exit
-// or missing tool) yields empty output, which callers read as not installed. Only a cancelled
-// context is an error.
+// queryOutput runs a read-only query and returns its stdout. A non-zero exit is the answer
+// "not installed" and yields empty output. Any other failure (tool not found, cannot start) and
+// a cancelled context are errors, so a broken query never plans a reinstall silently.
 func (c common) queryOutput(ctx context.Context, name string, args ...string) (string, error) {
 	res, err := c.run.Run(ctx, "", name, args...)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return "", ctxErr
 	}
-	if err != nil {
+	if err == nil {
+		return res.Stdout, nil
+	}
+	if res.ExitCode != 0 {
 		return "", nil
 	}
-	return res.Stdout, nil
+	return "", err
 }
 
 // scriptInstalled reports whether a script package's Detect command is on PATH.

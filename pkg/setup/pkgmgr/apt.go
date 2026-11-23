@@ -51,9 +51,11 @@ func (a *apt) packageInstalled(ctx context.Context, pkg string) (bool, error) {
 	return strings.Contains(out, "install ok installed"), nil
 }
 
-// Install plans, in order: one repository action per distinct apt_repo not yet configured
-// (sorted by recipe name), the postgres main-cluster setting when postgresql-18 is in the
-// batch, one apt-get update and install action, then one action per script package.
+// Install plans, in order: a prerequisites action when a repository recipe is planned and curl
+// or ca-certificates is not installed (curl then leaves the main batch), one repository action
+// per distinct apt_repo not yet configured (sorted by recipe name), the postgres main-cluster
+// setting when postgresql-18 is in the batch, one apt-get update and install action, then one
+// action per script package.
 func (a *apt) Install(names []string) []engine.Action {
 	var pkgs []string
 	repos := make(map[string]bool)
@@ -74,12 +76,19 @@ func (a *apt) Install(names []string) []engine.Action {
 		}
 	}
 
-	var actions []engine.Action
+	var repoActions []engine.Action
 	for _, repo := range slices.Sorted(maps.Keys(repos)) {
 		if action, ok := a.repoAction(repo); ok {
-			actions = append(actions, action)
+			repoActions = append(repoActions, action)
 		}
 	}
+
+	var actions []engine.Action
+	if len(repoActions) > 0 && a.bootstrapNeeded() {
+		actions = append(actions, a.bootstrapAction())
+		pkgs = slices.DeleteFunc(pkgs, func(pkg string) bool { return pkg == "curl" })
+	}
+	actions = append(actions, repoActions...)
 	if slices.Contains(pkgs, pgAptPackage) && !a.clusterConfigured() {
 		actions = append(actions, a.clusterAction())
 	}
@@ -87,6 +96,30 @@ func (a *apt) Install(names []string) []engine.Action {
 		actions = append(actions, a.installAction(pkgs))
 	}
 	return append(actions, scripts...)
+}
+
+// bootstrapNeeded reports whether curl or ca-certificates is missing, which the repository
+// recipes need. A query that fails is treated as missing: reinstalling is harmless.
+func (a *apt) bootstrapNeeded() bool {
+	for _, pkg := range []string{"ca-certificates", "curl"} {
+		if ok, err := a.packageInstalled(context.Background(), pkg); err != nil || !ok {
+			return true
+		}
+	}
+	return false
+}
+
+// bootstrapAction installs the tools the repository recipes depend on.
+func (a *apt) bootstrapAction() engine.Action {
+	script := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl"
+	return engine.Action{
+		Subject: "apt-prerequisites",
+		Summary: "Install apt prerequisites",
+		Sudo:    true,
+		Do: func(ctx context.Context) error {
+			return a.tty.RunInteractive(ctx, "", nil, "sudo", "sh", "-c", script)
+		},
+	}
 }
 
 // repoAction adds the apt repository recipe name unless its list file already exists.

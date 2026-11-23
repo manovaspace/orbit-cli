@@ -50,6 +50,8 @@ func noLookPath(string) (string, error) { return "", errors.New("not found") }
 func aptState(t *testing.T, files map[string]string) (*engine.State, *runnertest.Fake, *runnertest.Fake) {
 	t.Helper()
 	run := &runnertest.Fake{}
+	run.On("dpkg-query -W -f=${Status} curl", runner.Result{Stdout: "install ok installed"}, nil)
+	run.On("dpkg-query -W -f=${Status} ca-certificates", runner.Result{Stdout: "install ok installed"}, nil)
 	tty := &runnertest.Fake{}
 	s := &engine.State{Platform: "linux", Run: run, Tty: tty, FS: mapFS{files: files}}
 	return s, run, tty
@@ -162,7 +164,83 @@ func TestAptInstallOrderAndScripts(t *testing.T) {
 	if strings.Join(subjects, ",") != strings.Join(want, ",") {
 		t.Fatalf("subjects = %v, want %v", subjects, want)
 	}
-	if actions[3].Sudo {
+	if actions[len(actions)-1].Sudo {
 		t.Fatalf("script action must not sudo")
+	}
+}
+
+func TestAptBootstrapsCurlBeforeRepos(t *testing.T) {
+	run := &runnertest.Fake{}
+	run.On("dpkg-query -W -f=${Status} ca-certificates", runner.Result{Stdout: "install ok installed"}, nil)
+	run.On("dpkg-query -W -f=${Status} curl", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
+	tty := &runnertest.Fake{}
+	tty.On("sudo", runner.Result{}, nil)
+	s := &engine.State{Platform: "linux", Run: run, Tty: tty, FS: mapFS{}}
+	mgr, err := ForLookPath(s, noLookPath)
+	if err != nil {
+		t.Fatalf("ForLookPath: %v", err)
+	}
+	actions := mgr.Install([]string{"gh", "curl"})
+	if len(actions) != 3 {
+		t.Fatalf("actions = %d, want 3 (prerequisites, github-cli repo, install gh)", len(actions))
+	}
+	if actions[0].Summary != "Install apt prerequisites" || !actions[0].Sudo {
+		t.Fatalf("first action = %+v", actions[0])
+	}
+	if actions[1].Subject != "github-cli" {
+		t.Fatalf("second action subject = %q, want github-cli", actions[1].Subject)
+	}
+	if actions[2].Summary != "apt-get update, then install gh" {
+		t.Fatalf("install summary = %q, want gh only (curl bootstrapped)", actions[2].Summary)
+	}
+	for _, a := range actions[:2] {
+		if err := a.Do(context.Background()); err != nil {
+			t.Fatalf("Do %q: %v", a.Summary, err)
+		}
+	}
+	calls := tty.Calls()
+	want := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl"
+	if calls[0].Name != "sudo" || calls[0].Args[2] != want {
+		t.Fatalf("prerequisites call = %+v, want script %q", calls[0], want)
+	}
+}
+
+func TestMissingPropagatesQueryError(t *testing.T) {
+	broken := errors.New("cannot run dpkg-query: executable file not found")
+	t.Run("apt", func(t *testing.T) {
+		s, run, _ := aptState(t, nil)
+		run.On("dpkg-query -W -f=${Status} git", runner.Result{}, broken)
+		mgr, err := ForLookPath(s, noLookPath)
+		if err != nil {
+			t.Fatalf("ForLookPath: %v", err)
+		}
+		if _, err := mgr.Missing(context.Background(), []string{"git"}); !errors.Is(err, broken) {
+			t.Fatalf("Missing err = %v, want %v", err, broken)
+		}
+	})
+	t.Run("brew", func(t *testing.T) {
+		run := &runnertest.Fake{}
+		run.On("brew list --versions git", runner.Result{}, broken)
+		s := &engine.State{Platform: "darwin", Run: run, Tty: &runnertest.Fake{}, FS: mapFS{}}
+		mgr, err := ForLookPath(s, noLookPath)
+		if err != nil {
+			t.Fatalf("ForLookPath: %v", err)
+		}
+		if _, err := mgr.Missing(context.Background(), []string{"git"}); !errors.Is(err, broken) {
+			t.Fatalf("Missing err = %v, want %v", err, broken)
+		}
+	})
+}
+
+func TestQueryNonZeroExitMeansMissing(t *testing.T) {
+	s, run, _ := aptState(t, nil)
+	run.On("dpkg-query -W -f=${Status} gh", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
+	mgr, err := ForLookPath(s, noLookPath)
+	if err != nil {
+		t.Fatalf("ForLookPath: %v", err)
+	}
+	got, err := mgr.Missing(context.Background(), []string{"gh"})
+	if err != nil || len(got) != 1 || got[0] != "gh" {
+		t.Fatalf("Missing = %v, %v; want [gh], nil", got, err)
 	}
 }
