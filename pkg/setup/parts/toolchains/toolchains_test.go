@@ -426,3 +426,71 @@ func TestToolchainsUnknownShellWarnsWithBlock(t *testing.T) {
 		t.Fatalf("finding Fix = %q, want the block", plan.Findings[0].Fix)
 	}
 }
+
+func TestToolchainsBadPackageJSONIsWarning(t *testing.T) {
+	cases := []struct {
+		name  string
+		orbit string
+		pkg   string
+		want  []string
+	}{
+		{
+			name:  "malformed JSON skips both checks",
+			orbit: "version: 1\ntoolchains: [node, bun]\n",
+			pkg:   `{"engines": {"node": ">=24"`,
+			want: []string{
+				"clients/alpha/package.json: malformed JSON; skipped the node version check",
+				"clients/alpha/package.json: malformed JSON; skipped the bun pin",
+			},
+		},
+		{
+			name:  "engines.node missing",
+			orbit: "version: 1\ntoolchains: [node]\n",
+			pkg:   `{}`,
+			want:  []string{"clients/alpha/package.json: engines.node is missing; skipped the node version check"},
+		},
+		{
+			name:  "engines.node without a major",
+			orbit: "version: 1\ntoolchains: [node]\n",
+			pkg:   `{"engines": {"node": "latest"}}`,
+			want:  []string{`clients/alpha/package.json: engines.node "latest" has no major version; skipped the node version check`},
+		},
+		{
+			name:  "prerelease bun pin",
+			orbit: "version: 1\ntoolchains: [bun]\n",
+			pkg:   `{"packageManager": "bun@1.3.4-canary.1"}`,
+			want:  []string{`clients/alpha/package.json: packageManager "bun@1.3.4-canary.1" is not bun@<major>.<minor>.<patch>; skipped the bun pin`},
+		},
+		{
+			name:  "another package manager",
+			orbit: "version: 1\ntoolchains: [bun]\n",
+			pkg:   `{"packageManager": "npm@10"}`,
+			want:  []string{`clients/alpha/package.json: packageManager "npm@10" is not bun@<major>.<minor>.<patch>; skipped the bun pin`},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.addRepo("clients/alpha", tc.orbit, tc.pkg)
+			run := &runnertest.Fake{}
+			run.On("brew list --versions", runner.Result{Stdout: "installed 1.0\n"}, nil)
+			h.lookPath = allLookPath
+
+			plan, err := h.part().Plan(context.Background(), h.state("darwin", "native", run, &runnertest.Fake{}, "clients/alpha"))
+			if err != nil {
+				t.Fatalf("Plan returned an error, want warnings: %v", err)
+			}
+			if got := messages(plan.Findings); !slices.Equal(got, tc.want) {
+				t.Fatalf("findings = %q, want %q", got, tc.want)
+			}
+			for _, f := range plan.Findings {
+				if f.Severity != engine.SeverityWarn {
+					t.Fatalf("finding %+v severity, want warn", f)
+				}
+			}
+			if got := summaries(plan); !slices.Equal(got, []string{"Update ~/.zshrc"}) {
+				t.Fatalf("actions = %q, want only the rc update", got)
+			}
+		})
+	}
+}

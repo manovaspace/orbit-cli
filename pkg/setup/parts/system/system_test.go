@@ -163,6 +163,7 @@ func TestSystemLinuxBatchesAptRepoThenInstall(t *testing.T) {
 	run := &runnertest.Fake{}
 	run.On("dpkg-query -W -f=${Status} git", runner.Result{Stdout: "install ok installed"}, nil)
 	run.On("dpkg-query -W -f=${Status} curl", runner.Result{Stdout: "install ok installed"}, nil)
+	run.On("dpkg-query -W -f=${Status} unzip", runner.Result{Stdout: "install ok installed"}, nil)
 	run.On("dpkg-query -W -f=${Status} ca-certificates", runner.Result{Stdout: "install ok installed"}, nil)
 	run.On("dpkg-query -W -f=${Status} gh", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
 	tty := &runnertest.Fake{}
@@ -205,7 +206,7 @@ func TestSystemLinuxBatchesAptRepoThenInstall(t *testing.T) {
 
 func TestSystemNothingMissingNoActions(t *testing.T) {
 	run := &runnertest.Fake{}
-	for _, pkg := range []string{"git", "gh", "curl"} {
+	for _, pkg := range []string{"git", "gh", "curl", "unzip"} {
 		run.On("dpkg-query -W -f=${Status} "+pkg, runner.Result{Stdout: "install ok installed"}, nil)
 	}
 	s := &engine.State{Platform: "linux", Run: run, Tty: &runnertest.Fake{}, FS: mapFS{}}
@@ -223,5 +224,38 @@ func TestSystemNameAndNeeds(t *testing.T) {
 	p := New()
 	if p.Name() != "system" || len(p.Needs()) != 0 {
 		t.Fatalf("Name=%q Needs=%v", p.Name(), p.Needs())
+	}
+}
+
+func TestSystemLinuxInstallsUnzip(t *testing.T) {
+	run := &runnertest.Fake{}
+	for _, pkg := range []string{"git", "gh", "curl"} {
+		run.On("dpkg-query -W -f=${Status} "+pkg, runner.Result{Stdout: "install ok installed"}, nil)
+	}
+	run.On("dpkg-query -W -f=${Status} unzip", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
+	tty := &runnertest.Fake{}
+	tty.On("sudo", runner.Result{}, nil)
+	s := &engine.State{Platform: "linux", Run: run, Tty: tty, FS: mapFS{}}
+
+	plan, err := part{lookPath: noLookPath}.Plan(context.Background(), s)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(plan.Actions) != 1 {
+		t.Fatalf("actions = %+v, want one install", plan.Actions)
+	}
+	install := plan.Actions[0]
+	if install.Summary != "apt-get update, then install unzip" || !install.Sudo {
+		t.Fatalf("install action = %+v", install)
+	}
+	if err := install.Do(context.Background()); err != nil {
+		t.Fatalf("install Do: %v", err)
+	}
+	calls := tty.Calls()
+	if len(calls) != 1 || calls[0].Name != "sudo" {
+		t.Fatalf("calls = %+v, want one sudo call", calls)
+	}
+	if want := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y unzip"; calls[0].Args[2] != want {
+		t.Fatalf("install script = %q, want %q", calls[0].Args[2], want)
 	}
 }

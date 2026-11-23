@@ -8,6 +8,8 @@ gh:
 curl:
   brew: curl
   apt: curl
+unzip:
+  apt: unzip
 go:
   brew: go
   apt: golang-go

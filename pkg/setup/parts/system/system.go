@@ -16,7 +16,7 @@ import (
 const partName = "system"
 
 // basePackages are the logical names from packages.yaml the system part installs.
-var basePackages = []string{"git", "gh", "curl"}
+var basePackages = []string{"git", "gh", "curl", "unzip"}
 
 // homebrewInstall is the shell command line that runs the official installer. Run by bash -c
 // as an argument, so the outer bash expands the $(curl ...) substitution and the inner bash

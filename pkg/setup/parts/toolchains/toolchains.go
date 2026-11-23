@@ -57,6 +57,7 @@ type needs struct {
 	bunPin    string          // highest packageManager bun version; "" when none
 	postgres  bool
 	mail      bool
+	findings  []engine.Finding // warnings for package.json problems that skipped a check
 }
 
 // packageNames lists the logical package names to check, in a fixed order. Postgres and Mailpit
@@ -85,8 +86,12 @@ type packageJSON struct {
 	PackageManager string            `json:"packageManager"`
 }
 
+// bunPinRe matches the only packageManager form this part reads: bun@<major>.<minor>.<patch>.
+var bunPinRe = regexp.MustCompile(`^bun@(\d+\.\d+\.\d+)$`)
+
 // collectNeeds reads orbit.yaml of every selected repository. package.json is read only for the
-// repositories that declare node or bun.
+// repositories that declare node or bun. A malformed or unusable package.json skips the affected
+// check with a warning; it never fails the part.
 func collectNeeds(fsys engine.FS, root string, selected []manifest.RepoTarget) (needs, error) {
 	n := needs{tools: map[string]bool{}}
 	for _, target := range selected {
@@ -107,73 +112,117 @@ func collectNeeds(fsys engine.FS, root string, selected []manifest.RepoTarget) (
 		if rs.Services.Mail {
 			n.mail = true
 		}
-		if !slices.Contains(rs.Toolchains, "node") && !slices.Contains(rs.Toolchains, "bun") {
+		hasNode := slices.Contains(rs.Toolchains, "node")
+		hasBun := slices.Contains(rs.Toolchains, "bun")
+		if !hasNode && !hasBun {
 			continue
 		}
-		pkg, err := readPackageJSON(fsys, dir)
+		pkg, malformed, err := readPackageJSON(fsys, dir)
 		if err != nil {
 			return needs{}, err
 		}
-		if slices.Contains(rs.Toolchains, "node") {
-			if major := nodeMajor(pkg.Engines["node"]); major > n.nodeMajor {
-				n.nodeMajor = major
-			}
+		subject := target.Path + "/package.json"
+		if hasNode {
+			n.addNodeEngine(subject, pkg, malformed)
 		}
-		if slices.Contains(rs.Toolchains, "bun") {
-			pin, err := bunPin(pkg.PackageManager)
-			if err != nil {
-				return needs{}, clierr.Wrap(err, clierr.Usage(filepath.Join(dir, "package.json")+" packageManager is not a bun version"))
-			}
-			if pin != "" && (n.bunPin == "" || compareVersions(mustParts(pin), mustParts(n.bunPin)) > 0) {
-				n.bunPin = pin
-			}
+		if hasBun {
+			n.addBunPin(subject, pkg, malformed)
 		}
 	}
 	return n, nil
 }
 
-// readPackageJSON returns the package.json in dir, or zero fields when there is none.
-func readPackageJSON(fsys engine.FS, dir string) (packageJSON, error) {
+// addNodeEngine records the node major from engines.node, or warns and skips the node check.
+func (n *needs) addNodeEngine(subject string, pkg packageJSON, malformed bool) {
+	var problem string
+	major := 0
+	switch rng := pkg.Engines["node"]; {
+	case malformed:
+		problem = "malformed JSON"
+	case rng == "":
+		problem = "engines.node is missing"
+	default:
+		m, ok := nodeMajor(rng)
+		if !ok {
+			problem = fmt.Sprintf("engines.node %q has no major version", rng)
+		}
+		major = m
+	}
+	if problem != "" {
+		n.skip(subject, problem, "node version check")
+		return
+	}
+	if major > n.nodeMajor {
+		n.nodeMajor = major
+	}
+}
+
+// addBunPin records the highest bun pin from packageManager, or warns and skips the pin. An empty
+// packageManager means the repository pins nothing.
+func (n *needs) addBunPin(subject string, pkg packageJSON, malformed bool) {
+	if malformed {
+		n.skip(subject, "malformed JSON", "bun pin")
+		return
+	}
+	pm := pkg.PackageManager
+	if pm == "" {
+		return
+	}
+	pin, ok := bunPin(pm)
+	if !ok {
+		n.skip(subject, fmt.Sprintf("packageManager %q is not bun@<major>.<minor>.<patch>", pm), "bun pin")
+		return
+	}
+	if n.bunPin == "" || compareVersions(mustParts(pin), mustParts(n.bunPin)) > 0 {
+		n.bunPin = pin
+	}
+}
+
+// skip records a warning that subject's problem skipped check.
+func (n *needs) skip(subject, problem, check string) {
+	n.findings = append(n.findings, engine.Finding{
+		Part:     partName,
+		Subject:  subject,
+		Message:  fmt.Sprintf("%s: %s; skipped the %s", subject, problem, check),
+		Severity: engine.SeverityWarn,
+	})
+}
+
+// readPackageJSON returns the package.json in dir. A missing file yields zero fields; malformed
+// reports unparseable content. Only a read failure is an error.
+func readPackageJSON(fsys engine.FS, dir string) (pkg packageJSON, malformed bool, err error) {
 	path := filepath.Join(dir, "package.json")
 	data, err := fsys.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return packageJSON{}, nil
+		return packageJSON{}, false, nil
 	}
 	if err != nil {
-		return packageJSON{}, clierr.Wrap(err, clierr.Failed("cannot read "+path))
+		return packageJSON{}, false, clierr.Wrap(err, clierr.Failed("cannot read "+path))
 	}
-	var pkg packageJSON
 	if err := json.Unmarshal(data, &pkg); err != nil {
-		return packageJSON{}, clierr.Wrap(err, clierr.Usage(path+" is malformed"))
+		return packageJSON{}, true, nil
 	}
-	return pkg, nil
+	return pkg, false, nil
 }
 
-// nodeMajor returns the first integer of an engines.node range, or 0 when there is none.
-func nodeMajor(rng string) int {
+// nodeMajor returns the first integer of an engines.node range. ok is false when there is none.
+func nodeMajor(rng string) (int, bool) {
 	m := nodeMajorRe.FindString(rng)
 	if m == "" {
-		return 0
+		return 0, false
 	}
 	n, err := strconv.Atoi(m)
-	if err != nil {
-		return 0
-	}
-	return n
+	return n, err == nil
 }
 
-// bunPin returns the version of a packageManager field naming bun, without any +hash suffix. Other
-// package managers and an empty field give "". A bun version that is not dotted integers is an error.
-func bunPin(packageManager string) (string, error) {
-	version, ok := strings.CutPrefix(packageManager, "bun@")
-	if !ok {
-		return "", nil
+// bunPin returns the version of a packageManager value of the form bun@<major>.<minor>.<patch>.
+// ok is false for any other value.
+func bunPin(packageManager string) (string, bool) {
+	m := bunPinRe.FindStringSubmatch(packageManager)
+	if m == nil {
+		return "", false
 	}
-	version, _, _ = strings.Cut(version, "+")
-	if _, ok := versionParts(version); !ok {
-		return "", fmt.Errorf("bun version %q is not dotted integers", version)
-	}
-	return version, nil
+	return m[1], true
 }
 
 // Plan prepends the user tool directories to this process's PATH, plans the missing packages and
@@ -196,7 +245,7 @@ func (p part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 		return engine.Plan{}, err
 	}
 
-	var plan engine.Plan
+	plan := engine.Plan{Findings: n.findings}
 	if err := p.planTools(ctx, s, n, &plan); err != nil {
 		return engine.Plan{}, err
 	}

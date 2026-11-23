@@ -7,13 +7,13 @@ func TestPackagesEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("packages: %v", err)
 	}
-	for _, key := range []string{"git", "gh", "curl", "go", "node", "bun", "postgres", "mailpit", "caddy"} {
+	for _, key := range []string{"git", "gh", "curl", "unzip", "go", "node", "bun", "postgres", "mailpit", "caddy"} {
 		if _, ok := pkgs[key]; !ok {
 			t.Fatalf("missing package %q", key)
 		}
 	}
-	if len(pkgs) != 9 {
-		t.Fatalf("want 9 packages, got %d", len(pkgs))
+	if len(pkgs) != 10 {
+		t.Fatalf("want 10 packages, got %d", len(pkgs))
 	}
 	pg := pkgs["postgres"]
 	if pg.Brew != "postgresql@18" || pg.Apt != "postgresql-18" || pg.AptRepo != "pgdg" || pg.Detect != "" {
@@ -21,6 +21,9 @@ func TestPackagesEmbedded(t *testing.T) {
 	}
 	if bun := pkgs["bun"]; bun.Script != "https://bun.sh/install" || bun.Detect != "bun" {
 		t.Fatalf("bun: %+v", bun)
+	}
+	if uz := pkgs["unzip"]; uz.Apt != "unzip" || uz.Brew != "" || uz.Script != "" {
+		t.Fatalf("unzip: %+v, want apt only", uz)
 	}
 	if gh := pkgs["gh"]; gh.AptRepo != "github-cli" {
 		t.Fatalf("gh: %+v", gh)
