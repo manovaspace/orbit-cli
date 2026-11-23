@@ -246,3 +246,46 @@ func TestHeadRefReportsGHError(t *testing.T) {
 		t.Fatalf("err = %v, want gh stderr", err)
 	}
 }
+
+func TestHasFileArgsAndExistence(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh api", runner.Result{}, nil)
+
+	ok, err := New(fake).HasFile(context.Background(), testRepo, "feat/dev-stage-ci", ".github/workflows/secret-scan.yml")
+	if err != nil {
+		t.Fatalf("HasFile: %v", err)
+	}
+	if !ok {
+		t.Error("HasFile = false, want true on success")
+	}
+	want := []string{"api", "repos/manovaspace/orbit-test/contents/.github/workflows/secret-scan.yml?ref=feat%2Fdev-stage-ci", "--silent"}
+	if got := fake.Calls()[0].Args; !reflect.DeepEqual(got, want) {
+		t.Errorf("args = %v, want %v", got, want)
+	}
+}
+
+func TestHasFileNotFoundIsFalse(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh api", runner.Result{Stderr: "gh: Not Found (HTTP 404)\n", ExitCode: 1}, errors.New("exit status 1"))
+
+	ok, err := New(fake).HasFile(context.Background(), testRepo, "feat/x", ".github/workflows/secret-scan.yml")
+	if err != nil {
+		t.Fatalf("HasFile: %v", err)
+	}
+	if ok {
+		t.Error("HasFile = true, want false for a 404")
+	}
+}
+
+func TestHasFileOtherFailureIsError(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh api", runner.Result{Stderr: "gh: Bad credentials (HTTP 401)\n", ExitCode: 1}, errors.New("exit status 1"))
+
+	ok, err := New(fake).HasFile(context.Background(), testRepo, "feat/x", ".github/workflows/secret-scan.yml")
+	if err == nil || !strings.Contains(err.Error(), "Bad credentials") {
+		t.Fatalf("err = %v, want gh stderr", err)
+	}
+	if ok {
+		t.Error("HasFile = true alongside an error")
+	}
+}

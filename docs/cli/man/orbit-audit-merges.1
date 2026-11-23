@@ -1,0 +1,39 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-audit-merges - Report merged pull requests that bypassed the merge gate
+
+
+.SH SYNOPSIS
+\fBorbit audit merges [flags]\fP
+
+
+.SH DESCRIPTION
+Report merged pull requests that bypassed the merge gate
+
+
+.SH OPTIONS
+\fB--days\fP=30
+	Days of merged pull requests to inspect
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for merges
+
+.PP
+\fB--remote\fP[=false]
+	Read merged pull requests through gh
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--json\fP[=false]
+	Print the report as a JSON envelope
+
+
+.SH SEE ALSO
+\fBorbit-audit(1)\fP

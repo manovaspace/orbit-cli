@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-doc - Generate documentation and man pages for Orbit CLI
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit doc [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Generates markdown documentation or unix man pages for all Orbit commands.
 
 
 .SH OPTIONS
-.PP
 \fB-f\fP, \fB--format\fP="markdown"
 	Documentation format: markdown or man
 
@@ -26,16 +22,18 @@ Generates markdown documentation or unix man pages for all Orbit commands.
 	help for doc
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB-o\fP, \fB--output\fP="./docs/cli"
 	Directory to output generated documentation (markdown default; use -f man -o docs/cli/man for man pages)
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit(1)\fP

@@ -2,32 +2,34 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
-orbit-port-allocate - Suggest a bindable dynamic port; no reservation is retained
+orbit-port-allocate - Suggest a free dynamic port that no registry entry claims; not reserved
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit port allocate   [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
-Suggest a bindable dynamic port; no reservation is retained
+Suggest a free dynamic port that no registry entry claims; not reserved
 
 
 .SH OPTIONS
-.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for allocate
 
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--root\fP=""
+	workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-port(1)\fP

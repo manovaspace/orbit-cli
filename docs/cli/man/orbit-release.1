@@ -1,0 +1,31 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-release - Inspect and promote release pull requests and demo branches
+
+
+.SH SYNOPSIS
+\fBorbit release [flags]\fP
+
+
+.SH DESCRIPTION
+Watch the release-tier check of the bot release pull request, promote main to demo, and merge the release pull request. There is no long-lived release branch: changesets and release-please open one pull request into main per repository.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for release
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+
+.SH SEE ALSO
+\fBorbit(1)\fP, \fBorbit-release-check(1)\fP, \fBorbit-release-demo(1)\fP, \fBorbit-release-prod(1)\fP, \fBorbit-release-status(1)\fP

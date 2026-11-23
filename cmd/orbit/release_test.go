@@ -192,6 +192,24 @@ func TestReleaseStatusUnreadableIsUnverified(t *testing.T) {
 	}
 }
 
+func TestReleaseStatusSecretScanOnlyIsNotReady(t *testing.T) {
+	fake, root := setupReleaseCommand(t)
+	// The first scripted answer wins, so this replaces the passing CI check.
+	fake.On("gh pr checks 12 -R manovaspace/orbit-cli", runner.Result{Stdout: `[{"name":"secret-scan / gitleaks","bucket":"pass"}]`}, nil)
+	expectReleaseStatusAnswers(fake, root)
+
+	out, err := runRootForTest(t, "release", "status", "orbit-cli")
+	if err != nil {
+		t.Fatalf("release status: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "checks: no-ci") {
+		t.Errorf("expected the release PR to show checks: no-ci, got: %s", out)
+	}
+	if !strings.Contains(out, "release PR #12 has no passing CI check, so it is not ready to merge") {
+		t.Errorf("expected a not-ready warning, got: %s", out)
+	}
+}
+
 func TestReleaseCheckJSONFailureExitOne(t *testing.T) {
 	fake, root := setupReleaseCommand(t)
 	_ = root

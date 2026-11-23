@@ -54,6 +54,17 @@ func IsSecretScan(name string) bool {
 	return strings.HasPrefix(name, secretScanPrefix)
 }
 
+// HasPassingSecretScan reports whether the secret scan has a passing check.
+// A pending, failed or missing scan is not a pass.
+func HasPassingSecretScan(checks []Check) bool {
+	for _, c := range checks {
+		if c.Bucket == "pass" && IsSecretScan(c.Name) {
+			return true
+		}
+	}
+	return false
+}
+
 // EvaluateChecks decides whether a pull request may merge. Failed or cancelled
 // checks are refused first, then pending checks, then unknown check states.
 // With requireCI, an empty list is refused and at least one passing check that

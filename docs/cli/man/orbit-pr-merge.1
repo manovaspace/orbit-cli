@@ -1,0 +1,47 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-pr-merge - Merge a pull request on GitHub
+
+
+.SH SYNOPSIS
+\fBorbit pr merge [number] [flags]\fP
+
+
+.SH DESCRIPTION
+Merges an open pull request by number. If number is omitted, attempts to find and merge the open PR for the current branch.
+
+
+.SH OPTIONS
+\fB--allow-no-checks\fP[=false]
+	Allow a release or Renovate pull request that reports no checks to merge
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for merge
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--method\fP="merge"
+	Merge method (merge, squash, rebase, rebase-merge)
+
+.PP
+\fB--override\fP=""
+	Merge despite failing checks and record the reason as a PR comment
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--dir\fP="."
+	Path to repository directory (default: current directory)
+
+
+.SH SEE ALSO
+\fBorbit-pr(1)\fP

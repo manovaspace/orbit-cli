@@ -21,6 +21,10 @@ type Forge interface {
 	// HeadRef returns the head branch name of the pull request ref (number,
 	// URL or branch), which decides whether the merge gate requires CI.
 	HeadRef(ctx context.Context, repo domain.Repo, ref string) (string, error)
+	// HasFile reports whether path exists on the branch named ref (the pull
+	// request head, from HeadRef). A missing file is (false, nil); any other
+	// read failure is an error.
+	HasFile(ctx context.Context, repo domain.Repo, ref, path string) (bool, error)
 	Comment(ctx context.Context, repo domain.Repo, ref, body string) error
 	ListOpen(ctx context.Context, repo domain.Repo) ([]domain.PullRequest, error)
 }

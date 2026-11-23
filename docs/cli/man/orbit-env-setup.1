@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-env-setup - Generate .env files from schemas and initialize .cursor/mcp.env
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit env setup [path] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Scans for .env.schema.yaml contracts and generates .env files populated with default values and strict 0600 permissions.
 
 
 .SH OPTIONS
-.PP
 \fB--force\fP[=false]
 	Overwrite existing .env files with schema defaults
 
@@ -25,13 +21,15 @@ Scans for .env.schema.yaml contracts and generates .env files populated with def
 \fB-h\fP, \fB--help\fP[=false]
 	help for setup
 
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-env(1)\fP

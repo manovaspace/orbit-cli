@@ -133,3 +133,26 @@ func TestParseChecks(t *testing.T) {
 		}
 	})
 }
+
+func TestHasPassingSecretScan(t *testing.T) {
+	tests := []struct {
+		name   string
+		checks []Check
+		want   bool
+	}{
+		{name: "Empty", checks: nil, want: false},
+		{name: "ScanPass", checks: []Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}}, want: true},
+		{name: "ScanPassWithCI", checks: []Check{{Name: "ci", Bucket: "pass"}, {Name: "secret-scan / gitleaks", Bucket: "pass"}}, want: true},
+		{name: "ScanPending", checks: []Check{{Name: "secret-scan / gitleaks", Bucket: "pending"}}, want: false},
+		{name: "ScanFail", checks: []Check{{Name: "secret-scan / gitleaks", Bucket: "fail"}}, want: false},
+		{name: "ScanSkipped", checks: []Check{{Name: "secret-scan / gitleaks", Bucket: "skipping"}}, want: false},
+		{name: "CIPassOnly", checks: []Check{{Name: "ci", Bucket: "pass"}}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := HasPassingSecretScan(tt.checks); got != tt.want {
+				t.Errorf("HasPassingSecretScan = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

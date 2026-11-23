@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-staff-create - Create a staff member (LLDAP + retained mailbox)
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit staff create [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Create a staff member and optionally generate a signed onboarding invite token with --invite.
 
 
 .SH OPTIONS
-.PP
 \fB--first-name\fP=""
 	first name
 
@@ -50,6 +46,10 @@ Create a staff member and optionally generate a signed onboarding invite token w
 	invite token TTL (e.g. 7d, 24h, 168h)
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--last-name\fP=""
 	last name
 
@@ -67,7 +67,6 @@ Create a staff member and optionally generate a signed onboarding invite token w
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
@@ -81,5 +80,4 @@ Create a staff member and optionally generate a signed onboarding invite token w
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-staff(1)\fP

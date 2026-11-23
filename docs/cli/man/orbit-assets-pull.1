@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-assets-pull - Download missing or outdated assets for workspace repos
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit assets pull [scope] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Download missing or outdated assets for workspace repos
 
 
 .SH OPTIONS
-.PP
 \fB--force\fP[=false]
 	Overwrite local files whose hash does not match the index
 
@@ -26,16 +22,18 @@ Download missing or outdated assets for workspace repos
 	help for pull
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--manifest\fP=""
 	Path to workspace.yaml
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-assets(1)\fP

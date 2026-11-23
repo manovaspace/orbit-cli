@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-sync - Fetch and fast-forward clean default branches across workspace repositories
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit sync [scope] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Fetches upstream origin for all targets, verifies clean working tree, and performs fast-forward merges on default branches without overwriting uncommitted work.
 
 
 .SH OPTIONS
-.PP
 \fB--concurrency\fP=4
 	Number of concurrent sync workers
 
@@ -26,16 +22,18 @@ Fetches upstream origin for all targets, verifies clean working tree, and perfor
 	help for sync
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--manifest\fP=""
 	Path to workspace.yaml (default: /workspace.yaml)
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit(1)\fP

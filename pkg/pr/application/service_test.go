@@ -25,6 +25,13 @@ type fakeForge struct {
 	open       []domain.PullRequest
 	listErr    error
 
+	// hasScanWorkflow answers HasFile for the secret-scan workflow; hasFileErr
+	// makes HasFile fail.
+	hasScanWorkflow bool
+	hasFileErr      error
+	hasFileRef      string
+	hasFilePath     string
+
 	calls []string
 
 	lastCreateTitle string
@@ -77,6 +84,15 @@ func (f *fakeForge) HeadRef(_ context.Context, _ domain.Repo, _ string) (string,
 		return "feat/gate-test", nil
 	}
 	return f.head, nil
+}
+
+func (f *fakeForge) HasFile(_ context.Context, _ domain.Repo, ref, path string) (bool, error) {
+	f.calls = append(f.calls, "hasfile")
+	f.hasFileRef, f.hasFilePath = ref, path
+	if f.hasFileErr != nil {
+		return false, f.hasFileErr
+	}
+	return f.hasScanWorkflow, nil
 }
 
 func (f *fakeForge) Comment(_ context.Context, _ domain.Repo, _ string, body string) error {
@@ -768,5 +784,143 @@ func TestStatusListsOpenPullRequests(t *testing.T) {
 	}
 	if res.PullRequests[0].Author != "opmc" {
 		t.Errorf("author = %q, want opmc", res.PullRequests[0].Author)
+	}
+}
+
+const secretScanPath = ".github/workflows/secret-scan.yml"
+
+func TestMergeFeaturePRWithScanWorkflowWaitsForScan(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true}
+	svc, out := newTestService(forge, newFakeGit())
+
+	_, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions())
+	if err == nil || !strings.Contains(err.Error(), "the secret scan has not passed yet; wait for it, or use orbit pr deliver, which waits") {
+		t.Fatalf("err = %v, want the secret-scan refusal", err)
+	}
+	if got := clierr.Code(err); got != clierr.CodeFailed {
+		t.Errorf("error code = %q, want %q", got, clierr.CodeFailed)
+	}
+	if !strings.Contains(err.Error(), `use --override "reason" to merge anyway`) {
+		t.Errorf("expected the override hint, got: %v", err)
+	}
+	if forge.count("merge") != 0 {
+		t.Errorf("expected no merge call, got: %v\nOutput: %s", forge.calls, out.String())
+	}
+}
+
+func TestMergeFeaturePRWithScanWorkflowAllowsPassingScan(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true, checks: [][]domain.Check{{{Name: "secret-scan / gitleaks", Bucket: "pass"}}}}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err != nil {
+		t.Fatalf("expected merge with a passing scan, got: %v", err)
+	}
+	if forge.count("merge") != 1 {
+		t.Errorf("expected one merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeFeaturePRWithoutScanWorkflowKeepsNoChecksMerge(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: false}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err != nil {
+		t.Fatalf("expected feature PR without the scan workflow to merge, got: %v", err)
+	}
+	if forge.hasFileRef != "feat/gate-test" || forge.hasFilePath != secretScanPath {
+		t.Errorf("HasFile(%q, %q), want the head branch and %s", forge.hasFileRef, forge.hasFilePath, secretScanPath)
+	}
+	if forge.count("merge") != 1 {
+		t.Errorf("expected one merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeReleasePRDoesNotReadScanWorkflow(t *testing.T) {
+	forge := &fakeForge{head: "changeset-release/main", hasScanWorkflow: true, checks: [][]domain.Check{{{Name: "ci", Bucket: "pass"}}}}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions()); err != nil {
+		t.Fatalf("expected release PR with passing CI to merge, got: %v", err)
+	}
+	if forge.count("hasfile") != 0 {
+		t.Errorf("release PR must not read the scan workflow, got: %v", forge.calls)
+	}
+}
+
+func TestMergeScanWorkflowReadErrorRefuses(t *testing.T) {
+	forge := &fakeForge{hasFileErr: errors.New("HTTP 502: bad gateway")}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	_, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, mergeOptions())
+	if err == nil || !strings.Contains(err.Error(), "could not check the head branch for the secret scan workflow") {
+		t.Fatalf("err = %v", err)
+	}
+	if forge.count("merge") != 0 || forge.count("checks") != 0 {
+		t.Errorf("expected no checks or merge call, got: %v", forge.calls)
+	}
+}
+
+func TestMergeFeaturePRWithScanRefusesFailingScanWithOverride(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true, checks: [][]domain.Check{{{Name: "secret-scan / gitleaks", Bucket: "fail"}}}}
+	svc, _ := newTestService(forge, newFakeGit())
+	opts := mergeOptions()
+	opts.Override = "scanner false positive"
+	opts.OverrideSet = true
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, opts); err != nil {
+		t.Fatalf("expected override to merge past a failing scan, got: %v", err)
+	}
+	if forge.count("comment") != 1 || forge.count("merge") != 1 {
+		t.Errorf("expected one comment and one merge, got: %v", forge.calls)
+	}
+}
+
+func TestMergeScanNotRegisteredWithOverrideMerges(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true}
+	svc, _ := newTestService(forge, newFakeGit())
+	opts := mergeOptions()
+	opts.Override = "scan is queued behind an outage"
+	opts.OverrideSet = true
+
+	if _, err := svc.Merge(context.Background(), ".", "7", domain.MethodMerge, opts); err != nil {
+		t.Fatalf("expected override to merge before the scan registers, got: %v", err)
+	}
+	if forge.count("comment") != 1 || forge.count("merge") != 1 {
+		t.Errorf("expected one comment and one merge, got: %v", forge.calls)
+	}
+}
+
+func TestDeliverWaitsForLateRegisteringScan(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true, checks: [][]domain.Check{
+		{{Name: "lint", Bucket: "pass"}},
+		{{Name: "lint", Bucket: "pass"}},
+		{{Name: "lint", Bucket: "pass"}, {Name: "secret-scan / gitleaks", Bucket: "pass"}},
+	}}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	if _, err := svc.Deliver(context.Background(), ".", DeliverInput{Method: domain.MethodMerge, Gate: deliverOptions()}); err != nil {
+		t.Fatalf("expected deliver to merge once the scan passed, got: %v", err)
+	}
+	if forge.count("merge") != 1 {
+		t.Errorf("expected one merge call, got: %v", forge.calls)
+	}
+	if got := forge.count("checks"); got < 3 {
+		t.Errorf("expected deliver to poll until the scan registered, got %d polls", got)
+	}
+}
+
+func TestDeliverRefusesWhenScanNeverRegisters(t *testing.T) {
+	forge := &fakeForge{hasScanWorkflow: true, checks: [][]domain.Check{{{Name: "lint", Bucket: "pass"}}}}
+	svc, _ := newTestService(forge, newFakeGit())
+
+	_, err := svc.Deliver(context.Background(), ".", DeliverInput{Method: domain.MethodMerge, Gate: deliverOptions()})
+	if err == nil || !strings.Contains(err.Error(), "the secret scan has not passed yet") {
+		t.Fatalf("err = %v, want the secret-scan refusal after the wait timed out", err)
+	}
+	if forge.count("merge") != 0 {
+		t.Errorf("expected no merge call, got: %v", forge.calls)
+	}
+	if got := forge.count("checks"); got < 2 {
+		t.Errorf("expected deliver to keep polling before timing out, got %d polls", got)
 	}
 }

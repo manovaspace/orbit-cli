@@ -2,44 +2,46 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
-orbit-port-list - List base ports and deterministic slots for all registered projects
+orbit-port-list - List registered services (ports.yaml) or base ports for all projects
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit port list [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
-List base ports and deterministic slots for all registered projects
+With a handbook/agents/workspace/ports.yaml registry, list every registered service by port with a live listener probe. Without one, list the 50-port project blocks. --limit and --page page projects, or services when a registry is found.
 
 
 .SH OPTIONS
-.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for list
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--limit\fP=0
-	maximum projects per page (0 = all)
+	maximum projects (or services, with a registry) per page (0 = all)
 
 .PP
 \fB--page\fP=1
 	page number to display
 
 .PP
+\fB--root\fP=""
+	workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+
+.PP
 \fB--scan\fP[=false]
-	Momentarily attempt IPv4 loopback binds; no reservation is retained
+	Momentarily attempt loopback binds for every block slot (no effect with a registry, which always probes)
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-port(1)\fP

@@ -1,0 +1,39 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-port-check - Check repositories against the dev port registry (ports.yaml)
+
+
+.SH SYNOPSIS
+\fBorbit port check [flags]\fP
+
+
+.SH DESCRIPTION
+Scan compose files, package.json scripts, .env.example files, Go sources, Caddy files and TS/JS sources for ports 10000-17999 and report numbers the registry does not list (UNREGISTERED), retired numbers (RETIRED), binds in a repository the entry does not list (WRONG_REPO), binds of reserved slots (RESERVED) and compose publishes on all interfaces (OPEN_BIND, a warning unless --strict). Exit codes: 0 no findings, 1 at least one finding, 2 the registry is missing or a file could not be read.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for check
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--root\fP=""
+	workspace root holding handbook/agents/workspace/ports.yaml (default: the workspace containing the current directory)
+
+.PP
+\fB--strict\fP[=false]
+	Treat OPEN_BIND warnings as failures
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+
+.SH SEE ALSO
+\fBorbit-port(1)\fP

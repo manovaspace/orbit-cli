@@ -1,0 +1,35 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-release-status - Report the release pull request, demo branch and last publish or deploy run
+
+
+.SH SYNOPSIS
+\fBorbit release status [repo] [flags]\fP
+
+
+.SH DESCRIPTION
+Reads the default branch SHA, latest tag, open release pull request and its checks, the demo branch's distance from main, and the last publish or deploy workflow run. With no repository it checks every repository that has a release setup. Exit 2 means something could not be read.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for status
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml
+
+
+.SH SEE ALSO
+\fBorbit-release(1)\fP

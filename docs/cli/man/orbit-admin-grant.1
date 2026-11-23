@@ -2,24 +2,20 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-admin-grant - Generate an 8-digit single-use authorization code for a new admin
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit admin grant  [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Generates a single-use 8-digit administrative grant code (e.g. 8492-0194) bound to the
 specified email address. The new admin uses this code with 'orbit admin init  --code 8492-0194'
 to initialize their workstation without sending or receiving public challenge emails.
 
 
 .SH OPTIONS
-.PP
 \fB--code\fP=""
 	Explicit 8-digit code (auto-generated if omitted)
 
@@ -29,7 +25,7 @@ to initialize their workstation without sending or receiving public challenge em
 
 .PP
 \fB--json\fP[=false]
-	Output grant details as JSON
+	Print the result as a JSON envelope
 
 .PP
 \fB--role\fP="admin"
@@ -57,11 +53,9 @@ to initialize their workstation without sending or receiving public challenge em
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-admin(1)\fP

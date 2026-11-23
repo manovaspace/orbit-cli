@@ -2,28 +2,27 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-staff-delete - Delete a staff member
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit staff delete  [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
-Delete a staff member
+Delete the staff member's LLDAP identity. The Stalwart mailbox, messages, and forwarding remain, but Keycloak browser sign-in and LLDAP-backed mail authentication stop. This command does not remove the imported Keycloak profile or validate migration backups; use the reviewed identity-reset procedure for a full reset.
 
 
 .SH OPTIONS
-.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for delete
 
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
@@ -37,5 +36,4 @@ Delete a staff member
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-staff(1)\fP

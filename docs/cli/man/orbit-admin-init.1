@@ -2,17 +2,14 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-admin-init - Initialize and verify platform server ownership via email OTP challenge
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit admin init [email] [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Initiates server ownership verification. Requests a 6-digit OTP challenge from the Orbit
 server, prompts for the code, and seals a 32-byte cryptographic master signing secret in the local
 owner vault (mode 0600). Email delivery happens only when the server is orbit-server with SMTP;
@@ -20,7 +17,6 @@ orbit-api-gateway stores the OTP in memory and does not send mail.
 
 
 .SH OPTIONS
-.PP
 \fB-c\fP, \fB--code\fP=""
 	6-digit verification code (for non-interactive execution)
 
@@ -31,6 +27,10 @@ orbit-api-gateway stores the OTP in memory and does not send mail.
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for init
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
 
 .PP
 \fB-n\fP, \fB--name\fP=""
@@ -54,11 +54,9 @@ orbit-api-gateway stores the OTP in memory and does not send mail.
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-admin(1)\fP
