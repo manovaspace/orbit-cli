@@ -4,6 +4,7 @@ package ghcli
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -112,6 +113,25 @@ func (f *Forge) HeadRef(ctx context.Context, repo domain.Repo, ref string) (stri
 		return "", clierr.Tool("GitHub PR " + ref + " reported no head branch")
 	}
 	return view.HeadRefName, nil
+}
+
+// HasFile asks the contents API whether path exists on branch ref. Exit success
+// is true; a 404 is false; any other failure is an error, so the gate never
+// assumes a workflow is absent when GitHub could not answer.
+func (f *Forge) HasFile(ctx context.Context, repo domain.Repo, ref, path string) (bool, error) {
+	endpoint := "repos/" + repo.String() + "/contents/" + path + "?ref=" + url.QueryEscape(ref)
+	res, err := f.run(ctx, "api", endpoint, "--silent")
+	if err == nil {
+		return true, nil
+	}
+	detail := strings.TrimSpace(res.Stderr)
+	if detail == "" {
+		detail = strings.TrimSpace(res.Stdout)
+	}
+	if strings.Contains(detail, "HTTP 404") || strings.Contains(detail, "Not Found") {
+		return false, nil
+	}
+	return false, ghError(err, res)
 }
 
 // Comment posts a comment on the pull request.

@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-staff - Manage Orbit staff via the staff control plane
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit staff [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
-Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Create and update can set the Keycloak Account Console first and last name fields. Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
+Create, list, update, disable, enable, delete, and reset passwords for staff accounts through orbit-staff (HMAC). Recreate is disabled because Keycloak retains federated profiles. Reserved directory accounts are rejected: admin, keycloak-bind, stalwart-bind, verdaccio-bind, verdaccio-ci.
 
 
 .SH OPTIONS
-.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for staff
 
@@ -31,11 +27,9 @@ Create, list, update, disable, enable, delete, and reset passwords for staff acc
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit(1)\fP, \fBorbit-staff-create(1)\fP, \fBorbit-staff-delete(1)\fP, \fBorbit-staff-disable(1)\fP, \fBorbit-staff-enable(1)\fP, \fBorbit-staff-get(1)\fP, \fBorbit-staff-list(1)\fP, \fBorbit-staff-recreate(1)\fP, \fBorbit-staff-reset-password(1)\fP, \fBorbit-staff-update(1)\fP

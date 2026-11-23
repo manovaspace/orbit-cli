@@ -2,22 +2,18 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-staff-recreate - Deprecated: use the safe Keycloak identity reset procedure
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit staff recreate [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
-This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion. Before deleting the LLDAP identity, deploy remove-keycloak-staff-user.py on the identity host and require its --uid uid --preflight check to succeed. Stop if it is unavailable or preflight fails. Then follow the staff lifecycle guide: delete the LLDAP identity, review a cleanup dry run, execute with --confirm uid, and create only after cleanup succeeds. Mailbox contents remain preserved.
+This command no longer deletes or recreates staff identities. Keycloak retains federated user profiles and Google/passkey credentials after an LLDAP deletion. Before deleting the LLDAP identity, deploy remove-keycloak-staff-user.py on the identity host and require its --uid  --preflight check to succeed. Stop if it is unavailable or preflight fails. Then follow the staff lifecycle guide: delete the LLDAP identity, review a cleanup dry run, execute with --confirm , and create only after cleanup succeeds. Mailbox contents remain preserved.
 
 
 .SH OPTIONS
-.PP
 \fB--forward\fP=""
 	legacy flag; ignored because recreate is disabled
 
@@ -46,6 +42,10 @@ This command no longer deletes or recreates staff identities. Keycloak retains f
 	legacy flag; ignored because recreate is disabled
 
 .PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
 \fB--name\fP=""
 	legacy flag; ignored because recreate is disabled
 
@@ -59,7 +59,6 @@ This command no longer deletes or recreates staff identities. Keycloak retains f
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
@@ -73,5 +72,4 @@ This command no longer deletes or recreates staff identities. Keycloak retains f
 
 
 .SH SEE ALSO
-.PP
 \fBorbit-staff(1)\fP

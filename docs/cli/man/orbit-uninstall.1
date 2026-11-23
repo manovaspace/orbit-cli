@@ -2,28 +2,28 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-uninstall - Uninstall Orbit CLI binaries and cleanup shell configuration
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit uninstall [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.
 
 
 .SH OPTIONS
-.PP
 \fB--force\fP[=false]
 	Alias for --yes
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for uninstall
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
 
 .PP
 \fB--purge-state\fP[=false]
@@ -39,11 +39,9 @@ Removes Orbit CLI binaries from system and user paths, cleans shell completions,
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit(1)\fP

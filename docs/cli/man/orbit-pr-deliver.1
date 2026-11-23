@@ -1,0 +1,63 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-pr-deliver - Deliver branch end-to-end: push, PR, merge, checkout base, fast-forward, and prune
+
+
+.SH SYNOPSIS
+\fBorbit pr deliver [flags]\fP
+
+
+.SH DESCRIPTION
+Executes the full Tier 1 delivery lifecycle for the active branch: pushes branch to origin, creates a PR on GitHub, merges the PR, checks out base branch, pulls --ff-only, and prunes the local feature branch.
+
+
+.SH OPTIONS
+\fB--allow-no-checks\fP[=false]
+	Allow a release or Renovate pull request that reports no checks to merge
+
+.PP
+\fB--base\fP="main"
+	Base branch to deliver into
+
+.PP
+\fB--body\fP=""
+	Pull request body/description
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for deliver
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--method\fP="merge"
+	Merge method (merge, squash, rebase, rebase-merge)
+
+.PP
+\fB--override\fP=""
+	Merge despite failing checks and record the reason as a PR comment
+
+.PP
+\fB--title\fP=""
+	Pull request title (defaults to latest commit message)
+
+.PP
+\fB--wait-timeout\fP=20m0s
+	Maximum time to wait for pending checks
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--dir\fP="."
+	Path to repository directory (default: current directory)
+
+
+.SH SEE ALSO
+\fBorbit-pr(1)\fP

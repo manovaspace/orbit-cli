@@ -2,17 +2,14 @@
 .TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
 
 .SH NAME
-.PP
 orbit-onboard - Interactive onboarding wizard with resume, claims, and stack provisioning
 
 
 .SH SYNOPSIS
-.PP
 \fBorbit onboard [flags]\fP
 
 
 .SH DESCRIPTION
-.PP
 Interactive onboarding wizard that sets up developer identity, SSH keys,
 repository clones, Cursor MCP integrations, and local development infrastructure.
 
@@ -27,7 +24,6 @@ Pro capabilities:
 
 
 .SH OPTIONS
-.PP
 \fB-f\fP, \fB--auto-fix\fP[=false]
 	Automatically install missing prerequisites and toolchain dependencies
 
@@ -41,7 +37,7 @@ Pro capabilities:
 
 .PP
 \fB--edge-url\fP=""
-	Onboarding edge gateway URL (default: $ORBIT_SERVER or http://localhost:8080)
+	Onboarding edge gateway URL (default: $ORBIT_SERVER or http://localhost:10015)
 
 .PP
 \fB--email\fP=""
@@ -117,11 +113,9 @@ Pro capabilities:
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
-.PP
 \fB--config\fP=""
 	Custom path to Orbit CLI configuration file
 
 
 .SH SEE ALSO
-.PP
 \fBorbit(1)\fP

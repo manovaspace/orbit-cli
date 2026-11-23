@@ -1,0 +1,47 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-release-prod - Merge the open release pull request through the merge gate
+
+
+.SH SYNOPSIS
+\fBorbit release prod  [flags]\fP
+
+
+.SH DESCRIPTION
+Merges the open release pull request through the same gate as 'orbit pr merge'. For a Changesets library it then dispatches publish.yml; the owner still approves the npm-publish environment and the CLI never approves it.
+
+
+.SH OPTIONS
+\fB--allow-no-checks\fP[=false]
+	Allow a release or Renovate pull request that reports no checks to merge
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for prod
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--method\fP="merge"
+	Merge method (merge, squash, rebase, rebase-merge)
+
+.PP
+\fB--override\fP=""
+	Merge despite failing checks and record the reason as a PR comment
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml
+
+
+.SH SEE ALSO
+\fBorbit-release(1)\fP

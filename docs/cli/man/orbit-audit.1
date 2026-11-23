@@ -1,0 +1,35 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-audit - Audit workspace versions, dependencies, agents and delivery
+
+
+.SH SYNOPSIS
+\fBorbit audit [flags]\fP
+
+
+.SH DESCRIPTION
+Report drift between the workspace and manovaspace/ci/ci/versions.env, resolved dependency versions, kit exports shadowed by local code, agent configuration, repositories without tests, upstream toolchain lag and merge-gate bypasses. The audit is read-only: it never edits a repository and reads the network only with --remote on the checks that support it. Exit codes: 0 no ERROR findings, 1 at least one ERROR, 2 something could not be verified.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for audit
+
+.PP
+\fB--json\fP[=false]
+	Print the report as a JSON envelope
+
+.PP
+\fB--remote\fP[=false]
+	Also run the network checks (registry, OSV, releases, merges, Actions billing)
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+
+.SH SEE ALSO
+\fBorbit(1)\fP, \fBorbit-audit-agents(1)\fP, \fBorbit-audit-deps(1)\fP, \fBorbit-audit-merges(1)\fP, \fBorbit-audit-tests(1)\fP, \fBorbit-audit-upstream(1)\fP, \fBorbit-audit-usage(1)\fP, \fBorbit-audit-versions(1)\fP

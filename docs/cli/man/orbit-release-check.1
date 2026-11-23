@@ -1,0 +1,43 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-release-check - Watch the release-tier check, or run the release tier against the local dev services
+
+
+.SH SYNOPSIS
+\fBorbit release check [repo] [flags]\fP
+
+
+.SH DESCRIPTION
+Without --local, polls the open release pull request's checks until two consecutive polls report the same complete set. Exit 0 means pass, 1 means failure, 2 means no release pull request or no checks. With --local, creates a throwaway database in the existing dev Postgres, runs the repository's release tier against the dev Postgres, Redis and NATS, and drops the database in every case. It starts no containers.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for check
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--local\fP[=false]
+	Run the release tier against the existing dev Postgres, Redis and NATS
+
+.PP
+\fB--wait-timeout\fP=20m0s
+	Maximum time to wait for release checks
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml
+
+
+.SH SEE ALSO
+\fBorbit-release(1)\fP

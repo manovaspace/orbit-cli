@@ -306,6 +306,9 @@ func renderReleaseStatus(p *render.Printer, result application.StatusResult) {
 			pairs = append(pairs, [2]string{"last run:", "no publish or deploy run"})
 		}
 		p.KVs(pairs...)
+		if repo.ReleasePR != nil && repo.ReleasePR.CheckState == "no-ci" {
+			p.Line(render.StatusWarn, fmt.Sprintf("release PR #%d has no passing CI check, so it is not ready to merge", repo.ReleasePR.Number))
+		}
 		for _, message := range repo.Unverified {
 			p.Line(render.StatusWarn, "unverified: "+message)
 		}

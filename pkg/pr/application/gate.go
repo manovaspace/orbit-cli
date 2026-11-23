@@ -10,9 +10,15 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/pr/domain"
 )
 
+// secretScanWorkflow is the workflow file that runs the secret scan on every
+// push. A repository that has it gets a secret-scan check on each pull request,
+// so a feature pull request waits for that check before it merges.
+const secretScanWorkflow = ".github/workflows/secret-scan.yml"
+
 // enforceGate refuses to merge unless the pull request's checks allow it. A
-// release or Renovate pull request needs a passing CI check; any other pull
-// request may merge with no checks, skipped checks or only the secret scan.
+// release or Renovate pull request needs a passing CI check. Any other pull
+// request may merge with no checks or skipped checks, but when its head has the
+// secret-scan workflow it also needs a passing secret scan.
 func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string, o domain.MergeOptions) error {
 	if o.OverrideSet && strings.TrimSpace(o.Override) == "" {
 		return clierr.Usage("--override requires a non-empty reason")
@@ -36,6 +42,14 @@ func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string,
 		return withMessage(err, "merge refused: could not read the pull request head branch")
 	}
 	requireCI := domain.RequiresCI(head)
+	requireScan := false
+	if !requireCI {
+		hasScan, err := s.Forge.HasFile(ctx, repo, head, secretScanWorkflow)
+		if err != nil {
+			return withMessage(err, "merge refused: could not check the head branch for the secret scan workflow")
+		}
+		requireScan = hasScan
+	}
 
 	start := s.now()
 	var last []domain.Check
@@ -59,6 +73,10 @@ func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string,
 		// complete list only once its names match the previous poll's names.
 		elapsed := s.now().Sub(start)
 		complete := countPending(last) == 0 && (len(last) > 0 || elapsed >= registerWindow)
+		if requireScan && !hasSecretScanCheck(last) {
+			// The scan registers as its own check, so a list without it is not complete yet.
+			complete = false
+		}
 		stable := polled && sameCheckNameSet(lastNames, names)
 		// The first poll is accepted only when the register window has already
 		// elapsed and reported no checks at all.
@@ -84,6 +102,9 @@ func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string,
 	}
 
 	result := domain.EvaluateChecks(last, requireCI)
+	if result.Allowed && requireScan && !domain.HasPassingSecretScan(last) {
+		result = domain.GateResult{Reason: "the secret scan has not passed yet; wait for it, or use orbit pr deliver, which waits"}
+	}
 	if result.Allowed {
 		return nil
 	}
@@ -108,6 +129,17 @@ func countPending(checks []domain.Check) int {
 		}
 	}
 	return n
+}
+
+// hasSecretScanCheck reports whether any check is the secret scan, whatever its
+// state.
+func hasSecretScanCheck(checks []domain.Check) bool {
+	for _, c := range checks {
+		if domain.IsSecretScan(c.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkNameSet returns the set of check names, ignoring order and duplicates.

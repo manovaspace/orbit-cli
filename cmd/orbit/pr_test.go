@@ -154,6 +154,7 @@ func TestPRMergeJSON(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
 	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
+	fake.On("gh api repos/manovaspace/orbit-test/contents/.github/workflows/secret-scan.yml", runner.Result{Stderr: "gh: Not Found (HTTP 404)\n"}, errors.New("exit status 1"))
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 
@@ -182,6 +183,7 @@ func TestPRMergeJSONFailure(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
 	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
+	fake.On("gh api repos/manovaspace/orbit-test/contents/.github/workflows/secret-scan.yml", runner.Result{Stderr: "gh: Not Found (HTTP 404)\n"}, errors.New("exit status 1"))
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"fail"}]`}, nil)
 
 	out, err := runPRCmd(t, "pr", "merge", "7", "--dir", "/repo", "--json")
@@ -542,6 +544,7 @@ func TestPRDeliverJSON(t *testing.T) {
 	fake.On("git -C /repo branch -d feat/x", runner.Result{}, nil)
 	fake.On("gh pr create", runner.Result{Stdout: "https://github.com/manovaspace/orbit-test/pull/7\n"}, nil)
 	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
+	fake.On("gh api repos/manovaspace/orbit-test/contents/.github/workflows/secret-scan.yml", runner.Result{Stderr: "gh: Not Found (HTTP 404)\n"}, errors.New("exit status 1"))
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 
@@ -573,6 +576,7 @@ func TestPRMergeHumanOutput(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
 	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
+	fake.On("gh api repos/manovaspace/orbit-test/contents/.github/workflows/secret-scan.yml", runner.Result{Stderr: "gh: Not Found (HTTP 404)\n"}, errors.New("exit status 1"))
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 

@@ -64,20 +64,30 @@ func IsPublishOrDeployWorkflow(name string) bool {
 	return strings.Contains(lower, "publish") || strings.Contains(lower, "deploy")
 }
 
-// CheckState summarises a check list as pass, fail, pending, none or unknown.
+// CheckState summarises a check list as none, fail, pending, unknown, no-ci or
+// pass. An empty list is "none". Failed or cancelled checks give "fail", then
+// pending checks give "pending" and unrecognised buckets give "unknown". "pass"
+// needs a passing check that is not the secret scan. Otherwise the list is
+// "no-ci": every check was skipped, or only the secret scan passed. The merge
+// gate refuses a "no-ci" release pull request, so it is not ready.
 func CheckState(checks []prdomain.Check) string {
 	if len(checks) == 0 {
 		return "none"
 	}
 	pending := false
 	unknown := false
+	passedCI := false
 	for _, check := range checks {
 		switch check.Bucket {
 		case "fail", "cancel":
 			return "fail"
 		case "pending":
 			pending = true
-		case "pass", "skipping":
+		case "pass":
+			if !prdomain.IsSecretScan(check.Name) {
+				passedCI = true
+			}
+		case "skipping":
 		default:
 			unknown = true
 		}
@@ -87,6 +97,9 @@ func CheckState(checks []prdomain.Check) string {
 	}
 	if unknown {
 		return "unknown"
+	}
+	if !passedCI {
+		return "no-ci"
 	}
 	return "pass"
 }

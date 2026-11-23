@@ -28,11 +28,19 @@ func TestCheckState(t *testing.T) {
 	}{
 		{"None", nil, "none"},
 		{"Pass", []prdomain.Check{{Name: "ci", Bucket: "pass"}}, "pass"},
-		{"Skipped", []prdomain.Check{{Name: "ci", Bucket: "skipping"}}, "pass"},
+		{"Skipped", []prdomain.Check{{Name: "ci", Bucket: "skipping"}}, "no-ci"},
+		{"AllSkippedWithSecretSkipped", []prdomain.Check{{Name: "ci", Bucket: "skipping"}, {Name: "secret-scan / gitleaks", Bucket: "skipping"}}, "no-ci"},
+		{"SecretScanOnly", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}}, "no-ci"},
+		{"SecretScanPassCISkipped", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}, {Name: "ci", Bucket: "skipping"}}, "no-ci"},
+		{"PassWithSecretScan", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}, {Name: "ci", Bucket: "pass"}}, "pass"},
+		{"PassWithSkipped", []prdomain.Check{{Name: "ci", Bucket: "pass"}, {Name: "deploy", Bucket: "skipping"}}, "pass"},
+		{"SecretScanFailCIPass", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "fail"}, {Name: "ci", Bucket: "pass"}}, "fail"},
 		{"Fail", []prdomain.Check{{Name: "ci", Bucket: "fail"}}, "fail"},
 		{"Cancel", []prdomain.Check{{Name: "ci", Bucket: "cancel"}}, "fail"},
 		{"Pending", []prdomain.Check{{Name: "ci", Bucket: "pending"}, {Name: "docs", Bucket: "pass"}}, "pending"},
+		{"SecretScanPendingCIPass", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pending"}, {Name: "ci", Bucket: "pass"}}, "pending"},
 		{"Unknown", []prdomain.Check{{Name: "ci", Bucket: "mystery"}}, "unknown"},
+		{"UnknownBeatsNoCI", []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}, {Name: "ci", Bucket: "mystery"}}, "unknown"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

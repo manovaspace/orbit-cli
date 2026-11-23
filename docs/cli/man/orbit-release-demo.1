@@ -1,0 +1,43 @@
+.nh
+.TH "ORBIT" "1" "Aug 2026" "Orbit Developer Platform" "Orbit Platform Manual"
+
+.SH NAME
+orbit-release-demo - Promote main to demo through a pull request
+
+
+.SH SYNOPSIS
+\fBorbit release demo  [flags]\fP
+
+
+.SH DESCRIPTION
+Opens a pull request from main to demo, creating demo from main when it is missing, and merges it after the main commit's checks pass. The gate reads the checks of the main commit being promoted, not the pull request's checks. A main commit needs no CI check: only failed or pending checks refuse the promotion.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for demo
+
+.PP
+\fB--json\fP[=false]
+	Print the result as a JSON envelope
+
+.PP
+\fB--method\fP="merge"
+	Merge method (merge, squash, rebase, rebase-merge)
+
+.PP
+\fB--override\fP=""
+	Merge despite failing checks and record the reason as a PR comment
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--config\fP=""
+	Custom path to Orbit CLI configuration file
+
+.PP
+\fB--manifest\fP=""
+	Path to workspace.yaml
+
+
+.SH SEE ALSO
+\fBorbit-release(1)\fP

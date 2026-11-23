@@ -15,7 +15,7 @@ orbit config get <key> [flags]
 ```
   -h, --help   help for get
       --json   Print the result as a JSON envelope
-      --raw    Print raw value without trailing newline or formatting
+      --raw    Print the value as stored, without formatting; secret values are shown in plaintext
 ```
 
 ### Options inherited from parent commands
