@@ -155,6 +155,9 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newCICmd())
 	cmd.AddCommand(newAuditCmd())
 	cmd.AddCommand(newReleaseCmd())
+	cmd.AddCommand(newUpCmd())
+	cmd.AddCommand(newDownCmd())
+	cmd.AddCommand(newServicesCmd())
 	cmd.AddCommand(newCompletionCmd())
 	cmd.AddCommand(versionCmd)
 

@@ -14,6 +14,7 @@ Available Commands:
   dev         Control and orchestrate local development stacks and containers
   doc         Generate documentation and man pages for Orbit CLI
   doctor      Run pre-flight system diagnostics and environment health checks
+  down        Stop the local services orbit started
   env         Manage and validate workspace environment variables and .env files
   help        Help about any command
   init        Clone and initialize workspace repositories
@@ -25,10 +26,12 @@ Available Commands:
   release     Inspect and promote release pull requests and demo branches
   repair      Attach .git to gitless workspace trees without overwriting files
   self-update Update the Orbit CLI binary to the latest release
+  services    Show the state of the local services
   staff       Manage Orbit staff via the staff control plane
   status      Show git status and working tree cleanliness across workspace repositories
   sync        Fetch and fast-forward clean default branches across workspace repositories
   uninstall   Uninstall Orbit CLI binaries and cleanup shell configuration
+  up          Start the local services this machine needs
   update      Unified workspace update (CLI, git branches, migrations, and env validation)
   version     Print the CLI version and build metadata
 

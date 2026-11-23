@@ -31,6 +31,8 @@ var contractSkip = map[string]string{
 	"orbit dev caddy":           "reloads the host reverse proxy",
 	"orbit dev portal":          "starts the portal process",
 	"orbit dev logs":            "streams container logs",
+	"orbit up":                  "starts the native services the machine declares; mutates the host",
+	"orbit down":                "stops the native services orbit started; mutates the host",
 	"orbit self-update":         "replaces the running binary",
 	"orbit uninstall":           "removes the running binary",
 	"orbit completion zsh":      "emits a shell completion script, not a result envelope",
