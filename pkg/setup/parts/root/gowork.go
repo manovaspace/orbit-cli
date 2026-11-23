@@ -70,6 +70,16 @@ func planGoWork(s *engine.State, key string) (engine.Plan, error) {
 	marked := exists && strings.SplitN(string(existing), "\n", 2)[0] == goWorkMarker
 
 	var plan engine.Plan
+	if exists && !marked {
+		// Any go.work without the marker is hand-made, with or without modules: never changed or removed.
+		plan.Findings = append(plan.Findings, engine.Finding{
+			Part:     partName,
+			Subject:  key,
+			Message:  key + " is hand-made; delete it to let orbit setup manage it",
+			Severity: engine.SeverityWarn,
+		})
+		return plan, nil
+	}
 	if len(mods) == 0 {
 		if marked {
 			plan.Actions = append(plan.Actions, engine.Action{
@@ -84,16 +94,6 @@ func planGoWork(s *engine.State, key string) (engine.Plan, error) {
 				},
 			})
 		}
-		return plan, nil
-	}
-
-	if exists && !marked {
-		plan.Findings = append(plan.Findings, engine.Finding{
-			Part:     partName,
-			Subject:  key,
-			Message:  key + " is hand-made; delete it to let orbit setup manage it",
-			Severity: engine.SeverityWarn,
-		})
 		return plan, nil
 	}
 

@@ -17,21 +17,34 @@ type RootSpec struct {
 	Generators []string          `yaml:"generators" json:"generators"`
 }
 
-// ParseRootSpec parses and validates a root.yaml. Every key and source is a relative path without "..".
+// ParseRootSpec parses and validates a root.yaml. Every link and generated key and source, and every
+// files key, is a relative path without "..". Files values are content and are not checked as paths.
 // Generated values must be a known generator.
 func ParseRootSpec(data []byte) (RootSpec, error) {
 	var rs RootSpec
 	if err := yaml.Unmarshal(data, &rs); err != nil {
 		return RootSpec{}, clierr.Wrap(err, clierr.Usage("root spec is malformed"))
 	}
-	for _, m := range []map[string]string{rs.Links, rs.Files, rs.Generated} {
-		for key, src := range m {
-			if err := checkRelative(key); err != nil {
-				return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec key %q: %v", key, err))
-			}
-			if err := checkRelative(src); err != nil {
-				return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec source %q for %q: %v", src, key, err))
-			}
+	for key, src := range rs.Links {
+		if err := checkRelative(key); err != nil {
+			return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec key %q: %v", key, err))
+		}
+		if err := checkRelative(src); err != nil {
+			return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec source %q for %q: %v", src, key, err))
+		}
+	}
+	// Files values are file content, not paths: only their keys are checked.
+	for key := range rs.Files {
+		if err := checkRelative(key); err != nil {
+			return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec file %q: %v", key, err))
+		}
+	}
+	for key, src := range rs.Generated {
+		if err := checkRelative(key); err != nil {
+			return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec key %q: %v", key, err))
+		}
+		if err := checkRelative(src); err != nil {
+			return RootSpec{}, clierr.Usage(fmt.Sprintf("root spec source %q for %q: %v", src, key, err))
 		}
 	}
 	for key, kind := range rs.Generated {

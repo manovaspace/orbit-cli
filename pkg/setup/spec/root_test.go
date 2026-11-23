@@ -28,7 +28,6 @@ generators: [go-work]
 		"link source ..":   "links:\n  a: ../x\n",
 		"link source abs":  "links:\n  a: /etc/x\n",
 		"link key ..":      "links:\n  ../x: y\n",
-		"file source ..":   "files:\n  a: ../x\n",
 		"file key abs":     "files:\n  /etc/x: y\n",
 		"generated key ..": "generated:\n  ../go.work: go-work\n",
 		"generated kind":   "generated:\n  go.work: unknown\n",
@@ -37,6 +36,13 @@ generators: [go-work]
 		if _, err := ParseRootSpec([]byte(body)); err == nil {
 			t.Fatalf("%s: want error", name)
 		}
+	}
+	content, err := ParseRootSpec([]byte("version: 1\nfiles:\n  CLAUDE.md: \"see ../docs and /etc/x\\n\"\n"))
+	if err != nil {
+		t.Fatalf("file content with / and ..: %v", err)
+	}
+	if content.Files["CLAUDE.md"] != "see ../docs and /etc/x\n" {
+		t.Fatalf("file content = %q", content.Files["CLAUDE.md"])
 	}
 	if _, err := ParseRootSpec([]byte("links: [\n")); err == nil || !strings.Contains(err.Error(), "root") {
 		t.Fatalf("malformed yaml: want error, got %v", err)

@@ -12,10 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 	"github.com/manovaspace/orbit-cli/pkg/setup/spec"
 )
@@ -242,15 +244,15 @@ func (p *planner) addLink(target, source, dest, summary string, relink bool) err
 	return nil
 }
 
-// file plans the regular file at target with the declared content. A symlink at target counts as
-// in place only when the content read through it is the declared content; it is then replaced by a
-// regular file, so the link's destination is never written through.
+// file plans the regular file at target with the declared content. A missing file is written. A
+// present file, or a symlink, whose content differs is never overwritten: it is reported as a
+// warning, so a hand edit survives until its owner deletes it.
 func (p *planner) file(target, content string) error {
 	dest := filepath.Join(p.root, filepath.FromSlash(target))
 	info, err := p.fsys.Lstat(dest)
 	switch {
 	case isMissing(err):
-		p.addWrite(target, dest, content, false)
+		p.addWrite(target, dest, content)
 		return nil
 	case err != nil:
 		return clierr.Wrap(err, clierr.Failed("cannot read "+dest))
@@ -260,28 +262,23 @@ func (p *planner) file(target, content string) error {
 	}
 	got, err := p.fsys.ReadFile(dest)
 	switch {
-	case isMissing(err):
-		p.addWrite(target, dest, content, info.Mode()&fs.ModeSymlink != 0)
-	case err != nil:
+	case err == nil && string(got) == content:
+		return nil
+	case err != nil && !isMissing(err):
 		return clierr.Wrap(err, clierr.Failed("cannot read "+dest))
-	case string(got) != content:
-		p.addWrite(target, dest, content, info.Mode()&fs.ModeSymlink != 0)
 	}
+	// Different content, or a symlink that does not resolve to a readable file.
+	p.finding(target, engine.SeverityWarn, fmt.Sprintf("%s differs from root.yaml; delete it to restore the declared content", target))
 	return nil
 }
 
-// addWrite plans writing content to dest. unlink removes a symlink at dest first.
-func (p *planner) addWrite(target, dest, content string, unlink bool) {
+// addWrite plans writing the declared content to a missing file at dest.
+func (p *planner) addWrite(target, dest, content string) {
 	p.plan.Actions = append(p.plan.Actions, engine.Action{
 		Part:    partName,
 		Subject: target,
 		Summary: "Write " + target,
 		Do: func(context.Context) error {
-			if unlink {
-				if err := p.fsys.Remove(dest); err != nil {
-					return clierr.Wrap(err, clierr.Failed("cannot remove link "+dest))
-				}
-			}
 			if err := p.fsys.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return clierr.Wrap(err, clierr.Failed("cannot create "+filepath.Dir(dest)))
 			}
@@ -335,10 +332,10 @@ func (p part) planGenerators(s *engine.State, cmds []string, changed bool) ([]en
 			Do: func(ctx context.Context) error {
 				res, err := s.Run.Run(ctx, s.Root, "sh", "-c", cmd)
 				if err != nil {
-					return clierr.Wrap(err, clierr.Failed("generator "+cmd+" could not run"))
+					return clierr.Wrap(err, clierr.Tool(fmt.Sprintf("generator %s could not run:\n%s", cmd, outputTail(res))))
 				}
 				if res.ExitCode != 0 {
-					return clierr.Failed(fmt.Sprintf("generator %s exited %d", cmd, res.ExitCode))
+					return clierr.Tool(fmt.Sprintf("generator %s exited %d:\n%s", cmd, res.ExitCode, outputTail(res)))
 				}
 				return recordRun(s.FS, path, cmd, time.Now())
 			},
@@ -364,7 +361,8 @@ func (p part) statePath() (string, error) {
 	return filepath.Join(base, filepath.FromSlash(stateRel)), nil
 }
 
-// readState loads the state file. A missing file is an empty state.
+// readState loads the state file. A missing or unparseable file is an empty state, so its generators
+// run again and the next recordRun rewrites the file.
 func readState(fsys engine.FS, path string) (generatorState, error) {
 	var state generatorState
 	data, err := fsys.ReadFile(path)
@@ -375,7 +373,7 @@ func readState(fsys engine.FS, path string) (generatorState, error) {
 		return generatorState{}, clierr.Wrap(err, clierr.Failed("cannot read generator state "+path))
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
-		return generatorState{}, clierr.Wrap(err, clierr.Failed("generator state "+path+" is not valid JSON"))
+		return generatorState{Generators: map[string]string{}}, nil
 	}
 	if state.Generators == nil {
 		state.Generators = map[string]string{}
@@ -402,6 +400,16 @@ func recordRun(fsys engine.FS, path, cmd string, at time.Time) error {
 		return clierr.Wrap(err, clierr.Failed("cannot write generator state "+path))
 	}
 	return nil
+}
+
+// outputTail returns the last 20 lines of a command's stdout and stderr, combined.
+func outputTail(res runner.Result) string {
+	text := strings.TrimRight(res.Stdout+"\n"+res.Stderr, "\n")
+	lines := strings.Split(text, "\n")
+	if len(lines) > 20 {
+		lines = lines[len(lines)-20:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // isMissing reports whether err means the path does not exist, including a parent that is a file.
