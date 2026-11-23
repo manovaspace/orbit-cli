@@ -32,10 +32,15 @@ func TestMergesFlagsBypassAndIgnoresOverride(t *testing.T) {
 	service := mergeWorkspace(t)
 	service.GitHub = &fakeGitHub{prs: map[string][]domain.MergedPullRequest{
 		"manovaspace/orbit-cli": {
-			{Number: 1, Title: "red", URL: "https://github.com/manovaspace/orbit-cli/pull/1", Checks: []domain.MergedCheck{{Name: "ci", Bucket: "fail"}}},
-			{Number: 2, Title: "empty", URL: "https://github.com/manovaspace/orbit-cli/pull/2"},
-			{Number: 3, Title: "override", URL: "https://github.com/manovaspace/orbit-cli/pull/3", Comments: []string{"lgtm", "override: production hotfix"}},
-			{Number: 4, Title: "green", URL: "https://github.com/manovaspace/orbit-cli/pull/4", Checks: []domain.MergedCheck{{Name: "ci", Bucket: "pass"}}},
+			{Number: 1, Title: "red", URL: "https://github.com/manovaspace/orbit-cli/pull/1", HeadRef: "feat/red", Checks: []domain.MergedCheck{{Name: "ci", Bucket: "fail"}}},
+			{Number: 2, Title: "release empty", URL: "https://github.com/manovaspace/orbit-cli/pull/2", HeadRef: "changeset-release/main"},
+			{Number: 3, Title: "override", URL: "https://github.com/manovaspace/orbit-cli/pull/3", HeadRef: "renovate/x", Comments: []string{"lgtm", "override: production hotfix"}},
+			{Number: 4, Title: "green", URL: "https://github.com/manovaspace/orbit-cli/pull/4", HeadRef: "renovate/y", Checks: []domain.MergedCheck{{Name: "ci", Bucket: "pass"}}},
+			{Number: 5, Title: "feature empty", URL: "https://github.com/manovaspace/orbit-cli/pull/5", HeadRef: "feat/quiet"},
+			{Number: 6, Title: "renovate skipped", URL: "https://github.com/manovaspace/orbit-cli/pull/6", HeadRef: "renovate/z", Checks: []domain.MergedCheck{{Name: "ci", Bucket: "skipping"}}},
+			{Number: 7, Title: "renovate secret only", URL: "https://github.com/manovaspace/orbit-cli/pull/7", HeadRef: "renovate/w", Checks: []domain.MergedCheck{{Name: "secret-scan / gitleaks", Bucket: "pass"}}},
+			{Number: 8, Title: "feature secret fail", URL: "https://github.com/manovaspace/orbit-cli/pull/8", HeadRef: "feat/leak", Checks: []domain.MergedCheck{{Name: "secret-scan / gitleaks", Bucket: "fail"}}},
+			{Number: 9, Title: "feature skipped", URL: "https://github.com/manovaspace/orbit-cli/pull/9", HeadRef: "feat/skipped", Checks: []domain.MergedCheck{{Name: "docs", Bucket: "skipping"}}},
 		},
 	}}
 
@@ -43,20 +48,26 @@ func TestMergesFlagsBypassAndIgnoresOverride(t *testing.T) {
 	if result.ExitCode() != 1 {
 		t.Fatalf("exit code = %d, want 1: %+v", result.ExitCode(), result.Report)
 	}
-	if got := countFindings(result.Report, "merges.bypass"); got != 2 {
-		t.Fatalf("merges.bypass findings = %d, want 2: %+v", got, result.Findings)
+	want := map[string]string{
+		"#1": "checks failed: ci",
+		"#2": "no CI check passed",
+		"#6": "no CI check passed",
+		"#7": "no CI check passed",
+		"#8": "checks failed: secret-scan / gitleaks",
 	}
-	if f := findFinding(result.Report, "merges.bypass", "#1"); f == nil || !strings.Contains(f.Actual, "ci") {
-		t.Errorf("failed check not reported: %+v", f)
+	if got := countFindings(result.Report, "merges.bypass"); got != len(want) {
+		t.Fatalf("merges.bypass findings = %d, want %d: %+v", got, len(want), result.Findings)
 	}
-	if f := findFinding(result.Report, "merges.bypass", "#2"); f == nil || !strings.Contains(f.Actual, "no checks") {
-		t.Errorf("no checks not reported: %+v", f)
+	for subject, reason := range want {
+		f := findFinding(result.Report, "merges.bypass", subject)
+		if f == nil || f.Actual != reason {
+			t.Errorf("finding %s = %+v, want reason %q", subject, f, reason)
+		}
 	}
-	if findFinding(result.Report, "merges.bypass", "#3") != nil {
-		t.Error("override PR flagged")
-	}
-	if findFinding(result.Report, "merges.bypass", "#4") != nil {
-		t.Error("passing PR flagged")
+	for _, subject := range []string{"#3", "#4", "#5", "#9"} {
+		if findFinding(result.Report, "merges.bypass", subject) != nil {
+			t.Errorf("%s flagged, want clean", subject)
+		}
 	}
 }
 

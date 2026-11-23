@@ -135,7 +135,9 @@ func (s *Service) Demo(ctx context.Context, selector string, method prdomain.Met
 	if err != nil {
 		return result, clierr.Unverified("demo refused: could not read the checks of " + shortSHA(mainSHA) + ": " + err.Error())
 	}
-	evaluation := prdomain.EvaluateChecks(checks)
+	// The main commit only carries the secret scan now (CI runs on release
+	// pull requests), so the demo gate does not require CI.
+	evaluation := prdomain.EvaluateChecks(checks, false)
 	override := strings.TrimSpace(opts.Override)
 	if !evaluation.Allowed && override == "" {
 		return result, clierr.Failed("demo refused: " + evaluation.Reason + " (use --override \"reason\" to merge anyway)")
@@ -380,7 +382,7 @@ func (s *Service) checkRemote(ctx context.Context, repo Repo, opts prdomain.Merg
 	result.State = releasedomain.CheckState(checks)
 	result.ReleasePR.Checks = checks
 	result.ReleasePR.CheckState = result.State
-	evaluation := prdomain.EvaluateChecks(checks)
+	evaluation := prdomain.EvaluateChecks(checks, true)
 	if !evaluation.Allowed {
 		return result, clierr.Failed(repo.Name + ": " + evaluation.Reason)
 	}
@@ -441,7 +443,7 @@ func (s *Service) enforceGate(ctx context.Context, repo Repo, pr *PullRequest, o
 			s.icon(s.UI.Warn), s.bold("--allow-no-checks"))
 		return nil
 	}
-	evaluation := prdomain.EvaluateChecks(checks)
+	evaluation := prdomain.EvaluateChecks(checks, true)
 	if evaluation.Allowed {
 		return nil
 	}

@@ -10,7 +10,9 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/pr/domain"
 )
 
-// enforceGate refuses to merge unless the pull request's checks pass.
+// enforceGate refuses to merge unless the pull request's checks allow it. A
+// release or Renovate pull request needs a passing CI check; any other pull
+// request may merge with no checks, skipped checks or only the secret scan.
 func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string, o domain.MergeOptions) error {
 	if o.OverrideSet && strings.TrimSpace(o.Override) == "" {
 		return clierr.Usage("--override requires a non-empty reason")
@@ -28,6 +30,12 @@ func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string,
 	if registerWindow <= 0 {
 		registerWindow = DefaultRegisterWindow
 	}
+
+	head, err := s.Forge.HeadRef(ctx, repo, ref)
+	if err != nil {
+		return withMessage(err, "merge refused: could not read the pull request head branch")
+	}
+	requireCI := domain.RequiresCI(head)
 
 	start := s.now()
 	var last []domain.Check
@@ -70,12 +78,12 @@ func (s *Service) enforceGate(ctx context.Context, repo domain.Repo, ref string,
 		s.sleep(pollInterval)
 	}
 
-	if len(last) == 0 && o.AllowNoChecks && (!o.Wait || s.now().Sub(start) >= registerWindow) {
+	if requireCI && len(last) == 0 && o.AllowNoChecks && (!o.Wait || s.now().Sub(start) >= registerWindow) {
 		fmt.Fprintf(s.out(), "%s No checks reported; merging because %s is set\n", s.icon(s.UI.Warn), s.bold("--allow-no-checks"))
 		return nil
 	}
 
-	result := domain.EvaluateChecks(last)
+	result := domain.EvaluateChecks(last, requireCI)
 	if result.Allowed {
 		return nil
 	}

@@ -153,6 +153,7 @@ func TestPRCreateJSON(t *testing.T) {
 func TestPRMergeJSON(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 
@@ -180,6 +181,7 @@ func TestPRMergeJSON(t *testing.T) {
 func TestPRMergeJSONFailure(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"fail"}]`}, nil)
 
 	out, err := runPRCmd(t, "pr", "merge", "7", "--dir", "/repo", "--json")
@@ -539,6 +541,7 @@ func TestPRDeliverJSON(t *testing.T) {
 	fake.On("git -C /repo pull --ff-only", runner.Result{}, nil)
 	fake.On("git -C /repo branch -d feat/x", runner.Result{}, nil)
 	fake.On("gh pr create", runner.Result{Stdout: "https://github.com/manovaspace/orbit-test/pull/7\n"}, nil)
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 
@@ -569,6 +572,7 @@ func TestPRDeliverJSON(t *testing.T) {
 func TestPRMergeHumanOutput(t *testing.T) {
 	fake := setupPRFake(t)
 	expectGitAnswers(fake)
+	fake.On("gh pr view", runner.Result{Stdout: `{"headRefName":"feat/x"}`}, nil)
 	fake.On("gh pr checks", runner.Result{Stdout: `[{"name":"ci","bucket":"pass"}]`}, nil)
 	fake.On("gh pr merge", runner.Result{}, nil)
 

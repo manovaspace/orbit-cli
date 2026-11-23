@@ -572,3 +572,64 @@ func TestProdRefusesWithoutReleasePRAndFailedChecks(t *testing.T) {
 		}
 	})
 }
+
+func TestDemoPromotesMainWithoutCI(t *testing.T) {
+	cases := map[string][]prdomain.Check{
+		"NoChecks":       nil,
+		"SecretScanOnly": {{Name: "secret-scan / gitleaks", Bucket: "pass"}},
+		"AllSkipped":     {{Name: "secret-scan / gitleaks", Bucket: "skipping"}, {Name: "deploy", Bucket: "skipping"}},
+	}
+	for name, checks := range cases {
+		t.Run(name, func(t *testing.T) {
+			forge := &fakeForge{
+				branches:     map[string]string{"main": "abc123456789", "demo": "def456789012"},
+				commitChecks: checks,
+			}
+			svc, _, _, _ := newTestService(forge)
+
+			result, err := svc.Demo(context.Background(), "orbit-cli", prdomain.MethodMerge, prdomain.MergeOptions{})
+			if err != nil {
+				t.Fatalf("Demo: %v", err)
+			}
+			if !result.Merged {
+				t.Fatalf("result = %+v, want merged", result)
+			}
+		})
+	}
+}
+
+func TestProdRequiresCIOnReleasePR(t *testing.T) {
+	cases := map[string]struct {
+		checks []prdomain.Check
+		opts   prdomain.MergeOptions
+		want   string
+	}{
+		"NoChecks":       {want: "no checks reported"},
+		"AllSkipped":     {checks: []prdomain.Check{{Name: "deploy", Bucket: "skipping"}}, want: "no CI check passed"},
+		"SecretScanOnly": {checks: []prdomain.Check{{Name: "secret-scan / gitleaks", Bucket: "pass"}}, want: "no CI check passed"},
+		"AllowNoChecks":  {opts: prdomain.MergeOptions{AllowNoChecks: true}},
+	}
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			forge := &fakeForge{open: []PullRequest{releasePR()}, checks: tt.checks}
+			svc, _, _, _ := newTestService(forge)
+
+			_, err := svc.Prod(context.Background(), "orbit-cli", prdomain.MethodMerge, tt.opts)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("Prod: %v", err)
+				}
+				if forge.count("merge") != 1 {
+					t.Errorf("expected a merge call, got %v", forge.calls)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("err = %v, want it to contain %q", err, tt.want)
+			}
+			if forge.count("merge") != 0 {
+				t.Errorf("must not merge: %v", forge.calls)
+			}
+		})
+	}
+}

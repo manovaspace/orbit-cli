@@ -59,7 +59,7 @@ func (o prGateOptions) mergeOptions() domain.MergeOptions {
 // on commands that wait for pending checks.
 func addPRGateFlags(cmd *cobra.Command, o *prGateOptions, withWait bool) {
 	cmd.Flags().StringVar(&o.override, "override", "", "Merge despite failing checks and record the reason as a PR comment")
-	cmd.Flags().BoolVar(&o.allowNoChecks, "allow-no-checks", false, "Allow merging when the pull request reports no checks")
+	cmd.Flags().BoolVar(&o.allowNoChecks, "allow-no-checks", false, "Allow a release or Renovate pull request that reports no checks to merge")
 	if withWait {
 		cmd.Flags().DurationVar(&o.waitTimeout, "wait-timeout", defaultPRWaitTimeout, "Maximum time to wait for pending checks")
 	}

@@ -93,6 +93,27 @@ func (f *Forge) Checks(ctx context.Context, repo domain.Repo, ref string) ([]dom
 	return nil, clierr.Tool(message)
 }
 
+// HeadRef reads the head branch name of the pull request with `gh pr view`.
+// An empty name is an error, because the gate must not guess whether the pull
+// request needs CI.
+func (f *Forge) HeadRef(ctx context.Context, repo domain.Repo, ref string) (string, error) {
+	res, err := f.run(ctx, "pr", "view", ref, "-R", repo.String(), "--json", "headRefName")
+	if err != nil {
+		return "", ghError(err, res)
+	}
+
+	var view struct {
+		HeadRefName string `json:"headRefName"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(res.Stdout)), &view); err != nil {
+		return "", clierr.Tool("parsing GitHub PR head: " + err.Error())
+	}
+	if view.HeadRefName == "" {
+		return "", clierr.Tool("GitHub PR " + ref + " reported no head branch")
+	}
+	return view.HeadRefName, nil
+}
+
 // Comment posts a comment on the pull request.
 func (f *Forge) Comment(ctx context.Context, repo domain.Repo, ref, body string) error {
 	res, err := f.run(ctx, "pr", "comment", ref, "-R", repo.String(), "--body", body)

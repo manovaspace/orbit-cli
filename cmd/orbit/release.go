@@ -169,7 +169,8 @@ func newReleaseDemoCmd(manifestFlag *string) *cobra.Command {
 		Short: "Promote main to demo through a pull request",
 		Long: "Opens a pull request from main to demo, creating demo from main when it is missing, " +
 			"and merges it after the main commit's checks pass. The gate reads the checks of the " +
-			"main commit being promoted, not the pull request's checks.",
+			"main commit being promoted, not the pull request's checks. A main commit needs no CI " +
+			"check: only failed or pending checks refuse the promotion.",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -241,7 +242,7 @@ func newReleaseProdCmd(manifestFlag *string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&override, "override", "", "Merge despite failing checks and record the reason as a PR comment")
-	cmd.Flags().BoolVar(&allowNo, "allow-no-checks", false, "Allow merging when the pull request reports no checks")
+	cmd.Flags().BoolVar(&allowNo, "allow-no-checks", false, "Allow a release or Renovate pull request that reports no checks to merge")
 	cmd.Flags().StringVar(&methodFlag, "method", "merge", "Merge method (merge, squash, rebase, rebase-merge)")
 	cmd.Flags().BoolVar(&jsonFlag, "json", false, "Print the result as a JSON envelope")
 	return cmd

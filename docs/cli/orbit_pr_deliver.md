@@ -13,7 +13,7 @@ orbit pr deliver [flags]
 ### Options
 
 ```
-      --allow-no-checks         Allow merging when the pull request reports no checks
+      --allow-no-checks         Allow a release or Renovate pull request that reports no checks to merge
       --base string             Base branch to deliver into (default "main")
       --body string             Pull request body/description
   -h, --help                    help for deliver

@@ -18,6 +18,9 @@ type Forge interface {
 	// Checks returns an empty slice (nil error) when the forge says "no checks
 	// reported", and an error when checks cannot be read.
 	Checks(ctx context.Context, repo domain.Repo, ref string) ([]domain.Check, error)
+	// HeadRef returns the head branch name of the pull request ref (number,
+	// URL or branch), which decides whether the merge gate requires CI.
+	HeadRef(ctx context.Context, repo domain.Repo, ref string) (string, error)
 	Comment(ctx context.Context, repo domain.Repo, ref, body string) error
 	ListOpen(ctx context.Context, repo domain.Repo) ([]domain.PullRequest, error)
 }

@@ -4,7 +4,7 @@ Promote main to demo through a pull request
 
 ### Synopsis
 
-Opens a pull request from main to demo, creating demo from main when it is missing, and merges it after the main commit's checks pass. The gate reads the checks of the main commit being promoted, not the pull request's checks.
+Opens a pull request from main to demo, creating demo from main when it is missing, and merges it after the main commit's checks pass. The gate reads the checks of the main commit being promoted, not the pull request's checks. A main commit needs no CI check: only failed or pending checks refuse the promotion.
 
 ```
 orbit release demo <repo> [flags]

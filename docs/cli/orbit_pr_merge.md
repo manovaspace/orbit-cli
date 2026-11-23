@@ -13,7 +13,7 @@ orbit pr merge [number] [flags]
 ### Options
 
 ```
-      --allow-no-checks   Allow merging when the pull request reports no checks
+      --allow-no-checks   Allow a release or Renovate pull request that reports no checks to merge
   -h, --help              help for merge
       --json              Print the result as a JSON envelope
       --method string     Merge method (merge, squash, rebase, rebase-merge) (default "merge")

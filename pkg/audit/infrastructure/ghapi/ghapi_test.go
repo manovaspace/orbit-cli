@@ -112,3 +112,27 @@ func TestReleasesReadsLatestTag(t *testing.T) {
 		t.Errorf("tag = %q", tag)
 	}
 }
+
+func TestMergedPullRequestsReadsHeadRefAndSkippedChecks(t *testing.T) {
+	fake := &runnertest.Fake{}
+	fake.On("gh pr list -R manovaspace/orbit-cli", runner.Result{Stdout: `[
+  {"number":5,"title":"renovate","url":"https://example/5","headRefName":"renovate/golang-x-net-0.x","mergedAt":"2026-11-01T00:00:00Z","comments":[],"statusCheckRollup":[{"__typename":"CheckRun","name":"deploy","status":"COMPLETED","conclusion":"SKIPPED"},{"__typename":"CheckRun","name":"ci","status":"COMPLETED","conclusion":"SUCCESS"}]}
+]`}, nil)
+
+	prs, err := New(fake).MergedPullRequests(context.Background(), "manovaspace/orbit-cli", time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("MergedPullRequests: %v", err)
+	}
+	if len(prs) != 1 {
+		t.Fatalf("prs = %d, want 1", len(prs))
+	}
+	if prs[0].HeadRef != "renovate/golang-x-net-0.x" {
+		t.Errorf("head ref = %q", prs[0].HeadRef)
+	}
+	if prs[0].Checks[0].Bucket != "skipping" {
+		t.Errorf("SKIPPED conclusion mapped to %q, want skipping", prs[0].Checks[0].Bucket)
+	}
+	if !strings.Contains(strings.Join(fake.Calls()[0].Args, " "), "headRefName") {
+		t.Errorf("query does not request headRefName: %v", fake.Calls()[0].Args)
+	}
+}
