@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.1](https://github.com/manovaspace/orbit-cli/compare/v0.22.0...v0.22.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **workspace:** ignore the ~/.orbit cache as a workspace marker ([0924a52](https://github.com/manovaspace/orbit-cli/commit/0924a5200c4027629312b2adc0922552f91fb0e5))
+* **workspace:** ignore the ~/.orbit cache as a workspace marker ([723db3a](https://github.com/manovaspace/orbit-cli/commit/723db3a8bcf365fbc48d8049df4f22cf40e552b1)), closes [#150](https://github.com/manovaspace/orbit-cli/issues/150)
+
 ## [0.22.0](https://github.com/manovaspace/orbit-cli/compare/v0.21.0...v0.22.0) (2026-11-23)
 
 
