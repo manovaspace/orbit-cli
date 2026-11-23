@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/audit/domain"
+	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 )
 
 // DefaultPackage is the design-system package `o audit deps` reports when no
@@ -44,6 +45,7 @@ type Service struct {
 	Advisories   Advisories
 	GitHub       GitHub
 	Commands     Commands
+	RootFS       engine.FS // reads the workspace root for the root check; nil leaves it unverified
 	// Now is the clock the merge lookback uses; nil means time.Now.
 	Now func() time.Time
 }

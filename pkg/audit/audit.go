@@ -14,6 +14,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/osvhttp"
 	"github.com/manovaspace/orbit-cli/pkg/audit/infrastructure/workspacefs"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
+	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 )
 
 // DefaultRegistryURL is the public npm registry the audit may read.
@@ -50,6 +51,7 @@ func NewService(root, manifestPath string) *application.Service {
 		ManifestPath: manifestPath,
 		Workspace:    manifestrepos.New(),
 		Files:        workspacefs.New(),
+		RootFS:       engine.OSFS{},
 		VCS:          gitrefs.New(),
 		Registry:     npmhttp.New(DefaultRegistryURL),
 		Advisories:   osvhttp.New(DefaultOSVURL),
