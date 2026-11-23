@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.21.0](https://github.com/manovaspace/orbit-cli/compare/v0.20.0...v0.21.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **orbit-server:** orbit-server starts in production mode and needs a signing secret (--signing-secret, ORBIT_SIGNING_SECRET or an owner vault). Pass --dev or set ORBIT_SERVER_DEV=1 for the development defaults.
+
+### Bug Fixes
+
+* **deps:** drop the orbit-observability exclude; take orbit-notifications v0.5.2 ([#138](https://github.com/manovaspace/orbit-cli/issues/138)) ([6948df9](https://github.com/manovaspace/orbit-cli/commit/6948df90d793f9a0493b6a947739417738236fe9))
+* **orbit-server:** require --dev for development defaults ([e4b98e5](https://github.com/manovaspace/orbit-cli/commit/e4b98e520c290a187dbc42c92bd3e4faffea7496))
+
+
+### Code Refactoring
+
+* **doctor,audit:** remove shell-output tool checks ([#130](https://github.com/manovaspace/orbit-cli/issues/130)) ([f0a66ff](https://github.com/manovaspace/orbit-cli/commit/f0a66ffe120c0fb2a920b7d42b246c46f75ea773))
+
 ## [0.20.0](https://github.com/manovaspace/orbit-cli/compare/v0.19.4...v0.20.0) (2026-11-21)
 
 
