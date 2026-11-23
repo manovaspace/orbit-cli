@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/manovaspace/orbit-cli/compare/v0.21.0...v0.22.0) (2026-11-23)
+
+
+### Features
+
+* release-aware merge gate for dev-stage CI ([aa3616b](https://github.com/manovaspace/orbit-cli/commit/aa3616bda44d23f48ec7cc0ac88f9b9fd615aadf))
+* release-aware merge gate for dev-stage CI ([b428361](https://github.com/manovaspace/orbit-cli/commit/b4283619cdbf5020edc72f28aa44974d0cc579f5))
+
+
+### Bug Fixes
+
+* **pr:** require a passing secret scan on feature pull requests ([4f73ad2](https://github.com/manovaspace/orbit-cli/commit/4f73ad2517b9aa3286f782ce596bc43adf46666d))
+* **pr:** require a passing secret scan on feature pull requests ([5a07f03](https://github.com/manovaspace/orbit-cli/commit/5a07f03e695ed031e9c8f7ca0b97f9a3d3046dd8)), closes [#147](https://github.com/manovaspace/orbit-cli/issues/147) [#148](https://github.com/manovaspace/orbit-cli/issues/148) [#149](https://github.com/manovaspace/orbit-cli/issues/149)
+
 ## [0.21.0](https://github.com/manovaspace/orbit-cli/compare/v0.20.0...v0.21.0) (2026-11-23)
 
 
