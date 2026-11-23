@@ -5,10 +5,12 @@ package identity
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 	"github.com/manovaspace/orbit-cli/pkg/setup/pkgmgr"
@@ -22,6 +24,8 @@ const (
 	credentialHelper = "gh auth git-credential"
 	noreplyDomain    = "users.noreply.github.com"
 	primaryEmailJQ   = `[.[]|select(.primary and .verified)][0].email // empty`
+	profileMessage   = "could not read your GitHub profile; set git user.name and user.email by hand"
+	profileFix       = `git config --global user.name "Your Name" && git config --global user.email you@example.com`
 )
 
 type part struct {
@@ -46,7 +50,8 @@ func (p part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 	if err != nil {
 		return engine.Plan{}, err
 	}
-	if !loggedIn && p.getenv("GH_TOKEN") == "" {
+	token := p.getenv("GH_TOKEN") != ""
+	if !loggedIn && !token {
 		if s.NonInteractive {
 			plan.Findings = append(plan.Findings, engine.Finding{
 				Part:     partName,
@@ -69,9 +74,12 @@ func (p part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 		}
 	}
 
-	nameAction, err := identityAction(ctx, s)
+	nameAction, finding, err := identityAction(ctx, s, loggedIn || token)
 	if err != nil {
 		return engine.Plan{}, err
+	}
+	if finding != nil {
+		plan.Findings = append(plan.Findings, *finding)
 	}
 	if nameAction != nil {
 		plan.Actions = append(plan.Actions, *nameAction)
@@ -117,19 +125,32 @@ func credentialAction(s *engine.State) engine.Action {
 }
 
 // identityAction plans one action that fills whichever of git's user.name and user.email are unset.
-// The GitHub profile is read in Do, because the login may not exist yet at plan time.
-func identityAction(ctx context.Context, s *engine.State) (*engine.Action, error) {
+// When the machine is ready (logged in or GH_TOKEN set), the GitHub profile is probed now: an
+// unreadable profile is a warn finding and no action, so it never blocks setup. Otherwise the
+// profile is read in Do, because the login may not exist yet at plan time.
+func identityAction(ctx context.Context, s *engine.State, ready bool) (*engine.Action, *engine.Finding, error) {
 	name, err := output(ctx, s.Run, "git", "config", "--global", "user.name")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	email, err := output(ctx, s.Run, "git", "config", "--global", "user.email")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	setName, setEmail := name == "", email == ""
 	if !setName && !setEmail {
-		return nil, nil
+		return nil, nil, nil
+	}
+	if ready {
+		if _, err := ghValue(ctx, s.Run, "user", "-q", ".login"); err != nil {
+			return nil, &engine.Finding{
+				Part:     partName,
+				Subject:  "git identity",
+				Message:  profileMessage,
+				Fix:      profileFix,
+				Severity: engine.SeverityWarn,
+			}, nil
+		}
 	}
 	run := s.Run
 	return &engine.Action{
@@ -139,43 +160,69 @@ func identityAction(ctx context.Context, s *engine.State) (*engine.Action, error
 		Do: func(ctx context.Context) error {
 			return fillGitIdentity(ctx, run, setName, setEmail)
 		},
-	}, nil
+	}, nil, nil
 }
 
-// fillGitIdentity writes the requested git user.name and user.email from the GitHub profile.
-// The name falls back to the login. The email is the primary verified address, else the GitHub
-// noreply address.
+// profile is the git identity read from the GitHub profile.
+type profile struct {
+	name  string
+	email string
+}
+
+// fillGitIdentity writes the requested git user.name and user.email from the GitHub profile. A
+// profile that cannot be read is logged as a warning and leaves both unset: it never fails setup.
+// Failures writing git config are errors.
 func fillGitIdentity(ctx context.Context, run runner.Runner, setName, setEmail bool) error {
-	login, err := ghValue(ctx, run, "user", "-q", ".login")
+	p, err := readProfile(ctx, run, setName, setEmail)
 	if err != nil {
-		return err
+		slog.Warn("could not read GitHub profile; git user.name and user.email left unset", "err", err)
+		return nil
 	}
 	if setName {
-		name, err := ghValue(ctx, run, "user", "-q", ".name")
-		if err != nil {
-			return err
-		}
-		if name == "" {
-			name = login
-		}
-		if err := gitSet(ctx, run, "user.name", name); err != nil {
+		if err := gitSet(ctx, run, "user.name", p.name); err != nil {
 			return err
 		}
 	}
 	if setEmail {
-		email := primaryEmail(ctx, run)
-		if email == "" {
-			id, err := ghValue(ctx, run, "user", "-q", ".id")
-			if err != nil {
-				return err
-			}
-			email = id + "+" + login + "@" + noreplyDomain
-		}
-		if err := gitSet(ctx, run, "user.email", email); err != nil {
+		if err := gitSet(ctx, run, "user.email", p.email); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// readProfile reads the login, then only what is needed: the name (falling back to the login), and
+// the primary verified email (falling back to the GitHub noreply address built from the id).
+func readProfile(ctx context.Context, run runner.Runner, setName, setEmail bool) (profile, error) {
+	var p profile
+	login, err := ghValue(ctx, run, "user", "-q", ".login")
+	if err != nil {
+		return profile{}, err
+	}
+	if login == "" {
+		return profile{}, clierr.Failed("GitHub profile has no login")
+	}
+	if setName {
+		name, err := ghValue(ctx, run, "user", "-q", ".name // empty")
+		if err != nil {
+			return profile{}, err
+		}
+		if name == "" {
+			name = login
+		}
+		p.name = name
+	}
+	if setEmail {
+		p.email = primaryEmail(ctx, run)
+		if p.email == "" {
+			id, err := ghValue(ctx, run, "user", "-q", ".id")
+			if err != nil {
+				return profile{}, err
+			}
+			p.email = id + "+" + login + "@" + noreplyDomain
+		}
+	}
+	return p, nil
 }
 
 // primaryEmail returns the primary verified address, or "" when the lookup fails or finds none.

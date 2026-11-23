@@ -1,8 +1,10 @@
 package identity
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -308,5 +310,68 @@ func TestIdentityCredentialHelper(t *testing.T) {
 				t.Fatalf("actions = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+func TestIdentityProfileUnreadableIsWarning(t *testing.T) {
+	run := &runnertest.Fake{}
+	run.On("gh api user -q .login", runner.Result{ExitCode: 1}, errExit)
+	script(run, gitState{loggedIn: true, helper: true, goPrivate: "github.com/manovaspace/*"})
+	s := &engine.State{Machine: spec.Machine{GitProtocol: "https"}, Run: run, Tty: &runnertest.Fake{}}
+	p := part{lookPath: allLookPath, getenv: noEnv}
+
+	plan, err := p.Plan(context.Background(), s)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(plan.Actions) != 0 {
+		t.Fatalf("actions = %v, want none", summaries(plan))
+	}
+	if len(plan.Findings) != 1 {
+		t.Fatalf("findings = %+v, want one warn", plan.Findings)
+	}
+	f := plan.Findings[0]
+	wantMsg := "could not read your GitHub profile; set git user.name and user.email by hand"
+	if f.Severity != engine.SeverityWarn || f.Subject != "git identity" || f.Message != wantMsg || f.Fix == "" {
+		t.Fatalf("finding = %+v, want warn %q with a fix", f, wantMsg)
+	}
+	res := (&engine.Engine{Parts: []engine.Part{p}}).Check(context.Background(), s)
+	if res.Failed != 0 || res.Parts[0].Status != engine.StatusOK {
+		t.Fatalf("check = %+v, want the part ok with no failures", res)
+	}
+}
+
+func TestIdentityDoProfileFailureDoesNotFail(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(prev)
+
+	run := &runnertest.Fake{}
+	run.On("gh api user", runner.Result{ExitCode: 1}, errExit)
+	script(run, gitState{})
+	s := &engine.State{Machine: spec.Machine{GitProtocol: "https"}, Run: run, Tty: &runnertest.Fake{}}
+
+	plan, err := part{lookPath: allLookPath, getenv: noEnv}.Plan(context.Background(), s)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var identity *engine.Action
+	for i := range plan.Actions {
+		if plan.Actions[i].Summary == "Set git name and email" {
+			identity = &plan.Actions[i]
+		}
+	}
+	if identity == nil {
+		t.Fatalf("actions = %v, want Set git name and email", summaries(plan))
+	}
+	if err := identity.Do(context.Background()); err != nil {
+		t.Fatalf("Do returned %v, want nil when the profile is unreadable", err)
+	}
+	if got := setCalls(run.Calls()); len(got) != 0 {
+		t.Fatalf("git config writes = %v, want none", got)
+	}
+	if !strings.Contains(buf.String(), "could not read GitHub profile") {
+		t.Fatalf("log = %q, want a warning about the profile", buf.String())
 	}
 }

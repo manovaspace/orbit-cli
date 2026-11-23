@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -47,6 +48,11 @@ func (i fakeInfo) IsDir() bool        { return i.dir }
 func (i fakeInfo) Sys() any           { return nil }
 
 func (f *fakeFS) Stat(path string) (fs.FileInfo, error) {
+	for dir := filepath.Dir(path); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		if isDir, ok := f.files[dir]; ok && !isDir {
+			return nil, syscall.ENOTDIR
+		}
+	}
 	isDir, ok := f.files[path]
 	if !ok {
 		return nil, fs.ErrNotExist
@@ -114,7 +120,7 @@ func TestHandbookClonesWithProtocol(t *testing.T) {
 		t.Run(c.protocol, func(t *testing.T) {
 			fsys := newFS(nil)
 			run := newRun()
-			s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: c.protocol}, Run: run, FS: fsys}
+			s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: c.protocol}, Run: run, Env: run, FS: fsys}
 
 			plan, err := part{}.Plan(context.Background(), s)
 			if err != nil {
@@ -134,6 +140,9 @@ func TestHandbookClonesWithProtocol(t *testing.T) {
 			if calls[0].Name != "git" || !reflect.DeepEqual(calls[0].Args, want) {
 				t.Fatalf("clone = %s %v, want git %v", calls[0].Name, calls[0].Args, want)
 			}
+			if !reflect.DeepEqual(calls[0].Env, []string{"GIT_TERMINAL_PROMPT=0"}) {
+				t.Fatalf("clone env = %v, want GIT_TERMINAL_PROMPT=0", calls[0].Env)
+			}
 			if !reflect.DeepEqual(fsys.made, []string{root}) {
 				t.Fatalf("MkdirAll = %v, want the workspace root", fsys.made)
 			}
@@ -151,7 +160,7 @@ func TestHandbookRemovesPartialDir(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fsys := newFS(paths)
 			run := newRun()
-			s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: "https"}, Run: run, FS: fsys}
+			s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: "https"}, Run: run, Env: run, FS: fsys}
 
 			plan, err := part{}.Plan(context.Background(), s)
 			if err != nil {
@@ -177,7 +186,7 @@ func TestHandbookRefusesForeignDir(t *testing.T) {
 	handbook := filepath.Join(root, "handbook")
 	fsys := newFS(map[string]bool{handbook: true, filepath.Join(handbook, "README.md"): false})
 	run := newRun()
-	s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: "https"}, Run: run, FS: fsys}
+	s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: "https"}, Run: run, Env: run, FS: fsys}
 
 	plan, err := part{}.Plan(context.Background(), s)
 	if err != nil {
@@ -210,5 +219,25 @@ func TestHandbookAlreadyCloned(t *testing.T) {
 	}
 	if len(plan.Actions) != 0 || len(plan.Findings) != 0 {
 		t.Fatalf("plan = %+v, want empty", plan)
+	}
+}
+
+func TestHandbookRegularFileIsFinding(t *testing.T) {
+	fsys := newFS(map[string]bool{filepath.Join(root, "handbook"): false})
+	s := &engine.State{Root: root, Machine: spec.Machine{GitProtocol: "https"}, Run: newRun(), Env: newRun(), FS: fsys}
+
+	plan, err := part{}.Plan(context.Background(), s)
+	if err != nil {
+		t.Fatalf("Plan: %v (want a finding, not an error)", err)
+	}
+	if len(plan.Actions) != 0 {
+		t.Fatalf("actions = %+v, want none", plan.Actions)
+	}
+	if len(plan.Findings) != 1 || plan.Findings[0].Severity != engine.SeverityError ||
+		plan.Findings[0].Message != "handbook/ exists but is not a git checkout: move it aside and rerun o setup" {
+		t.Fatalf("findings = %+v, want the not-a-checkout error", plan.Findings)
+	}
+	if len(fsys.removed) != 0 {
+		t.Fatalf("RemoveAll called on a regular file: %v", fsys.removed)
 	}
 }

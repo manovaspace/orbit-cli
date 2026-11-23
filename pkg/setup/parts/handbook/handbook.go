@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
@@ -33,13 +34,18 @@ func (part) Needs() []string { return []string{"identity"} }
 // finding: the part never deletes user files.
 func (part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 	dir := filepath.Join(s.Root, spec.HandbookPath)
-	if _, err := s.FS.Stat(filepath.Join(dir, ".git", "HEAD")); err == nil {
+	_, err := s.FS.Stat(filepath.Join(dir, ".git", "HEAD"))
+	switch {
+	case err == nil:
 		return engine.Plan{}, nil
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	case errors.Is(err, syscall.ENOTDIR):
+		// handbook is a regular file, so .git/HEAD cannot exist under it.
+		return notCheckoutPlan(), nil
+	case !errors.Is(err, fs.ErrNotExist):
 		return engine.Plan{}, clierr.Wrap(err, clierr.Failed("cannot read "+dir))
 	}
 
-	_, err := s.FS.Stat(dir)
+	_, err = s.FS.Stat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return cloneAction(s, dir, false)
 	}
@@ -49,14 +55,19 @@ func (part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 
 	entries, err := s.FS.ReadDir(dir)
 	if err != nil || !onlyInterruptedClone(entries) {
-		return engine.Plan{Findings: []engine.Finding{{
-			Part:     partName,
-			Subject:  spec.HandbookPath,
-			Message:  notCheckout,
-			Severity: engine.SeverityError,
-		}}}, nil
+		return notCheckoutPlan(), nil
 	}
 	return cloneAction(s, dir, true)
+}
+
+// notCheckoutPlan is the error finding for an existing handbook/ that is not a git checkout.
+func notCheckoutPlan() engine.Plan {
+	return engine.Plan{Findings: []engine.Finding{{
+		Part:     partName,
+		Subject:  spec.HandbookPath,
+		Message:  notCheckout,
+		Severity: engine.SeverityError,
+	}}}
 }
 
 // onlyInterruptedClone reports whether entries are empty or hold only a .git directory.
@@ -89,7 +100,8 @@ func cloneAction(s *engine.State, dir string, remove bool) (engine.Plan, error) 
 			if err := s.FS.MkdirAll(s.Root, 0o755); err != nil {
 				return clierr.Wrap(err, clierr.Failed("cannot create "+s.Root))
 			}
-			if _, err := s.Run.Run(ctx, "", "git", "clone", "--filter=blob:none", url, dir); err != nil {
+			// GIT_TERMINAL_PROMPT=0 makes a missing credential fail the clone instead of hanging on a prompt.
+			if _, err := s.Env.RunEnv(ctx, "", []string{"GIT_TERMINAL_PROMPT=0"}, "git", "clone", "--filter=blob:none", url, dir); err != nil {
 				return err
 			}
 			return s.Reload()
