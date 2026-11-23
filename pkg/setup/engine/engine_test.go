@@ -361,3 +361,34 @@ func TestSelectedWithoutManifestIsUnverified(t *testing.T) {
 		t.Fatalf("Selected error = %v, want unverified exit 2", err)
 	}
 }
+
+func TestCheckActionMarkers(t *testing.T) {
+	noop := func(context.Context) error { return nil }
+	p := fakePart{
+		name: "markers",
+		plan: func(context.Context, *State) (Plan, error) {
+			return Plan{Actions: []Action{
+				{Part: "markers", Summary: "sudo only", Sudo: true, Do: noop},
+				{Part: "markers", Summary: "browser only", Browser: true, Do: noop},
+				{Part: "markers", Summary: "both", Sudo: true, Browser: true, Do: noop},
+				{Part: "markers", Summary: "plain", Do: noop},
+			}}, nil
+		},
+	}
+	res := (&Engine{Parts: []Part{p}}).Check(context.Background(), newState(t))
+	want := []string{
+		"[sudo] sudo only",
+		"[browser] browser only",
+		"[sudo] [browser] both",
+		"plain",
+	}
+	got := res.Parts[0].Actions
+	if len(got) != len(want) {
+		t.Fatalf("Actions = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("Actions[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

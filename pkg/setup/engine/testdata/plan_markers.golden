@@ -1,7 +1,7 @@
 ── packages ────────────────────────────────────────────────
   [info]  pending
   [info]  [sudo] install git
-  [info]  [browser] [sudo] open keychain prompt
+  [info]  [sudo] [browser] open keychain prompt
   [info]  link ~/bin/orbit
 
 ── auth ────────────────────────────────────────────────────
