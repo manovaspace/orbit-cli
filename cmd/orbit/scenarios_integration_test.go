@@ -872,12 +872,20 @@ func TestScenariosIntegration(t *testing.T) {
 			t.Fatalf("failed to seed owner vault: %v", err)
 		}
 
+		// Pin the workspace inside tmpDir: without --workspace onboard resolves
+		// its root from the cwd, which can leak files (mcp.env) into the source tree.
+		workspaceDir := filepath.Join(tmpDir, "workspace")
+		if err := os.MkdirAll(workspaceDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
 		// ONB-01: Non-interactive onboarding claim
 		onbOut, err := executeOrbit("onboard",
 			"--token", "valid-mock-onboarding-token",
 			"--server", srv.URL,
 			"--non-interactive",
 			"--skip-stack",
+			"--workspace", workspaceDir,
 		)
 		if err != nil {
 			t.Fatalf("ONB-01 onboarding failed: %v\nOutput: %s", err, onbOut)
@@ -894,7 +902,7 @@ func TestScenariosIntegration(t *testing.T) {
 
 		// ONB-02: Diagnostic bundle & checkpoint reset
 		bundlePath := filepath.Join(tmpDir, "diag.tar.gz")
-		diagOut, err := executeOrbit("onboard", "--diag-bundle", bundlePath)
+		diagOut, err := executeOrbit("onboard", "--diag-bundle", bundlePath, "--workspace", workspaceDir)
 		if err != nil || !strings.Contains(diagOut, "Diagnostic Bundle") {
 			t.Errorf("ONB-02 diag bundle failed: %v\nOutput: %s", err, diagOut)
 		}
@@ -902,20 +910,20 @@ func TestScenariosIntegration(t *testing.T) {
 			t.Errorf("ONB-02 expected bundle archive created at %s", bundlePath)
 		}
 
-		resetOut, err := executeOrbit("onboard", "--reset")
+		resetOut, err := executeOrbit("onboard", "--reset", "--workspace", workspaceDir)
 		if err != nil || !strings.Contains(resetOut, "cleared") {
 			t.Errorf("ONB-02 checkpoint reset failed: %v\nOutput: %s", err, resetOut)
 		}
 
 		// ONB-03: Invalid token rejection & dry-run
-		dryOut, err := executeOrbit("onboard", "--dry-run")
+		dryOut, err := executeOrbit("onboard", "--dry-run", "--workspace", workspaceDir)
 		if err != nil || !strings.Contains(dryOut, "DRY-RUN") {
 			t.Errorf("ONB-03 dry-run failed: %v\nOutput: %s", err, dryOut)
 		}
 
 		// Reset session before testing invalid token
-		_, _ = executeOrbit("onboard", "--reset")
-		invalidOut, _ := executeOrbit("onboard", "--token", "invalid-token-string", "--server", srv.URL, "--non-interactive", "--skip-stack")
+		_, _ = executeOrbit("onboard", "--reset", "--workspace", workspaceDir)
+		invalidOut, _ := executeOrbit("onboard", "--token", "invalid-token-string", "--server", srv.URL, "--non-interactive", "--skip-stack", "--workspace", workspaceDir)
 		if !strings.Contains(invalidOut, "invalid") && !strings.Contains(invalidOut, "rejected") && !strings.Contains(invalidOut, "failed") {
 			t.Errorf("ONB-03 expected invalid token rejection, got: %s", invalidOut)
 		}

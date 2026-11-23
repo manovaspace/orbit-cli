@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -36,10 +37,80 @@ var (
 	iconArrow = render.IconArrow
 )
 
+// isWorkspaceMarkerDir reports whether dir marks a workspace root: it holds
+// workspace.yaml, or a .orbit entry when dir is not one of homes.
+//
+// The .orbit entry is excluded in home directories because ~/.orbit is the
+// per-user CLI cache (update-check.json and similar), not a workspace marker;
+// counting it resolves every path under $HOME to $HOME as the workspace root.
+// homes comes from homeDirs: tests and tools often override HOME, so the real
+// account ~/.orbit must also be excluded when HOME points elsewhere.
+// workspace.yaml is a marker everywhere, including in a home directory.
+func isWorkspaceMarkerDir(dir string, homes []string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
+		return true
+	}
+	for _, home := range homes {
+		if isSameDir(dir, home) {
+			return false
+		}
+	}
+	_, err := os.Stat(filepath.Join(dir, ".orbit"))
+	return err == nil
+}
+
+// homeDirs returns the distinct, non-empty home directories whose ~/.orbit
+// cache must not count as a workspace marker: the $HOME-derived home from
+// os.UserHomeDir and the account home from os/user, which ignores $HOME.
+// Lookups that fail or return an empty path are skipped.
+func homeDirs() []string {
+	var candidates []string
+	if h, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, h)
+	}
+	if u, err := user.Current(); err == nil {
+		candidates = append(candidates, u.HomeDir)
+	}
+
+	var homes []string
+	for _, h := range candidates {
+		if h == "" {
+			continue
+		}
+		duplicate := false
+		for _, seen := range homes {
+			if isSameDir(h, seen) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			homes = append(homes, h)
+		}
+	}
+	return homes
+}
+
+// isSameDir reports whether a and b name the same directory, comparing cleaned
+// absolute paths first and then the symlink-resolved paths when both resolve.
+func isSameDir(a, b string) bool {
+	if absA, errA := filepath.Abs(a); errA == nil {
+		if absB, errB := filepath.Abs(b); errB == nil && absA == absB {
+			return true
+		}
+	}
+	realA, errA := filepath.EvalSymlinks(a)
+	realB, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && realA == realB
+}
+
 // findWorkspaceRoot locates the root of the workspace.
-// It checks ORBIT_WORKSPACE, ORBIT_ROOT, or MANOVA_ROOT env vars, walks up parent directories looking for workspace.yaml or .orbit,
+// It checks ORBIT_WORKSPACE, ORBIT_ROOT, or MANOVA_ROOT env vars, walks up parent directories looking for workspace.yaml or .orbit
+// (the .orbit marker is ignored in home directories; see homeDirs and isWorkspaceMarkerDir),
 // and falls back to the current working directory.
 func findWorkspaceRoot(overridePath string) string {
+	homes := homeDirs()
+
 	if overridePath != "" {
 		if abs, err := filepath.Abs(overridePath); err == nil {
 			dir := abs
@@ -47,10 +118,7 @@ func findWorkspaceRoot(overridePath string) string {
 				dir = filepath.Dir(dir)
 			}
 			for {
-				if _, err := os.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
-					return dir
-				}
-				if _, err := os.Stat(filepath.Join(dir, ".orbit")); err == nil {
+				if isWorkspaceMarkerDir(dir, homes) {
 					return dir
 				}
 				parent := filepath.Dir(dir)
@@ -79,11 +147,7 @@ func findWorkspaceRoot(overridePath string) string {
 
 	dir := cwd
 	for {
-		// Check for workspace.yaml or .orbit
-		if _, err := os.Stat(filepath.Join(dir, "workspace.yaml")); err == nil {
-			return dir
-		}
-		if _, err := os.Stat(filepath.Join(dir, ".orbit")); err == nil {
+		if isWorkspaceMarkerDir(dir, homes) {
 			return dir
 		}
 
