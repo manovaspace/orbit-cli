@@ -1,0 +1,10 @@
+Stop Mailpit and the orbit-owned Postgres cluster. A server that orbit did not start, or an external one, is left alone.
+
+Usage:
+  orbit down [flags]
+
+Flags:
+  -h, --help   help for down
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

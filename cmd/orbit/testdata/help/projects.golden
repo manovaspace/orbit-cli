@@ -1,0 +1,12 @@
+State is cloned when every repository of the project has a .git/HEAD on disk, not cloned when none
+does, and partial otherwise. Nothing is fetched from the network.
+
+Usage:
+  orbit projects [flags]
+
+Flags:
+  -h, --help   help for projects
+      --json   Print the result as a JSON envelope
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -703,8 +704,40 @@ func TestServer_InstallScript(t *testing.T) {
 			t.Fatalf("failed to read response body: %v", err)
 		}
 		body := string(bodyBytes)
-		if !strings.Contains(body, "Ready to configure your system and install the required tools") && !strings.Contains(body, "Install Orbit CLI") {
-			t.Errorf("GET /: body missing confirmation prompt text")
+		if !strings.Contains(body, "install_orbit") || !strings.Contains(body, "Next: o setup") {
+			t.Errorf("GET /: body missing expected installer script content")
+		}
+	})
+
+	t.Run("Valid_InstallSh", func(t *testing.T) {
+		for _, accept := range []string{"", "text/html,application/xhtml+xml"} {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+"/install.sh", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if accept != "" {
+				req.Header.Set("Accept", accept)
+				req.Header.Set("User-Agent", "Mozilla/5.0")
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("GET /install.sh failed: %v", err)
+			}
+			bodyBytes, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil {
+				t.Fatalf("failed to read /install.sh response body: %v", readErr)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("GET /install.sh (Accept=%q): expected status 200, got %d", accept, resp.StatusCode)
+			}
+			contentType := resp.Header.Get("Content-Type")
+			if contentType != "text/x-shellscript; charset=utf-8" {
+				t.Errorf("GET /install.sh (Accept=%q): expected Content-Type 'text/x-shellscript; charset=utf-8', got %q", accept, contentType)
+			}
+			if !bytes.Equal(bodyBytes, canonicalInstallScript) {
+				t.Errorf("GET /install.sh (Accept=%q): response body does not match canonicalInstallScript", accept)
+			}
 		}
 	})
 
@@ -734,7 +767,7 @@ func TestServer_InstallScript(t *testing.T) {
 			t.Fatalf("failed to read response body: %v", err)
 		}
 		body := string(bodyBytes)
-		if !strings.Contains(body, "copy-btn") || !strings.Contains(body, "curl -fsSL orbit.manova.space") {
+		if !strings.Contains(body, "copy-btn") || !strings.Contains(body, "curl -fsSL https://orbit.manova.space | bash -s -- setup") {
 			t.Errorf("GET / (browser): body missing copy-button landing page")
 		}
 		if strings.HasPrefix(strings.TrimSpace(body), "#!/") {
@@ -762,8 +795,8 @@ func TestServer_InstallScript(t *testing.T) {
 		}
 	})
 
-	// 2. Unmapped routes (including /install and /install.sh) return 404
-	invalidPaths := []string{"/install", "/install.sh", "/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
+	// 2. Unmapped routes (including /install) return 404
+	invalidPaths := []string{"/install", "/unmapped", "/unknown", "/install.sh/extra", "/foo/bar"}
 	for _, path := range invalidPaths {
 		t.Run("Invalid_"+path, func(t *testing.T) {
 			resp, err := http.Get(ts.URL + path)
@@ -1233,7 +1266,7 @@ func TestHandleInstallScript_SetupAndOnboardRoutes(t *testing.T) {
 				t.Fatalf("failed to read response body: %v", err)
 			}
 			body := string(bodyBytes)
-			if !strings.Contains(body, "Ready to configure your system and install the required tools") && !strings.Contains(body, "Install Orbit CLI") {
+			if !strings.Contains(body, "install_orbit") || !strings.Contains(body, "Next: o setup") {
 				t.Errorf("GET %s: expected shell script content", route)
 			}
 		})
@@ -1302,10 +1335,29 @@ func TestLandingHTML_DynamicOnboardingAndTOTPFeatures(t *testing.T) {
 				t.Errorf("GET %s: landing HTML missing renderQRCodeSVG JS function", route)
 			}
 
-			// 4. Verify base command
-			if !strings.Contains(html, "curl -fsSL orbit.manova.space | bash") {
+			// 4. Verify base command and updated setup copy
+			if !strings.Contains(html, "curl -fsSL https://orbit.manova.space | bash -s -- setup") {
 				t.Errorf("GET %s: landing HTML missing fallback base install command", route)
 			}
+			if !strings.Contains(html, "wget -qO- https://orbit.manova.space | bash -s -- setup") {
+				t.Errorf("GET %s: landing HTML missing wget install command", route)
+			}
+			for _, cmd := range []string{"o setup", "o doctor", "o up"} {
+				if !strings.Contains(html, cmd) {
+					t.Errorf("GET %s: landing HTML missing command %q", route, cmd)
+				}
+			}
 		})
+	}
+}
+
+func TestEmbeddedInstallScriptMatchesRoot(t *testing.T) {
+	rootPath := filepath.Join("..", "..", "..", "..", "install.sh")
+	rootBytes, err := os.ReadFile(rootPath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", rootPath, err)
+	}
+	if !bytes.Equal(canonicalInstallScript, rootBytes) {
+		t.Fatalf("embedded pkg/onboard/infrastructure/server/install.sh differs from root install.sh")
 	}
 }

@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"runtime"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/doctor"
 	doctorapp "github.com/manovaspace/orbit-cli/pkg/doctor/application"
 	doctordomain "github.com/manovaspace/orbit-cli/pkg/doctor/domain"
-	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/runner"
+	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
+	"github.com/manovaspace/orbit-cli/pkg/setup/spec"
 	"github.com/spf13/cobra"
 )
 
@@ -47,9 +47,6 @@ func doctorUI() doctorapp.UI {
 	}
 }
 
-// doctorGOOS is the platform `doctor --fix` checks; tests override it.
-var doctorGOOS = runtime.GOOS
-
 func newDoctorCmd() *cobra.Command {
 	var (
 		jsonOutput                    bool
@@ -60,97 +57,96 @@ func newDoctorCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:          "doctor",
-		Short:        "Run pre-flight system diagnostics and environment health checks",
-		Long:         "Local diagnostics are the default: no remote probes, updater activity or repairs. --remote selects SSH, Docker daemon, listener and cloud probes. --fix explicitly selects repairs; --accept-host-keys additionally requires --remote --fix. --local rejects remote probes and repairs.",
+		Use:   "doctor",
+		Short: "Check this machine against the setup, without changing it",
+		Long: "Checks the machine against the setup selected in machine.yaml and lists the pending changes; it never changes the machine. " +
+			"A pending change or a failed check exits 1; run 'o setup' to apply the changes. " +
+			"--remote adds SSH, Docker daemon, listener and cloud probes. --local is the default and accepted as a no-op.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			out := cmd.OutOrStdout()
-			if local && (remote || fix || acceptHostKeys) {
-				err := clierr.Usage("--local cannot be combined with remote probes or mutation flags")
-				if jsonOutput {
-					_ = output.Write(out, output.Failure(err))
-				}
-				return err
-			}
-			if acceptHostKeys && (!remote || !fix) {
-				err := clierr.Usage("--accept-host-keys requires --remote --fix")
-				if jsonOutput {
-					_ = output.Write(out, output.Failure(err))
-				}
-				return err
-			}
-			if fix && doctorGOOS == "darwin" {
-				err := clierr.Usage("--fix installs Linux packages and is not available on macOS; install the missing tools yourself (see the doctor fix suggestions)")
-				if jsonOutput {
-					_ = output.Write(out, output.Failure(err))
-				}
-				return err
-			}
-
-			workspaceRoot, manifestPath := doctorWorkspacePaths()
-			opts := doctorapp.Options{
-				Remote:         remote,
-				AcceptHostKeys: acceptHostKeys,
-				Fix:            fix,
-				JSON:           jsonOutput,
-				WorkspaceRoot:  workspaceRoot,
-				ManifestPath:   manifestPath,
-			}
-
-			service := doctorNewService(io.Discard)
-			service.Extra = func(ctx context.Context, report *doctor.DoctorReport, remote, fix bool) {
-				addSelectedAssetDiagnostics(ctx, report, remote, fix)
-			}
-
-			result := service.Diagnose(cmd.Context(), opts)
-			var heals []doctordomain.HealResult
-
 			if fix {
-				heal, err := service.Heal(cmd.Context(), result.Report, opts)
-				if err != nil {
-					if jsonOutput {
-						_ = output.Write(out, output.Failure(err))
-						return err
-					}
-					p := render.NewPrinter(out)
-					renderDoctorText(p, result.Report, nil)
-					if perr := p.Err(); perr != nil {
-						return perr
-					}
-					return err
-				}
-				if heal.Ran {
-					result.Report = heal.Report
-					heals = heal.HealResults
-				}
+				return clierr.Usage("o doctor never changes the machine; run o setup")
 			}
-
-			text := func(p *render.Printer) error {
-				renderDoctorText(p, result.Report, heals)
-				return nil
+			if local && (remote || acceptHostKeys) {
+				return clierr.Usage("--local cannot be combined with remote probes or mutation flags")
 			}
-
-			if result.Report.HasErrors() {
-				err := clierr.Failed(fmt.Sprintf("pre-flight diagnostics failed with %d error(s)", result.Report.CountErrors()))
-				// Keep the report in data, as the pre-envelope --json output
-				// always carried it, while still reporting failure.
-				return render.EmitFindings(out, jsonOutput, result.Report, err, text)
+			if acceptHostKeys {
+				return clierr.Usage("--accept-host-keys is not available: o doctor never changes the machine; run o setup")
 			}
-
-			return render.Emit(out, jsonOutput, result.Report, text)
+			if remote {
+				return runRemoteDoctor(cmd, jsonOutput)
+			}
+			return runDoctorSetupCheck(cmd, jsonOutput)
 		},
 	}
 
-	cmd.Flags().BoolVar(&local, "local", false, "Explicitly require diagnostics without remote probes or writes (default behavior)")
+	cmd.Flags().BoolVar(&local, "local", false, "Accepted for compatibility; the check is local by default")
 	cmd.Flags().BoolVar(&remote, "remote", false, "Opt in to remote SSH/cloud and daemon/listener probes")
-	cmd.Flags().BoolVar(&acceptHostKeys, "accept-host-keys", false, "Accept new SSH host keys (requires --remote --fix)")
-	cmd.Flags().BoolVarP(&fix, "fix", "f", false, "Automatically install and configure missing toolchain dependencies")
+	cmd.Flags().BoolVar(&acceptHostKeys, "accept-host-keys", false, "Refused: doctor never changes the machine")
+	cmd.Flags().BoolVarP(&fix, "fix", "f", false, "Refused: doctor never changes the machine; run o setup")
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "Compatibility flag; doctor does not prompt")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Compatibility flag; doctor does not prompt")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print the diagnostic report as a JSON envelope")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print the result as a JSON envelope")
 
 	return cmd
+}
+
+// runDoctorSetupCheck runs Engine.Check over the setup parts. It applies nothing. A failed part or
+// a pending action exits 1.
+func runDoctorSetupCheck(cmd *cobra.Command, jsonOutput bool) error {
+	m, _, err := spec.LoadMachine(machinePath())
+	if err != nil {
+		return err
+	}
+	st, err := stateFor(m, true)
+	if err != nil {
+		return err
+	}
+	e := engine.Engine{Parts: defaultParts()}
+	res := e.Check(cmd.Context(), st)
+	var failure error
+	switch {
+	case res.Failed > 0:
+		failure = clierr.Failed(fmt.Sprintf("setup check failed: %d part(s) failed", res.Failed))
+	case res.Changed > 0:
+		failure = clierr.Failed(fmt.Sprintf("setup has %d pending part(s); run o setup", res.Changed))
+	}
+	return render.EmitFindings(cmd.OutOrStdout(), jsonOutput, res, failure, func(p *render.Printer) error {
+		engine.RenderPlan(p, res)
+		return nil
+	})
+}
+
+// runRemoteDoctor is the --remote diagnostics: SSH, Docker daemon, listener and cloud probes.
+func runRemoteDoctor(cmd *cobra.Command, jsonOutput bool) error {
+	out := cmd.OutOrStdout()
+	workspaceRoot, manifestPath := doctorWorkspacePaths()
+	opts := doctorapp.Options{
+		Remote:        true,
+		JSON:          jsonOutput,
+		WorkspaceRoot: workspaceRoot,
+		ManifestPath:  manifestPath,
+	}
+
+	service := doctorNewService(io.Discard)
+	service.Extra = func(ctx context.Context, report *doctor.DoctorReport, remote, fix bool) {
+		addSelectedAssetDiagnostics(ctx, report, remote, fix)
+	}
+
+	result := service.Diagnose(cmd.Context(), opts)
+	text := func(p *render.Printer) error {
+		renderDoctorText(p, result.Report, nil)
+		return nil
+	}
+
+	if result.Report.HasErrors() {
+		err := clierr.Failed(fmt.Sprintf("pre-flight diagnostics failed with %d error(s)", result.Report.CountErrors()))
+		// Keep the report in data, as the pre-envelope --json output
+		// always carried it, while still reporting failure.
+		return render.EmitFindings(out, jsonOutput, result.Report, err, text)
+	}
+
+	return render.Emit(out, jsonOutput, result.Report, text)
 }
 
 // renderDoctorText writes the diagnostic report as category sections, optional

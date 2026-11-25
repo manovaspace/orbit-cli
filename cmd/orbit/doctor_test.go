@@ -2,99 +2,14 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
-	"io/fs"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/manovaspace/orbit-cli/pkg/doctor"
-	doctorapp "github.com/manovaspace/orbit-cli/pkg/doctor/application"
-	"github.com/manovaspace/orbit-cli/pkg/doctor/domain"
-	"github.com/manovaspace/orbit-cli/pkg/host"
-	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/output"
+	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 )
-
-// stubProbe answers every probe with a healthy version.
-type stubProbe struct {
-	gitMissing bool
-}
-
-func (p stubProbe) Run(_ context.Context, _ time.Duration, name string, args ...string) (doctorapp.ProbeResult, error) {
-	switch name {
-	case "git":
-		if p.gitMissing {
-			return doctorapp.ProbeResult{}, errors.New("git missing")
-		}
-		return doctorapp.ProbeResult{Output: "git version 2.50.0"}, nil
-	case "go":
-		return doctorapp.ProbeResult{Output: "go version go1.26.7 linux/amd64"}, nil
-	case "node":
-		return doctorapp.ProbeResult{Output: "v24.0.0"}, nil
-	case "bun":
-		return doctorapp.ProbeResult{Output: "1.4.0"}, nil
-	case "caddy":
-		return doctorapp.ProbeResult{Output: "v2.10.0"}, nil
-	case "typst":
-		return doctorapp.ProbeResult{Output: "typst 0.14.0"}, nil
-	}
-	return doctorapp.ProbeResult{}, nil
-}
-
-// stubHost is a healthy Ubuntu host with no project manifests.
-type stubHost struct{}
-
-func (stubHost) Report() host.Report { return host.Report{OK: true} }
-func (stubHost) Resources() domain.Resources {
-	return domain.Resources{}
-}
-func (stubHost) LookPath(string) (string, error) {
-	return "/usr/bin/tool", nil
-}
-func (stubHost) Getwd() (string, error)                  { return "/tmp", nil }
-func (stubHost) ReadFile(string) ([]byte, error)         { return nil, errNotExist{} }
-func (stubHost) Stat(string) (doctorapp.FileInfo, error) { return doctorapp.FileInfo{}, errNotExist{} }
-func (stubHost) Lstat(string) (doctorapp.FileInfo, error) {
-	return doctorapp.FileInfo{}, errNotExist{}
-}
-func (stubHost) Getenv(string) string { return "" }
-
-type stubPorts struct{}
-
-func (stubPorts) Scan(start, end int) map[int]bool { return map[int]bool{} }
-
-type stubManifest struct{}
-
-func (stubManifest) Load(string) (*manifest.WorkspaceManifest, error) {
-	return &manifest.WorkspaceManifest{}, nil
-}
-
-type errNotExist struct{}
-
-func (errNotExist) Error() string { return "not exist" }
-func (errNotExist) Unwrap() error { return fs.ErrNotExist }
-
-// healthyDoctorService is a deterministic diagnostics service for command tests.
-func healthyDoctorService(probe stubProbe, healers *domain.HealerRegistry) func(io.Writer) *doctorapp.Service {
-	return func(out io.Writer) *doctorapp.Service {
-		if healers == nil {
-			healers = domain.NewHealerRegistry()
-		}
-		return &doctorapp.Service{
-			Probe:    probe,
-			Host:     stubHost{},
-			Ports:    stubPorts{},
-			Manifest: stubManifest{},
-			Healers:  healers,
-			Out:      out,
-			UI:       doctorUI(),
-		}
-	}
-}
 
 func executeDoctor(t *testing.T, args ...string) (*bytes.Buffer, error) {
 	t.Helper()
@@ -106,70 +21,43 @@ func executeDoctor(t *testing.T, args ...string) (*bytes.Buffer, error) {
 	return out, cmd.Execute()
 }
 
-func TestDoctorCmdExecution(t *testing.T) {
-	previous := doctorNewService
-	previousPaths := doctorWorkspacePaths
-	t.Cleanup(func() { doctorNewService, doctorWorkspacePaths = previous, previousPaths })
-	doctorNewService = healthyDoctorService(stubProbe{}, nil)
-	doctorWorkspacePaths = func() (string, string) { return "", "" }
+// TestDoctorLocalIsCheckOnly: a pending setup action makes doctor exit 1 and never runs Do.
+func TestDoctorLocalIsCheckOnly(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	fx.saveMachine(t, "a")
 
 	out, err := executeDoctor(t)
-	if err != nil {
-		t.Fatalf("doctor: %v\n%s", err, out)
+	if clierr.Code(err) != clierr.CodeFailed || clierr.ExitCode(err) != clierr.ExitFailed {
+		t.Fatalf("err = %v, want failed (exit 1)", err)
 	}
-	text := out.String()
-	if !strings.Contains(text, "System doctor") {
-		t.Errorf("expected header, got: %s", text)
+	if len(fx.ran) != 0 {
+		t.Fatalf("doctor ran actions: %v", fx.ran)
 	}
-	for _, category := range []string{"System", "Toolchain", "Runtime", "Container", "Authentication", "Ports"} {
-		if !strings.Contains(text, category) {
-			t.Errorf("missing category %q: %s", category, text)
-		}
+	if !strings.Contains(out.String(), "system change") {
+		t.Fatalf("doctor output does not show the pending action:\n%s", out)
 	}
 }
 
-func TestDoctorCmdJSONEnvelope(t *testing.T) {
-	previous := doctorNewService
-	previousPaths := doctorWorkspacePaths
-	t.Cleanup(func() { doctorNewService, doctorWorkspacePaths = previous, previousPaths })
-	doctorNewService = healthyDoctorService(stubProbe{}, nil)
-	doctorWorkspacePaths = func() (string, string) { return "", "" }
-
-	out, err := executeDoctor(t, "--json")
-	if err != nil {
-		t.Fatalf("doctor --json: %v\n%s", err, out)
+func TestDoctorLocalPassesWhenClean(t *testing.T) {
+	fx := newSetupFixture(t)
+	fx.saveMachine(t, "a")
+	if _, err := executeDoctor(t, "--local"); err != nil {
+		t.Fatalf("doctor --local on a clean setup: %v", err)
 	}
-	var envelope output.Envelope
-	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode envelope: %v\n%s", err, out)
-	}
-	if envelope.SchemaVersion != output.SchemaVersion || !envelope.OK {
-		t.Fatalf("envelope = %+v", envelope)
-	}
-	data, err := json.Marshal(envelope.Data)
-	if err != nil {
-		t.Fatalf("re-encode data: %v", err)
-	}
-	var report doctor.DoctorReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatalf("decode data: %v", err)
-	}
-	if len(report.Results) == 0 {
-		t.Fatal("no diagnostic results in envelope data")
+	if len(fx.ran) != 0 {
+		t.Fatalf("doctor ran actions: %v", fx.ran)
 	}
 }
 
-func TestDoctorCmdJSONFailureEnvelope(t *testing.T) {
-	previous := doctorNewService
-	previousPaths := doctorWorkspacePaths
-	t.Cleanup(func() { doctorNewService, doctorWorkspacePaths = previous, previousPaths })
-	doctorNewService = healthyDoctorService(stubProbe{gitMissing: true}, nil)
-	doctorWorkspacePaths = func() (string, string) { return "", "" }
+func TestDoctorLocalJSONEnvelope(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	fx.saveMachine(t, "a")
 
 	out, err := executeDoctor(t, "--json")
 	if err == nil {
-		t.Fatalf("doctor --json with findings succeeded: %s", out)
+		t.Fatalf("doctor --json with a pending action succeeded: %s", out)
 	}
+	// The envelope is the first line; cobra prints the error after it when the command runs alone.
 	var envelope output.Envelope
 	if err := json.Unmarshal([]byte(strings.SplitN(out.String(), "\n", 2)[0]), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v\n%s", err, out)
@@ -177,72 +65,39 @@ func TestDoctorCmdJSONFailureEnvelope(t *testing.T) {
 	if envelope.OK || envelope.Error == nil || envelope.Error.Code != "failed" {
 		t.Fatalf("envelope = %+v", envelope)
 	}
-}
-
-type countingHealer struct{ runs int }
-
-func (h *countingHealer) Name() string { return "counter" }
-func (h *countingHealer) CanHeal(result doctor.DiagnosticResult) bool {
-	return result.Status == doctor.StatusError
-}
-func (h *countingHealer) Heal(context.Context, func(string)) error { h.runs++; return nil }
-
-func TestDoctorCmdFixRequiresFlag(t *testing.T) {
-	previous := doctorNewService
-	previousPaths := doctorWorkspacePaths
-	t.Cleanup(func() { doctorNewService, doctorWorkspacePaths = previous, previousPaths })
-	healer := &countingHealer{}
-	registry := domain.NewHealerRegistry()
-	registry.Register(healer)
-	doctorNewService = healthyDoctorService(stubProbe{gitMissing: true}, registry)
-	doctorWorkspacePaths = func() (string, string) { return "", "" }
-
-	if _, err := executeDoctor(t, "--json"); err == nil {
-		t.Fatal("expected findings")
+	data, _ := json.Marshal(envelope.Data)
+	var res engine.Result
+	if err := json.Unmarshal(data, &res); err != nil {
+		t.Fatalf("decode data: %v\n%s", err, out)
 	}
-	if healer.runs != 0 {
-		t.Fatal("doctor healed without --fix")
-	}
-	if _, err := executeDoctor(t, "--json", "--fix"); err == nil {
-		t.Fatal("expected findings after fix")
-	}
-	if healer.runs != 1 {
-		t.Fatalf("healer runs = %d, want 1", healer.runs)
+	if res.Changed != 1 || len(res.Parts) == 0 {
+		t.Fatalf("result = %+v, want one pending part", res)
 	}
 }
 
-func TestDoctorCmdFlagsRegistration(t *testing.T) {
+// TestDoctorFixIsUsage: doctor never changes the machine, so --fix is refused before any check.
+func TestDoctorFixIsUsage(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	fx.saveMachine(t, "a")
+
+	_, err := executeDoctor(t, "--fix")
+	if clierr.Code(err) != clierr.CodeUsage {
+		t.Fatalf("err = %v, want usage error", err)
+	}
+	if err.Error() != "o doctor never changes the machine; run o setup" {
+		t.Fatalf("message = %q", err.Error())
+	}
+	if len(fx.ran) != 0 {
+		t.Fatalf("doctor --fix ran actions: %v", fx.ran)
+	}
+}
+
+func TestDoctorFlagsRegistration(t *testing.T) {
 	cmd := newDoctorCmd()
-
-	fixFlag := cmd.Flags().Lookup("fix")
-	if fixFlag == nil {
-		t.Fatal("expected --fix flag to be registered")
-	}
-	if fixFlag.Shorthand != "f" {
-		t.Errorf("expected shorthand for --fix to be 'f', got %q", fixFlag.Shorthand)
-	}
-
-	if cmd.Flags().Lookup("json") == nil {
-		t.Fatal("expected --json flag to be registered")
-	}
-
-	yesFlag := cmd.Flags().Lookup("yes")
-	if yesFlag == nil {
-		t.Fatal("expected --yes flag to be registered")
-	}
-	if yesFlag.Shorthand != "y" {
-		t.Errorf("expected shorthand for --yes to be 'y', got %q", yesFlag.Shorthand)
-	}
-	if yesFlag.Usage != "Compatibility flag; doctor does not prompt" {
-		t.Errorf("unexpected --yes usage %q", yesFlag.Usage)
-	}
-
-	nonInteractiveFlag := cmd.Flags().Lookup("non-interactive")
-	if nonInteractiveFlag == nil {
-		t.Fatal("expected --non-interactive flag to be registered")
-	}
-	if nonInteractiveFlag.Usage != "Compatibility flag; doctor does not prompt" {
-		t.Errorf("unexpected --non-interactive usage %q", nonInteractiveFlag.Usage)
+	for _, name := range []string{"local", "remote", "accept-host-keys", "fix", "json", "yes", "non-interactive"} {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Errorf("expected --%s flag to be registered", name)
+		}
 	}
 }
 
@@ -257,5 +112,22 @@ func TestLocalDoctorRejectsMutation(t *testing.T) {
 	}
 	if !shouldSuppressPostRunNotices(newDoctorCmd()) {
 		t.Fatal("doctor permits updater side effects")
+	}
+}
+
+// TestDoctorLocalFixIsUsage: --local --fix gets the same refusal as --fix.
+func TestDoctorLocalFixIsUsage(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	fx.saveMachine(t, "a")
+
+	_, err := executeDoctor(t, "--local", "--fix")
+	if clierr.Code(err) != clierr.CodeUsage || clierr.ExitCode(err) != clierr.ExitUsage {
+		t.Fatalf("err = %v, want usage exit %d", err, clierr.ExitUsage)
+	}
+	if err.Error() != "o doctor never changes the machine; run o setup" {
+		t.Fatalf("message = %q", err.Error())
+	}
+	if len(fx.ran) != 0 {
+		t.Fatalf("doctor --local --fix ran actions: %v", fx.ran)
 	}
 }

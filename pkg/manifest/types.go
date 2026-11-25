@@ -2,10 +2,11 @@ package manifest
 
 // WorkspaceManifest represents the root configuration of workspace.yaml.
 type WorkspaceManifest struct {
-	Version   string                 `yaml:"version" json:"version"`
-	Workspace string                 `yaml:"workspace" json:"workspace"`
-	Remotes   RemotesConfig          `yaml:"remotes" json:"remotes"`
-	Groups    map[string]GroupConfig `yaml:"groups" json:"groups"`
+	Version   string                   `yaml:"version" json:"version"`
+	Workspace string                   `yaml:"workspace" json:"workspace"`
+	Remotes   RemotesConfig            `yaml:"remotes" json:"remotes"`
+	Groups    map[string]GroupConfig   `yaml:"groups" json:"groups"`
+	Projects  map[string]ProjectConfig `yaml:"projects" json:"projects"`
 }
 
 // RemotesConfig maps remote aliases (e.g. "forgejo", "github_manovaspace") to base URLs.

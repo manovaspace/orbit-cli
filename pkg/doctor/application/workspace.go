@@ -99,7 +99,7 @@ func (c workspaceCheck) Run(context.Context) []domain.DiagnosticResult {
 				Name:          "Uncloned repos",
 				Status:        domain.StatusWarning,
 				Message:       fmt.Sprintf("%d manifest path(s) are not cloned", missing),
-				FixSuggestion: "orbit init all",
+				FixSuggestion: "o setup --projects <name>",
 			})
 		}
 	}

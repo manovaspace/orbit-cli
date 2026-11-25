@@ -83,3 +83,39 @@ func TestFakeScriptedError(t *testing.T) {
 		t.Errorf("result = %+v", res)
 	}
 }
+
+func TestFakeRecordsEnvAndInteractive(t *testing.T) {
+	f := &Fake{}
+	f.On("orbit setup", runner.Result{Stdout: "ok"}, nil)
+	f.On("gh auth", runner.Result{}, context.DeadlineExceeded)
+
+	ctx := context.Background()
+	env := []string{"GH_TOKEN=x"}
+	res, err := f.RunEnv(ctx, "/repo", env, "orbit", "setup", "run")
+	if err != nil {
+		t.Fatalf("RunEnv: %v", err)
+	}
+	if res.Stdout != "ok" {
+		t.Errorf("Stdout = %q, want %q", res.Stdout, "ok")
+	}
+	if err := f.RunInteractive(ctx, "", nil, "gh", "auth", "login"); err != context.DeadlineExceeded {
+		t.Errorf("RunInteractive err = %v, want the scripted error", err)
+	}
+
+	calls := f.Calls()
+	if len(calls) != 2 {
+		t.Fatalf("Calls len = %d, want 2", len(calls))
+	}
+	if calls[0].Dir != "/repo" || calls[0].Interactive {
+		t.Errorf("first call = %+v", calls[0])
+	}
+	if len(calls[0].Env) != 1 || calls[0].Env[0] != "GH_TOKEN=x" {
+		t.Errorf("first call Env = %v", calls[0].Env)
+	}
+	if !calls[1].Interactive || calls[1].Name != "gh" {
+		t.Errorf("second call = %+v, want interactive gh", calls[1])
+	}
+	if calls[1].Env != nil {
+		t.Errorf("second call Env = %v, want nil", calls[1].Env)
+	}
+}

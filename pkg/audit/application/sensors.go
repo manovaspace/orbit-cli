@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/manovaspace/orbit-cli/pkg/audit/domain"
+	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
+	rootpart "github.com/manovaspace/orbit-cli/pkg/setup/parts/root"
+	"github.com/manovaspace/orbit-cli/pkg/setup/spec"
 )
 
 const (
@@ -19,11 +22,11 @@ const (
 	// DefaultMergedDays is the lookback for `o audit merges`.
 	DefaultMergedDays = 30
 
-	agentCheckAll        = "handbook/agents/scripts/check-all.mjs"
-	agentSetupMCP        = "handbook/agents/setup-mcp.py"
-	agentOpencode        = "handbook/agents/opencode/manova-implementer.md"
-	agentInstallArtifact = "handbook/agents/install-artifacts.json"
-	handbookEval         = "handbook/packages/handbook-mcp/eval.mjs"
+	agentCheckAll = "handbook/agents/scripts/check-all.mjs"
+	agentSetupMCP = "handbook/agents/setup-mcp.py"
+	agentOpencode = "handbook/agents/opencode/manova-implementer.md"
+	agentRootSpec = "handbook/agents/workspace/root.yaml"
+	handbookEval  = "handbook/packages/handbook-mcp/eval.mjs"
 )
 
 // editorCLIs are the editor runtimes the workspace generates configuration
@@ -193,9 +196,49 @@ func (s *Service) Agents(ctx context.Context) (result Result) {
 		report.AddUnverified("agents: " + handbookEval + " not found (handbook-mcp recall unverified)")
 	}
 
+	s.addRootFindings(&report)
 	s.addRetiredNameFindings(&report)
 
 	return Result{Report: report, Detail: fmt.Sprintf("%d agent checks ran", ran)}
+}
+
+// addRootFindings checks the workspace root against the declaration in agentRootSpec. A link or file
+// that is not in place is a WARN; a hand-made file in the way is an ERROR. Without the declaration,
+// or with one that cannot be read or parsed, the root is unverified.
+func (s *Service) addRootFindings(report *domain.Report) {
+	specPath := filepath.Join(s.Root, filepath.FromSlash(agentRootSpec))
+	if !s.Files.Exists(specPath) {
+		report.AddUnverified("agents: " + agentRootSpec + " not found (workspace root unverified)")
+		return
+	}
+	if s.RootFS == nil {
+		report.AddUnverified("agents: root wiring missing (workspace root unverified)")
+		return
+	}
+	data, err := s.Files.ReadFile(specPath)
+	if err != nil {
+		report.AddUnverified("agents: " + agentRootSpec + " cannot be read (workspace root unverified)")
+		return
+	}
+	rs, err := spec.ParseRootSpec(data)
+	if err != nil || rs.Version != 1 {
+		report.AddUnverified("agents: " + agentRootSpec + " is not a version 1 root spec (workspace root unverified)")
+		return
+	}
+	for _, f := range rootpart.Inspect(s.RootFS, s.Root, rs) {
+		severity := domain.SeverityWarn
+		if f.Severity == engine.SeverityError {
+			severity = domain.SeverityError
+		}
+		report.Add(domain.Finding{
+			ID:       "agents.root",
+			Severity: severity,
+			Subject:  f.Subject,
+			Actual:   f.Message,
+			Expected: "workspace root as declared in " + agentRootSpec,
+			Fix:      "run o setup",
+		})
+	}
 }
 
 // Merges flags merged pull requests whose checks failed or were absent and

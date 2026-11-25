@@ -30,6 +30,7 @@ func agentWorkspace(t *testing.T) string {
 	writeFixtureFile(t, root, "handbook/agents/setup-mcp.py", "# fixture\n")
 	writeFixtureFile(t, root, "handbook/agents/opencode/manova-implementer.md", "---\nname: implementer\n---\n")
 	writeFixtureFile(t, root, "handbook/packages/handbook-mcp/eval.mjs", "// fixture\n")
+	writeFixtureFile(t, root, "handbook/agents/workspace/root.yaml", "version: 1\n")
 	return root
 }
 
@@ -207,4 +208,73 @@ func TestAgentsSkipsRetiredNamesInInactiveDocs(t *testing.T) {
 	if got := countFindings(result.Report, "agents.retired-name"); got != 0 {
 		t.Fatalf("agents.retired-name findings = %d, want none: %+v", got, result.Findings)
 	}
+}
+
+// rootFinding returns the agents.root finding whose subject is exactly subject, or nil.
+func rootFinding(report audit.Report, subject string) *audit.Finding {
+	for i := range report.Findings {
+		if report.Findings[i].ID == "agents.root" && report.Findings[i].Subject == subject {
+			return &report.Findings[i]
+		}
+	}
+	return nil
+}
+
+func TestAgentsChecksRootDeclaration(t *testing.T) {
+	root := agentWorkspace(t)
+	writeFixtureFile(t, root, "handbook/agents/AGENTS.workspace.md", "# agents\n")
+	writeFixtureFile(t, root, "handbook/agents/README.workspace.md", "# readme\n")
+	writeFixtureFile(t, root, "handbook/FUTURE-TRIGGERS.md", "triggers\n")
+	writeFixtureFile(t, root, "FUTURE-TRIGGERS.md", "hand-made\n")
+	writeFixtureFile(t, root, "handbook/agents/workspace/root.yaml", strings.Join([]string{
+		"version: 1",
+		"links:",
+		"  AGENTS.md: handbook/agents/AGENTS.workspace.md",
+		"  README.md: handbook/agents/README.workspace.md",
+		"  FUTURE-TRIGGERS.md: handbook/FUTURE-TRIGGERS.md",
+		"",
+	}, "\n"))
+	if err := os.Symlink("handbook/agents/AGENTS.workspace.md", filepath.Join(root, "AGENTS.md")); err != nil {
+		t.Fatalf("symlink AGENTS.md: %v", err)
+	}
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	if f := rootFinding(result.Report, "FUTURE-TRIGGERS.md"); f == nil || f.Severity != audit.SeverityError {
+		t.Fatalf("hand-made FUTURE-TRIGGERS.md not reported as ERROR: %+v", result.Findings)
+	}
+	if f := rootFinding(result.Report, "README.md"); f == nil || f.Severity != audit.SeverityWarn {
+		t.Fatalf("missing README.md link not reported as WARN: %+v", result.Findings)
+	}
+	if f := rootFinding(result.Report, "AGENTS.md"); f != nil {
+		t.Fatalf("correct AGENTS.md link reported: %+v", f)
+	}
+	if strings.Contains(strings.Join(result.Unverified, "\n"), "root.yaml") {
+		t.Fatalf("root.yaml reported unverified although present: %v", result.Unverified)
+	}
+}
+
+func TestAgentsReportsMissingRootDeclarationAsUnverified(t *testing.T) {
+	root := agentWorkspace(t)
+	if err := os.Remove(filepath.Join(root, "handbook/agents/workspace/root.yaml")); err != nil {
+		t.Fatalf("remove root.yaml: %v", err)
+	}
+	service := audit.NewService(root, filepath.Join(root, "workspace.yaml"))
+	service.Commands = agentCommands()
+
+	result := service.Agents(context.Background())
+	want := "agents: handbook/agents/workspace/root.yaml not found (workspace root unverified)"
+	if !containsString(result.Unverified, want) {
+		t.Fatalf("unverified = %v, want %q", result.Unverified, want)
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }

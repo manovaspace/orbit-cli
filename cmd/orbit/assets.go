@@ -405,7 +405,7 @@ func addAssetDiagnostics(ctx context.Context, report *doctor.DoctorReport, fix b
 			Name:          "Local media",
 			Status:        doctor.StatusError,
 			Message:       fmt.Sprintf("%d file(s) missing or hash-mismatched vs orbit-assets.yaml", missing),
-			FixSuggestion: "Run orbit doctor --fix or orbit assets pull",
+			FixSuggestion: "Run o setup or orbit assets pull",
 		})
 		return
 	}

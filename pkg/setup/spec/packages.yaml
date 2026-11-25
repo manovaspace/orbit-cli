@@ -1,0 +1,32 @@
+git:
+  brew: git
+  apt: git
+gh:
+  brew: gh
+  apt: gh
+  apt_repo: github-cli
+curl:
+  brew: curl
+  apt: curl
+unzip:
+  apt: unzip
+go:
+  brew: go
+  apt: golang-go
+node:
+  brew: node@24
+  apt: nodejs
+  apt_repo: nodesource-24
+bun:
+  script: "https://bun.sh/install"
+  detect: bun
+postgres:
+  brew: postgresql@18
+  apt: postgresql-18
+  apt_repo: pgdg
+mailpit:
+  brew: mailpit
+caddy:
+  brew: caddy
+  apt: caddy
+  apt_repo: caddy-stable

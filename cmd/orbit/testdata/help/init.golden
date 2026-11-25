@@ -1,22 +1,21 @@
-Resolves repository targets from workspace.yaml and clones them concurrently.
-Scopes:
-  core            - Clones essential core baseline (default)
-  all / *         - Clones all repositories in the manifest
-  orbit           - Clones Orbit platform toolkit
-  manovaspace     - Clones open-source commons
-  clients/<name>  - Clones a specific client cluster
-  <repo-name>     - Clones an individual repository
+Records the machine choices (projects, services, git protocol, workspace) in machine.yaml,
+then clones the chosen repositories and prepares their toolchains, services and env files.
+Without --projects an interactive run asks which projects to use; a non-interactive run
+(CI=true or stdin not a terminal) must be given --projects.
+Run 'o doctor' to check the setup without changing anything.
 
 Usage:
-  orbit init [scope] [flags]
+  orbit init [flags]
 
 Flags:
-      --bootstrap         Bootstrap workspace without failing if workspace.yaml is not yet cloned
-      --concurrency int   Number of concurrent clone workers (default 4)
-  -h, --help              help for init
-      --json              Print the result as a JSON envelope
-      --manifest string   Path to workspace.yaml (default: <workspaceRoot>/workspace.yaml)
-      --skip-hooks        Skip post-clone workspace hooks and migrations
+      --git-protocol string   Git protocol for clones: https or ssh (saved)
+  -h, --help                  help for init
+      --json                  Print the result as a JSON envelope
+      --plan                  Show what would change; change nothing and save nothing
+      --projects strings      Projects to set up, comma-separated; replaces the saved list
+      --services string       Local services: native, container or external (saved)
+      --workspace string      Workspace directory, absolute or ~/ (saved)
+      --yes                   Apply without asking to confirm
 
 Global Flags:
       --config string   Custom path to Orbit CLI configuration file

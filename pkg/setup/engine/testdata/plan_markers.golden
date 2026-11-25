@@ -1,0 +1,17 @@
+── packages ────────────────────────────────────────────────
+  [info]  pending
+  [info]  [sudo] install git
+  [info]  [sudo] [browser] open keychain prompt
+  [info]  link ~/bin/orbit
+
+── auth ────────────────────────────────────────────────────
+  [unverified]  waits
+  [fail]  gh is not logged in
+
+── ports ───────────────────────────────────────────────────
+  [fail]  failed
+  [fail]  port 10000 is held by another process
+  hint: stop the listener on 10000
+
+── handbook ────────────────────────────────────────────────
+  [ok]  ok

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha256"
@@ -23,6 +24,7 @@ import (
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
+	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 )
 
 const (
@@ -861,93 +863,26 @@ func TestScenariosIntegration(t *testing.T) {
 	})
 
 	// --------------------------------------------------------------------------
-	// ONB_OnboardingWorkflow (ONB-01 through ONB-03)
-	// --------------------------------------------------------------------------
-	t.Run("ONB_OnboardingWorkflow", func(t *testing.T) {
-		tmpDir, cleanup := setupIntegrationSandbox(t, srv.URL)
-		defer cleanup()
-
-		ownerStore := os.Getenv("ORBIT_OWNER_STORE")
-		if err := seedOwnerVault(ownerStore, "admin@manova.space", testHMACSecret); err != nil {
-			t.Fatalf("failed to seed owner vault: %v", err)
-		}
-
-		// Pin the workspace inside tmpDir: without --workspace onboard resolves
-		// its root from the cwd, which can leak files (mcp.env) into the source tree.
-		workspaceDir := filepath.Join(tmpDir, "workspace")
-		if err := os.MkdirAll(workspaceDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		// ONB-01: Non-interactive onboarding claim
-		onbOut, err := executeOrbit("onboard",
-			"--token", "valid-mock-onboarding-token",
-			"--server", srv.URL,
-			"--non-interactive",
-			"--skip-stack",
-			"--workspace", workspaceDir,
-		)
-		if err != nil {
-			t.Fatalf("ONB-01 onboarding failed: %v\nOutput: %s", err, onbOut)
-		}
-
-		sshPriv := filepath.Join(tmpDir, ".ssh", "id_ed25519")
-		sshPub := filepath.Join(tmpDir, ".ssh", "id_ed25519.pub")
-		if _, err := os.Stat(sshPriv); err != nil {
-			t.Errorf("ONB-01 expected SSH private key generated at %s", sshPriv)
-		}
-		if _, err := os.Stat(sshPub); err != nil {
-			t.Errorf("ONB-01 expected SSH public key generated at %s", sshPub)
-		}
-
-		// ONB-02: Diagnostic bundle & checkpoint reset
-		bundlePath := filepath.Join(tmpDir, "diag.tar.gz")
-		diagOut, err := executeOrbit("onboard", "--diag-bundle", bundlePath, "--workspace", workspaceDir)
-		if err != nil || !strings.Contains(diagOut, "Diagnostic Bundle") {
-			t.Errorf("ONB-02 diag bundle failed: %v\nOutput: %s", err, diagOut)
-		}
-		if _, err := os.Stat(bundlePath); err != nil {
-			t.Errorf("ONB-02 expected bundle archive created at %s", bundlePath)
-		}
-
-		resetOut, err := executeOrbit("onboard", "--reset", "--workspace", workspaceDir)
-		if err != nil || !strings.Contains(resetOut, "cleared") {
-			t.Errorf("ONB-02 checkpoint reset failed: %v\nOutput: %s", err, resetOut)
-		}
-
-		// ONB-03: Invalid token rejection & dry-run
-		dryOut, err := executeOrbit("onboard", "--dry-run", "--workspace", workspaceDir)
-		if err != nil || !strings.Contains(dryOut, "DRY-RUN") {
-			t.Errorf("ONB-03 dry-run failed: %v\nOutput: %s", err, dryOut)
-		}
-
-		// Reset session before testing invalid token
-		_, _ = executeOrbit("onboard", "--reset", "--workspace", workspaceDir)
-		invalidOut, _ := executeOrbit("onboard", "--token", "invalid-token-string", "--server", srv.URL, "--non-interactive", "--skip-stack", "--workspace", workspaceDir)
-		if !strings.Contains(invalidOut, "invalid") && !strings.Contains(invalidOut, "rejected") && !strings.Contains(invalidOut, "failed") {
-			t.Errorf("ONB-03 expected invalid token rejection, got: %s", invalidOut)
-		}
-	})
-
-	// --------------------------------------------------------------------------
 	// DOC_DoctorDiagnostics (DOC-01, DOC-02)
 	// --------------------------------------------------------------------------
 	t.Run("DOC_DoctorDiagnostics", func(t *testing.T) {
 		_, cleanup := setupIntegrationSandbox(t, srv.URL)
 		defer cleanup()
+		fx := newSetupFixture(t)
+		fx.saveMachine(t, "a")
 
 		docOut, _ := executeOrbit("doctor")
-		if !strings.Contains(docOut, "Orbit System Doctor") && !strings.Contains(docOut, "Git") {
-			t.Errorf("DOC-01 doctor output missing expected header: %s", docOut)
+		if strings.Contains(docOut, "Error:") {
+			t.Errorf("DOC-01 doctor output reports an error: %s", docOut)
 		}
 
 		jsonOut, _ := executeOrbit("doctor", "--json")
-		if !strings.Contains(jsonOut, "results") {
-			t.Errorf("DOC-01 doctor json output missing results key: %s", jsonOut)
+		if !strings.Contains(jsonOut, `"parts"`) {
+			t.Errorf("DOC-01 doctor json output missing parts key: %s", jsonOut)
 		}
 
 		fixOut, _ := executeOrbit("doctor", "--local", "--fix", "--non-interactive")
-		if !strings.Contains(fixOut, "--local cannot be combined") {
+		if !strings.Contains(fixOut, "o doctor never changes the machine; run o setup") {
 			t.Errorf("DOC-02 doctor --fix failed: %s", fixOut)
 		}
 	})
@@ -1196,10 +1131,16 @@ groups:
 `, remotesDir)
 		_ = os.WriteFile(filepath.Join(wsDir, "workspace.yaml"), []byte(wsYAML), 0644)
 
-		// WKS-01: Init
-		initOut, err := executeOrbit("init", "--manifest", filepath.Join(wsDir, "workspace.yaml"))
-		if err != nil || (!strings.Contains(initOut, "cloned") && !strings.Contains(initOut, "Cloned")) {
-			t.Fatalf("WKS-01 workspace init failed: %v\nOutput: %s", err, initOut)
+		// WKS-01: Clone the manifest repositories. `o init` is now `o setup`, which needs the
+		// handbook and GitHub, so the scenario drives the workspace clone service directly.
+		initRes, err := newWorkspaceService(io.Discard).Init(context.Background(), workspaceapp.InitInput{
+			WorkspaceRoot: wsDir,
+			ManifestPath:  filepath.Join(wsDir, "workspace.yaml"),
+			Scope:         "all",
+			Concurrency:   4,
+		})
+		if err != nil || initRes.Failed > 0 {
+			t.Fatalf("WKS-01 workspace clone failed: %v (failed %d)", err, initRes.Failed)
 		}
 
 		repoAPath := filepath.Join(wsDir, "services", "repo-a")

@@ -200,12 +200,10 @@ func newInviteCreateCmd() *cobra.Command {
 			p.Blank()
 
 			instructions := fmt.Sprintf(
-				"To onboard with this invitation token, run:\n\n"+
-					"  %s\n\n"+
-					"Or using shortcut:\n\n"+
+				"Use the Web Setup link above with this invitation token.\n\n"+
+					"On a new machine, run:\n\n"+
 					"  %s",
-				render.Code.Render("orbit onboard --token "+res.Token),
-				render.Code.Render("o onboard --token "+res.Token),
+				render.Code.Render("o setup"),
 			)
 			p.Text(renderCard("ONBOARDING INSTRUCTIONS", instructions) + "\n")
 

@@ -1,0 +1,11 @@
+Show whether Postgres and Mailpit run, on which port, and whether orbit or another process owns the listener. Reads only; nothing is started or stopped.
+
+Usage:
+  orbit services [flags]
+
+Flags:
+  -h, --help   help for services
+      --json   Print the result as a JSON envelope
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

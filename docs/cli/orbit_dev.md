@@ -27,6 +27,5 @@ Executes Docker Compose and orchestration scripts located in orbit/orbit-infra t
 * [orbit dev portal](orbit_dev_portal.md)	 - Open or print the local developer portal URL
 * [orbit dev routes](orbit_dev_routes.md)	 - Generate the Caddyfile that serves native dev processes at <name>.localhost
 * [orbit dev tier2](orbit_dev_tier2.md)	 - Start Tier 2 Orbit services (orbit-auth, orbit-notifications, orbit-api-gateway)
-* [orbit dev tunnel](orbit_dev_tunnel.md)	 - Forward the shared dev services over SSH to 127.0.0.1
 * [orbit dev up](orbit_dev_up.md)	 - Start local development stack containers
 

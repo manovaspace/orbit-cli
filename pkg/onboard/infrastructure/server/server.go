@@ -251,6 +251,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /", s.handleInstallScript)
 	s.mux.HandleFunc("GET /setup", s.handleInstallScript)
 	s.mux.HandleFunc("GET /onboard", s.handleInstallScript)
+	s.mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /api/v1/onboard/claim", s.handleClaim)
@@ -275,13 +276,13 @@ func (s *Server) Limiter() *ratelimit.Limiter {
 
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	if path != "/" && path != "/setup" && path != "/onboard" {
+	if path != "/" && path != "/setup" && path != "/onboard" && path != "/install.sh" {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Vary", "Accept, User-Agent")
-	if wantsInstallHTML(r) {
+	if path != "/install.sh" && wantsInstallHTML(r) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(installLandingHTML)

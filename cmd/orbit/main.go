@@ -10,9 +10,7 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/host"
-	"github.com/manovaspace/orbit-cli/pkg/onboard/infrastructure/sessionstore"
 	"github.com/manovaspace/orbit-cli/pkg/output"
-	ownerfilestore "github.com/manovaspace/orbit-cli/pkg/owner/infrastructure/filestore"
 	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/updater"
 	"github.com/spf13/cobra"
@@ -74,22 +72,6 @@ func newRootCmd() *cobra.Command {
 				return
 			}
 
-			// Check for pending onboarding session and notify user (only if not verified as platform owner/admin)
-			ownerStore := ownerfilestore.NewStore("")
-			if !ownerStore.IsVerified() {
-				if sm, err := sessionstore.New(""); err == nil && sm.HasPending() {
-					if sess, err := sm.Load(); err == nil && sess != nil {
-						fmt.Fprintf(cmd.ErrOrStderr(), "\n%s %s (stage: %s).\n   Run '%s' to resume setup, or '%s' to discard.\n",
-							iconInfo,
-							infoStyle.Render("Ongoing onboarding session detected"),
-							warningStyle.Render(string(sess.CurrentStage)),
-							boldStyle.Render("orbit onboard --resume"),
-							boldStyle.Render("orbit onboard --ignore-and-remove-checkpoint"),
-						)
-					}
-				}
-			}
-
 			// Check for available updates in background cache
 			updater.NotifyIfUpdateAvailable(cmd.ErrOrStderr(), version)
 		},
@@ -133,6 +115,10 @@ func newRootCmd() *cobra.Command {
 
 	// Register all subcommands
 	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newSetupCmd())
+	cmd.AddCommand(newAddCmd())
+	cmd.AddCommand(newRemoveCmd())
+	cmd.AddCommand(newProjectsCmd())
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newRepairCmd())
@@ -146,7 +132,6 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newUninstallCmd())
 	cmd.AddCommand(newDocCmd())
 	cmd.AddCommand(newInviteCmd())
-	cmd.AddCommand(newOnboardCmd())
 	cmd.AddCommand(newAdminCmd())
 	cmd.AddCommand(newStaffCmd())
 	cmd.AddCommand(newConfigCmd())
@@ -155,6 +140,9 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newCICmd())
 	cmd.AddCommand(newAuditCmd())
 	cmd.AddCommand(newReleaseCmd())
+	cmd.AddCommand(newUpCmd())
+	cmd.AddCommand(newDownCmd())
+	cmd.AddCommand(newServicesCmd())
 	cmd.AddCommand(newCompletionCmd())
 	cmd.AddCommand(versionCmd)
 
@@ -178,7 +166,6 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"remove":      true,
 		"purge":       true,
 		"init":        true,
-		"onboard":     true,
 		"version":     true,
 		"self-update": true,
 		"selfupdate":  true,
@@ -190,9 +177,7 @@ func shouldSuppressPostRunNotices(cmd *cobra.Command) bool {
 		"ci":          true,
 		"audit":       true,
 		"release":     true,
-		// dev tunnel and dev routes print ssh config, authorized_keys lines and
-		// Caddyfiles on stdout; a notice would corrupt redirected output.
-		"tunnel": true,
+		// dev routes prints Caddyfiles on stdout; a notice would corrupt redirected output.
 		"routes": true,
 	}
 	for _, n := range names {

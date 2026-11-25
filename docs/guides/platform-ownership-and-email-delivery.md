@@ -28,7 +28,7 @@ Treat sections below as the **intended** `orbit-server` design. As of this writi
 
 Orbit uses a **dual-binary architecture** that decouples developer workstation tools from server infrastructure:
 
-- **Developer Workstations (`orbit`)**: The CLI used by developers and administrators for local development (`orbit dev`), workspace onboarding (`orbit onboard`), invitation management (`orbit invite`), staff directory (`orbit staff`), and platform administrative initialization (`orbit admin init`). Workstations do not hold lldap or Stalwart *admin* credentials. **Exception:** `orbit invite create` SMTP-sends from this machine unless `--no-send`.
+- **Developer Workstations (`orbit`)**: The CLI used by developers and administrators for local development (`orbit dev`), workspace setup (`orbit setup`), invitation management (`orbit invite`), staff directory (`orbit staff`), and platform administrative initialization (`orbit admin init`). Workstations do not hold lldap or Stalwart *admin* credentials. **Exception:** `orbit invite create` SMTP-sends from this machine unless `--no-send`.
 - **Server Infrastructure (`orbit-server`)**: The dedicated, headless HTTP edge daemon running on production or staging servers (bare metal, systemd, or containerized). It holds Stalwart SMTP credentials, handles OTP challenge lifecycles with rate limiting, verifies administrator ownership, and provisions developer claims.
 
 ### Architecture Highlights

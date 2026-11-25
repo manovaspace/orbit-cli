@@ -91,22 +91,6 @@ func TestRepairJSONEnvelope(t *testing.T) {
 	requireEnvelope(t, out)
 }
 
-func TestInitJSONEnvelope(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("ORBIT_WORKSPACE", root)
-	out := &bytes.Buffer{}
-	cmd := newInitCmd()
-	cmd.SetOut(out)
-	cmd.SetArgs([]string{"--bootstrap", "--manifest", filepath.Join(root, "absent.yaml"), "--json"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("init --json: %v", err)
-	}
-	data := envelopeData(t, requireEnvelope(t, out))
-	if data["bootstrap"] != true {
-		t.Errorf("bootstrap = %v", data["bootstrap"])
-	}
-}
-
 func TestUpdateJSONEnvelope(t *testing.T) {
 	t.Setenv("ORBIT_WORKSPACE", t.TempDir())
 	out := &bytes.Buffer{}

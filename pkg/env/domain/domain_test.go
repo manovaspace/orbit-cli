@@ -189,9 +189,14 @@ func TestBooleanValidationValues(t *testing.T) {
 }
 
 func TestMissingEnvFileErrors(t *testing.T) {
-	schema := &EnvSchema{Variables: []VariableDef{{Name: "A", Required: true}, {Name: "B"}}}
+	schema := &EnvSchema{Variables: []VariableDef{
+		{Name: "A", Required: true},
+		{Name: "B"},
+		{Name: "BUILD_ONLY", Required: true, For: []string{"build"}},
+		{Name: "SECRET_FROM", Required: true, From: "secret:falak/dev"},
+	}}
 	errs := MissingEnvFileErrors("/tmp/x/.env", fs.ErrNotExist, schema)
-	if len(errs) != 2 || errs[0].Type != "file_not_found" || errs[1].Type != "missing_required" {
+	if len(errs) != 2 || errs[0].Type != "file_not_found" || errs[1].Type != "missing_required" || errs[1].Variable != "A" {
 		t.Fatalf("errors = %+v", errs)
 	}
 }
@@ -244,5 +249,22 @@ func TestInvalidInputsNeverExposeValues(t *testing.T) {
 	}
 	if errors := ValidateValues(nil, nil); len(errors) == 0 {
 		t.Error("nil contract incorrectly validates")
+	}
+}
+
+func TestValidateValuesSkipsBuildOnlyAndSecretFrom(t *testing.T) {
+	schema := &EnvSchema{
+		Version: "1",
+		Variables: []VariableDef{
+			{Name: "NPM_TOKEN", Type: TypeSecret, Required: true, For: []string{"build"}},
+			{Name: "S3_ACCESS_KEY_ID", Type: TypeSecret, Required: true, From: "secret:falak/dev"},
+			{Name: "DATABASE_URL", Type: TypeURL, Required: true, From: "postgres:falak_dev"},
+		},
+	}
+	errs := ValidateValues(map[string]string{
+		"DATABASE_URL": "postgres://falak:pw@127.0.0.1:10000/falak_dev?sslmode=disable",
+	}, schema)
+	if len(errs) != 0 {
+		t.Fatalf("expected 0 errors for build-only and secret: from vars, got %+v", errs)
 	}
 }
