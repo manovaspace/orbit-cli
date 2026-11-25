@@ -216,3 +216,50 @@ func TestHalfInitializedClusterConfiguresBeforeStart(t *testing.T) {
 		t.Fatalf("second plan actions = %q, want %q", got, want2)
 	}
 }
+
+func TestEnsureDatabaseGrantsBypassRLSWithoutRotatingPassword(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	r.addRepo("app/api", apiOrbit)
+	r.mkCluster()
+	const savedPassword = "existing-password-kept-unchanged"
+	if err := SaveLocalSecrets(r.secrets, map[string]string{passwordKey("app_api"): savedPassword}); err != nil {
+		t.Fatal(err)
+	}
+	sim := newSim(t, r.dataDir)
+	sim.running = true
+	sim.seedWithoutBypass("app_api", "app_api")
+
+	plan, err := r.part().Plan(ctx, r.state("linux", "native", sim, "app/api"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Grant BYPASSRLS to app_api"}; !slices.Equal(summaries(plan), want) {
+		t.Fatalf("actions = %q, want %q", summaries(plan), want)
+	}
+
+	pg := r.postgres(sim)
+	db := spec.DatabaseSpec{Name: "app_api", Role: "app_api"}
+	created, err := pg.EnsureDatabase(ctx, db)
+	if err != nil || created {
+		t.Fatalf("first EnsureDatabase = %v, %v; want false, nil", created, err)
+	}
+	if !sim.bypass["app_api"] {
+		t.Fatal("app_api role did not receive BYPASSRLS")
+	}
+	if got := sim.count("ALTER ROLE BYPASSRLS app_api"); got != 1 {
+		t.Errorf("ALTER ROLE BYPASSRLS ran %d times, want 1", got)
+	}
+	if got := readSecrets(t, r.secrets)[passwordKey("app_api")]; got != savedPassword {
+		t.Errorf("saved password rotated to %q, want %q", got, savedPassword)
+	}
+
+	stmtsBefore := len(sim.stmts)
+	created, err = pg.EnsureDatabase(ctx, db)
+	if err != nil || created {
+		t.Fatalf("second EnsureDatabase = %v, %v; want false, nil", created, err)
+	}
+	if len(sim.stmts) != stmtsBefore {
+		t.Errorf("second EnsureDatabase ran SQL statements: %q", sim.stmts[stmtsBefore:])
+	}
+}

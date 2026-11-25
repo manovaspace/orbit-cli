@@ -61,25 +61,42 @@ type sim struct {
 	dataDir string
 	running bool
 	roles   map[string]bool
+	bypass  map[string]bool
 	dbs     map[string]string
 	calls   []simCall
 	stmts   []string
 }
 
 var (
-	queryRe    = regexp.MustCompile(`SELECT 1 FROM (pg_roles|pg_database) WHERE (rolname|datname)='([^']*)'`)
-	createRole = regexp.MustCompile(`^CREATE ROLE "([^"]+)" LOGIN PASSWORD '[^']*';$`)
-	alterRole  = regexp.MustCompile(`^ALTER ROLE "([^"]+)" WITH LOGIN PASSWORD '[^']*';$`)
-	createDB   = regexp.MustCompile(`^CREATE DATABASE "([^"]+)" OWNER "([^"]+)";$`)
+	roleQueryRe     = regexp.MustCompile(`^SELECT rolbypassrls FROM pg_roles WHERE rolname='([^']*)'$`)
+	dbQueryRe       = regexp.MustCompile(`^SELECT 1 FROM pg_database WHERE datname='([^']*)'$`)
+	createRole      = regexp.MustCompile(`^CREATE ROLE "([^"]+)" LOGIN BYPASSRLS PASSWORD '[^']*';$`)
+	alterRole       = regexp.MustCompile(`^ALTER ROLE "([^"]+)" WITH LOGIN BYPASSRLS PASSWORD '[^']*';$`)
+	alterRoleBypass = regexp.MustCompile(`^ALTER ROLE "([^"]+)" WITH BYPASSRLS;$`)
+	createDB        = regexp.MustCompile(`^CREATE DATABASE "([^"]+)" OWNER "([^"]+)";$`)
 )
 
 func newSim(t *testing.T, dataDir string) *sim {
-	return &sim{t: t, dataDir: dataDir, roles: map[string]bool{}, dbs: map[string]string{}}
+	return &sim{
+		t:       t,
+		dataDir: dataDir,
+		roles:   map[string]bool{},
+		bypass:  map[string]bool{},
+		dbs:     map[string]string{},
+	}
 }
 
-// seed records an existing role and database, as left by an earlier run.
+// seed records an existing role with BYPASSRLS and database, as left by an earlier run.
 func (s *sim) seed(role, db string) {
 	s.roles[role] = true
+	s.bypass[role] = true
+	s.dbs[db] = role
+}
+
+// seedWithoutBypass records an existing role without BYPASSRLS and its database.
+func (s *sim) seedWithoutBypass(role, db string) {
+	s.roles[role] = true
+	s.bypass[role] = false
 	s.dbs[db] = role
 }
 
@@ -144,18 +161,23 @@ func (s *sim) psql(args []string) (runner.Result, error) {
 		return runner.Result{ExitCode: 2}, errors.New("psql: connection refused")
 	}
 	if i := slices.Index(args, "-tAc"); i >= 0 && i+1 < len(args) {
-		m := queryRe.FindStringSubmatch(args[i+1])
-		if m == nil {
-			return runner.Result{ExitCode: 1}, fmt.Errorf("sim: unexpected query %q", args[i+1])
+		query := args[i+1]
+		if m := roleQueryRe.FindStringSubmatch(query); m != nil {
+			if !s.roles[m[1]] {
+				return runner.Result{}, nil
+			}
+			if s.bypass[m[1]] {
+				return runner.Result{Stdout: "t\n"}, nil
+			}
+			return runner.Result{Stdout: "f\n"}, nil
 		}
-		found := s.roles[m[3]]
-		if m[1] == "pg_database" {
-			_, found = s.dbs[m[3]]
+		if m := dbQueryRe.FindStringSubmatch(query); m != nil {
+			if _, found := s.dbs[m[1]]; found {
+				return runner.Result{Stdout: "1\n"}, nil
+			}
+			return runner.Result{}, nil
 		}
-		if found {
-			return runner.Result{Stdout: "1\n"}, nil
-		}
-		return runner.Result{}, nil
+		return runner.Result{ExitCode: 1}, fmt.Errorf("sim: unexpected query %q", query)
 	}
 	if i := slices.Index(args, "-f"); i >= 0 && i+1 < len(args) {
 		return s.runSQL(args[i+1])
@@ -176,13 +198,22 @@ func (s *sim) runSQL(path string) (runner.Result, error) {
 				return runner.Result{ExitCode: 1}, fmt.Errorf("role %q already exists", name)
 			}
 			s.roles[name] = true
+			s.bypass[name] = true
 			s.stmts = append(s.stmts, "CREATE ROLE "+name)
 		case alterRole.MatchString(line):
 			name := alterRole.FindStringSubmatch(line)[1]
 			if !s.roles[name] {
 				return runner.Result{ExitCode: 1}, fmt.Errorf("role %q does not exist", name)
 			}
+			s.bypass[name] = true
 			s.stmts = append(s.stmts, "ALTER ROLE "+name)
+		case alterRoleBypass.MatchString(line):
+			name := alterRoleBypass.FindStringSubmatch(line)[1]
+			if !s.roles[name] {
+				return runner.Result{ExitCode: 1}, fmt.Errorf("role %q does not exist", name)
+			}
+			s.bypass[name] = true
+			s.stmts = append(s.stmts, "ALTER ROLE BYPASSRLS "+name)
 		case createDB.MatchString(line):
 			m := createDB.FindStringSubmatch(line)
 			if !s.roles[m[2]] {

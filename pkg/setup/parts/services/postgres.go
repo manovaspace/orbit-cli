@@ -228,48 +228,78 @@ func (p *postgres) exists(ctx context.Context, catalog, column, name string) (bo
 	return strings.TrimSpace(res.Stdout) == "1", nil
 }
 
-// dbState reports whether db's role exists, whether its database exists and whether the secrets
-// file holds the role's password.
-func (p *postgres) dbState(ctx context.Context, db spec.DatabaseSpec) (roleOK, dbOK, passwordOK bool, err error) {
-	if roleOK, err = p.exists(ctx, "pg_roles", "rolname", db.Role); err != nil {
-		return false, false, false, err
+// dbStatus describes the current cluster and secrets state for one declared database.
+type dbStatus struct {
+	role      bool
+	bypassRLS bool
+	db        bool
+	password  bool
+}
+
+// roleState reports whether role exists in pg_roles and whether it has BYPASSRLS.
+func (p *postgres) roleState(ctx context.Context, role string) (exists, bypassRLS bool, err error) {
+	query := fmt.Sprintf("SELECT rolbypassrls FROM pg_roles WHERE rolname='%s'", role)
+	res, err := p.run.Run(ctx, "", p.binary("psql"), append(p.psqlArgs(), "-tAc", query)...)
+	if err != nil {
+		return false, false, clierr.Wrap(err, clierr.Tool("cannot query Postgres"))
 	}
-	if dbOK, err = p.exists(ctx, "pg_database", "datname", db.Name); err != nil {
-		return false, false, false, err
+	switch strings.TrimSpace(res.Stdout) {
+	case "":
+		return false, false, nil
+	case "t":
+		return true, true, nil
+	default:
+		return true, false, nil
+	}
+}
+
+// dbState reports whether db's role exists, whether it has BYPASSRLS, whether its database exists
+// and whether the secrets file holds the role's password.
+func (p *postgres) dbState(ctx context.Context, db spec.DatabaseSpec) (dbStatus, error) {
+	var st dbStatus
+	var err error
+	if st.role, st.bypassRLS, err = p.roleState(ctx, db.Role); err != nil {
+		return dbStatus{}, err
+	}
+	if st.db, err = p.exists(ctx, "pg_database", "datname", db.Name); err != nil {
+		return dbStatus{}, err
 	}
 	secrets, err := LocalSecrets(p.secretsPath)
 	if err != nil {
-		return false, false, false, err
+		return dbStatus{}, err
 	}
-	return roleOK, dbOK, secrets[passwordKey(db.Role)] != "", nil
+	st.password = secrets[passwordKey(db.Role)] != ""
+	return st, nil
 }
 
-// EnsureDatabase makes db's role and database exist and keeps a password for the role in the
-// secrets file. It reports whether this call created the database. The SQL, which carries the new
-// password, reaches psql only as a 0600 file in the data directory, removed before return; no
-// password is ever on a command line.
+// EnsureDatabase makes db's role and database exist with BYPASSRLS and keeps a password for the
+// role in the secrets file. It reports whether this call created the database. The SQL, which
+// carries the new password, reaches psql only as a 0600 file in the data directory, removed before
+// return; no password is ever on a command line.
 func (p *postgres) EnsureDatabase(ctx context.Context, db spec.DatabaseSpec) (bool, error) {
-	roleOK, dbOK, passwordOK, err := p.dbState(ctx, db)
+	st, err := p.dbState(ctx, db)
 	if err != nil {
 		return false, err
 	}
-	if roleOK && dbOK && passwordOK {
+	if st.role && st.bypassRLS && st.db && st.password {
 		return false, nil
 	}
 
 	var sql strings.Builder
 	var password string
-	if !roleOK || !passwordOK {
+	if !st.role || !st.password {
 		if password, err = generatePassword(); err != nil {
 			return false, err
 		}
-		if roleOK {
-			fmt.Fprintf(&sql, "ALTER ROLE \"%s\" WITH LOGIN PASSWORD '%s';\n", db.Role, password)
+		if st.role {
+			fmt.Fprintf(&sql, "ALTER ROLE \"%s\" WITH LOGIN BYPASSRLS PASSWORD '%s';\n", db.Role, password)
 		} else {
-			fmt.Fprintf(&sql, "CREATE ROLE \"%s\" LOGIN PASSWORD '%s';\n", db.Role, password)
+			fmt.Fprintf(&sql, "CREATE ROLE \"%s\" LOGIN BYPASSRLS PASSWORD '%s';\n", db.Role, password)
 		}
+	} else if !st.bypassRLS {
+		fmt.Fprintf(&sql, "ALTER ROLE \"%s\" WITH BYPASSRLS;\n", db.Role)
 	}
-	if !dbOK {
+	if !st.db {
 		fmt.Fprintf(&sql, "CREATE DATABASE \"%s\" OWNER \"%s\";\n", db.Name, db.Role)
 	}
 	if err := p.runSQL(ctx, sql.String()); err != nil {
@@ -286,7 +316,7 @@ func (p *postgres) EnsureDatabase(ctx context.Context, db spec.DatabaseSpec) (bo
 			return false, err
 		}
 	}
-	return !dbOK, nil
+	return !st.db, nil
 }
 
 // runSQL writes sql to a 0600 file in the data directory, runs it with psql -f and removes the
@@ -296,9 +326,9 @@ func (p *postgres) runSQL(ctx context.Context, sql string) error {
 	if err != nil {
 		return clierr.Wrap(err, clierr.Failed("cannot create an SQL file in "+p.dataDir))
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.WriteString(sql); err != nil {
-		f.Close()
+		_ = f.Close()
 		return clierr.Failed("cannot write the SQL file")
 	}
 	if err := f.Close(); err != nil {

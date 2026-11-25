@@ -339,16 +339,19 @@ func (p part) planPostgres(ctx context.Context, s *engine.State, dbs []spec.Data
 		return nil
 	}
 	for _, db := range dbs {
-		roleOK, dbOK, passwordOK, err := pg.dbState(ctx, db)
+		dbSt, err := pg.dbState(ctx, db)
 		if err != nil {
 			return err
 		}
-		if roleOK && dbOK && passwordOK {
+		if dbSt.role && dbSt.bypassRLS && dbSt.db && dbSt.password {
 			continue
 		}
 		summary := "Create database " + db.Name
-		if roleOK && dbOK {
+		switch {
+		case dbSt.role && dbSt.db && !dbSt.password:
 			summary = "Reset password for " + db.Role
+		case dbSt.role && dbSt.db && dbSt.password && !dbSt.bypassRLS:
+			summary = "Grant BYPASSRLS to " + db.Role
 		}
 		plan.Actions = append(plan.Actions, engine.Action{
 			Part:    partName,

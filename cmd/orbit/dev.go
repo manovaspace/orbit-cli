@@ -51,11 +51,6 @@ func writeDevFailure(out io.Writer, jsonFlag bool, err error) {
 	}
 }
 
-// findOrbitInfraDir is kept for onboard, which launches the stack directly.
-func findOrbitInfraDir(workspaceRoot string) string {
-	return devFiles.InfraDir(workspaceRoot)
-}
-
 func newDevCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dev",

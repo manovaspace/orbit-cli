@@ -125,7 +125,7 @@ func checkRelative(p string) error {
 	}
 	for _, part := range strings.Split(filepath.ToSlash(p), "/") {
 		if part == ".." {
-			return fmt.Errorf("path must not contain ..")
+			return fmt.Errorf("path must not contain \"..\" segments")
 		}
 	}
 	return nil

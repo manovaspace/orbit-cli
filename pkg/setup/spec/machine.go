@@ -85,17 +85,17 @@ func SaveMachine(path string, m Machine) error {
 		return clierr.Wrap(err, clierr.Failed(fmt.Sprintf("cannot create temp file in %s", dir)))
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot set machine file mode"))
 	}
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot write machine file"))
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot sync machine file"))
 	}
 	if err := tmp.Close(); err != nil {

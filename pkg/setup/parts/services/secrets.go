@@ -101,17 +101,17 @@ func SaveLocalSecrets(path string, values map[string]string) error {
 		return clierr.Wrap(err, clierr.Failed(fmt.Sprintf("cannot create temp file in %s", dir)))
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot set secrets file mode"))
 	}
 	if _, err := tmp.WriteString(b.String()); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot write secrets file"))
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return clierr.Wrap(err, clierr.Failed("cannot sync secrets file"))
 	}
 	if err := tmp.Close(); err != nil {
