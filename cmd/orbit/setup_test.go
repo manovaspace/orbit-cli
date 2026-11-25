@@ -405,8 +405,58 @@ func TestSetupFlagsSaveBeforeHandbookFailure(t *testing.T) {
 	if loadErr != nil || !existed {
 		t.Fatalf("machine file existed=%v err=%v", existed, loadErr)
 	}
-	if strings.Join(m.Projects, ",") != "a" || m.Services != "container" {
-		t.Fatalf("machine = %+v, want the flags saved", m)
+	// Projects wait for the manifest, so the --projects value is not saved here.
+	if len(m.Projects) != 0 || m.Services != "container" {
+		t.Fatalf("machine = %+v, want the other flags saved and no projects", m)
+	}
+}
+
+// manifestWritePart stands in for the handbook phase: its only action writes the manifest.
+type manifestWritePart struct {
+	path    string
+	content []byte
+}
+
+func (p manifestWritePart) Name() string    { return "handbook" }
+func (p manifestWritePart) Needs() []string { return nil }
+func (p manifestWritePart) Plan(context.Context, *engine.State) (engine.Plan, error) {
+	return engine.Plan{Actions: []engine.Action{{
+		Part:    "handbook",
+		Summary: "write manifest",
+		Do: func(context.Context) error {
+			if err := os.MkdirAll(filepath.Dir(p.path), 0o755); err != nil {
+				return err
+			}
+			return os.WriteFile(p.path, p.content, 0o600)
+		},
+	}}}, nil
+}
+
+func TestSetupProjectsWaitForManifest(t *testing.T) {
+	fx := newSetupFixture(t)
+	manifestPath := filepath.Join(fx.root, "handbook", "agents", "workspace", "workspace.yaml")
+	content, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(fx.root, "handbook")); err != nil {
+		t.Fatal(err)
+	}
+	defaultParts = func() []engine.Part { return []engine.Part{manifestWritePart{path: manifestPath, content: content}} }
+
+	_, _, err = runCmd(t, newSetupCmd(), "", "--projects", "bogus", "--services", "container", "--workspace", fx.root, "--yes")
+	if clierr.Code(err) != clierr.CodeUsage {
+		t.Fatalf("err = %v, want usage error for unknown project", err)
+	}
+	m, existed, loadErr := spec.LoadMachine(fx.machine)
+	if loadErr != nil || !existed {
+		t.Fatalf("machine file existed=%v err=%v", existed, loadErr)
+	}
+	if len(m.Projects) != 0 {
+		t.Fatalf("machine projects = %v, want none saved before the manifest exists", m.Projects)
+	}
+	if m.Services != "container" {
+		t.Fatalf("machine = %+v, want the other flags saved", m)
 	}
 }
 

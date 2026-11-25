@@ -178,7 +178,16 @@ func runSetup(cmd *cobra.Command, f *setupFlags) error {
 	}
 	if setupFlagsChanged(cmd) {
 		// Flags are saved before the handbook phase so a failed run keeps them.
-		if err := spec.SaveMachine(machinePath(), m); err != nil {
+		// Project names wait for the manifest: until it exists the saved list is kept.
+		keep := m
+		if st.Manifest == nil {
+			prev, _, err := spec.LoadMachine(machinePath())
+			if err != nil {
+				return err
+			}
+			keep.Projects = prev.Projects
+		}
+		if err := spec.SaveMachine(machinePath(), keep); err != nil {
 			return err
 		}
 	}
