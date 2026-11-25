@@ -23,6 +23,19 @@ var shellRCs = map[string][]string{
 	"bash": {".bashrc", ".profile"},
 }
 
+// PrimaryRC returns the rc file, relative to home, that the toolchains part writes first for the
+// login shell named by shell, or "" when the shell is neither zsh nor bash.
+func PrimaryRC(shell string) string {
+	if shell == "" {
+		return ""
+	}
+	rcs := shellRCs[filepath.Base(shell)]
+	if len(rcs) == 0 {
+		return ""
+	}
+	return rcs[0]
+}
+
 // Block returns the orbit block for platform, ending with a newline. Paths stay $HOME-relative so
 // the block reads the same on every machine; home is accepted and not used.
 func Block(platform, home string) string {

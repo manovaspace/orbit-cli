@@ -64,11 +64,11 @@ func newDoctorCmd() *cobra.Command {
 			"--remote adds SSH, Docker daemon, listener and cloud probes. --local is the default and accepted as a no-op.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if local && (remote || fix || acceptHostKeys) {
-				return clierr.Usage("--local cannot be combined with remote probes or mutation flags")
-			}
 			if fix {
 				return clierr.Usage("o doctor never changes the machine; run o setup")
+			}
+			if local && (remote || acceptHostKeys) {
+				return clierr.Usage("--local cannot be combined with remote probes or mutation flags")
 			}
 			if acceptHostKeys {
 				return clierr.Usage("--accept-host-keys is not available: o doctor never changes the machine; run o setup")

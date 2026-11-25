@@ -114,3 +114,20 @@ func TestLocalDoctorRejectsMutation(t *testing.T) {
 		t.Fatal("doctor permits updater side effects")
 	}
 }
+
+// TestDoctorLocalFixIsUsage: --local --fix gets the same refusal as --fix.
+func TestDoctorLocalFixIsUsage(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	fx.saveMachine(t, "a")
+
+	_, err := executeDoctor(t, "--local", "--fix")
+	if clierr.Code(err) != clierr.CodeUsage || clierr.ExitCode(err) != clierr.ExitUsage {
+		t.Fatalf("err = %v, want usage exit %d", err, clierr.ExitUsage)
+	}
+	if err.Error() != "o doctor never changes the machine; run o setup" {
+		t.Fatalf("message = %q", err.Error())
+	}
+	if len(fx.ran) != 0 {
+		t.Fatalf("doctor --local --fix ran actions: %v", fx.ran)
+	}
+}

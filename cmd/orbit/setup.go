@@ -17,6 +17,7 @@ import (
 	"github.com/manovaspace/orbit-cli/pkg/render"
 	"github.com/manovaspace/orbit-cli/pkg/setup"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
+	"github.com/manovaspace/orbit-cli/pkg/setup/parts/toolchains"
 	"github.com/manovaspace/orbit-cli/pkg/setup/spec"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
@@ -30,8 +31,16 @@ var stdinIsTerminal = istty.IsInteractiveSession
 
 const (
 	setupProjectsUsage = "choose projects: o setup --projects falak"
-	setupDoneMessage   = "Setup complete. Open a new terminal (or run: source ~/.zshrc) so PATH changes apply, then run: o up"
 )
+
+// setupDoneMessage names the rc file of the login shell that the toolchains part writes.
+func setupDoneMessage(shell string) string {
+	rc := toolchains.PrimaryRC(shell)
+	if rc == "" {
+		return "Setup complete. Open a new terminal so PATH changes apply, then run: o up"
+	}
+	return "Setup complete. Open a new terminal (or run: source ~/" + rc + ") so PATH changes apply, then run: o up"
+}
 
 // setupFlags are the flags of o setup and its o init alias. add and remove use only yes and json.
 type setupFlags struct {
@@ -154,7 +163,7 @@ func runSetup(cmd *cobra.Command, f *setupFlags) error {
 	if f.plan {
 		return s.plan(m)
 	}
-	if len(m.Projects) == 0 && s.nonInteractive {
+	if len(m.Projects) == 0 && (s.nonInteractive || f.yes) {
 		return clierr.Usage(setupProjectsUsage)
 	}
 
@@ -164,6 +173,12 @@ func runSetup(cmd *cobra.Command, f *setupFlags) error {
 	}
 	if st.Manifest != nil && len(m.Projects) > 0 {
 		if err := checkProjectNames(st.Manifest, m.Projects); err != nil {
+			return err
+		}
+	}
+	if setupFlagsChanged(cmd) {
+		// Flags are saved before the handbook phase so a failed run keeps them.
+		if err := spec.SaveMachine(machinePath(), m); err != nil {
 			return err
 		}
 	}
@@ -201,7 +216,17 @@ func runSetup(cmd *cobra.Command, f *setupFlags) error {
 	}
 	st.Machine = m
 	res, err := s.apply(st, defaultParts())
-	return s.emit(res, err, nil, setupDoneMessage)
+	return s.emit(res, err, nil, setupDoneMessage(os.Getenv("SHELL")))
+}
+
+// setupFlagsChanged reports whether a flag that overwrites the machine file was given.
+func setupFlagsChanged(cmd *cobra.Command) bool {
+	for _, name := range []string{"projects", "services", "git-protocol", "workspace"} {
+		if cmd.Flags().Changed(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // setupMachine loads machine.yaml, overwrites the fields whose flags were set and validates the result.
@@ -451,7 +476,7 @@ func changeProjects(cmd *cobra.Command, f *setupFlags, names []string, add bool)
 			p.Line(render.StatusInfo, "no longer selected: "+strings.Join(notSelected, ", "))
 		}
 	}
-	return s.emit(res, err, extra, setupDoneMessage)
+	return s.emit(res, err, extra, setupDoneMessage(os.Getenv("SHELL")))
 }
 
 func repoListed(targets []manifest.RepoTarget, path string) bool {
@@ -488,7 +513,7 @@ does, and partial otherwise. Nothing is fetched from the network.`,
 				return err
 			}
 			if st.Manifest == nil {
-				return clierr.Failed("the workspace manifest is not cloned yet; run o setup")
+				return clierr.Unverified("the workspace manifest is not cloned yet; run o setup first")
 			}
 			rows, err := projectRows(st)
 			if err != nil {

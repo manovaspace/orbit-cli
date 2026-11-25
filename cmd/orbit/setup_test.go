@@ -367,3 +367,77 @@ func TestSetupCancelledAnswerStopsBeforeParts(t *testing.T) {
 		t.Fatalf("cancelled setup: err %v, ran %v", err, fx.ran)
 	}
 }
+
+// failPart is a setup part whose plan fails, so the handbook phase errors out.
+type failPart struct{ name string }
+
+func (p failPart) Name() string    { return p.name }
+func (p failPart) Needs() []string { return nil }
+func (p failPart) Plan(context.Context, *engine.State) (engine.Plan, error) {
+	return engine.Plan{}, clierr.Failed("fake " + p.name + " failure")
+}
+
+func TestSetupYesNeverPrompts(t *testing.T) {
+	fx := newSetupFixture(t, "system")
+	stdinIsTerminal = func() bool { return true }
+
+	_, _, err := runCmd(t, newSetupCmd(), "2\n", "--yes", "--workspace", fx.root)
+	if err == nil || err.Error() != setupProjectsUsage {
+		t.Fatalf("err = %v, want %q", err, setupProjectsUsage)
+	}
+	if clierr.Code(err) != clierr.CodeUsage || len(fx.ran) != 0 {
+		t.Fatalf("code %s, parts ran %v", clierr.Code(err), fx.ran)
+	}
+}
+
+func TestSetupFlagsSaveBeforeHandbookFailure(t *testing.T) {
+	fx := newSetupFixture(t)
+	if err := os.RemoveAll(filepath.Join(fx.root, "handbook")); err != nil {
+		t.Fatal(err)
+	}
+	defaultParts = func() []engine.Part { return []engine.Part{failPart{name: "handbook"}} }
+
+	_, _, err := runCmd(t, newSetupCmd(), "", "--projects", "a", "--services", "container", "--workspace", fx.root, "--yes")
+	if err == nil {
+		t.Fatal("setup succeeded with a failing handbook phase")
+	}
+	m, existed, loadErr := spec.LoadMachine(fx.machine)
+	if loadErr != nil || !existed {
+		t.Fatalf("machine file existed=%v err=%v", existed, loadErr)
+	}
+	if strings.Join(m.Projects, ",") != "a" || m.Services != "container" {
+		t.Fatalf("machine = %+v, want the flags saved", m)
+	}
+}
+
+func TestSetupDoneMessageNamesShellRC(t *testing.T) {
+	cases := map[string]string{
+		"/bin/zsh":  "source ~/.zshrc",
+		"/bin/bash": "source ~/.bashrc",
+	}
+	for shell, want := range cases {
+		msg := setupDoneMessage(shell)
+		if !strings.Contains(msg, want) {
+			t.Fatalf("shell %s: message %q lacks %q", shell, msg, want)
+		}
+	}
+	if msg := setupDoneMessage("/bin/bash"); strings.Contains(msg, "zshrc") {
+		t.Fatalf("bash message names zshrc: %q", msg)
+	}
+}
+
+func TestProjectsWithoutManifestIsUnverified(t *testing.T) {
+	fx := newSetupFixture(t)
+	fx.saveMachine(t, "a")
+	if err := os.RemoveAll(filepath.Join(fx.root, "handbook")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := runCmd(t, newProjectsCmd(), "")
+	if clierr.ExitCode(err) != clierr.ExitUnverified {
+		t.Fatalf("exit = %d, err = %v, want %d", clierr.ExitCode(err), err, clierr.ExitUnverified)
+	}
+	if !strings.Contains(err.Error(), "run o setup first") {
+		t.Fatalf("message = %v", err)
+	}
+}
