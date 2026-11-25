@@ -18,6 +18,7 @@ type serviceRow struct {
 	Port  int    `json:"port"`
 	Owner string `json:"owner"`
 	Error string `json:"error,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 // servicesResult is the data of `o services --json`.
@@ -29,7 +30,7 @@ func newUpCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "up",
 		Short: "Start the local services this machine needs",
-		Long:  "Start the native Postgres cluster and Mailpit that the selected repositories declare, creating the cluster and missing databases first. Services are left running; stop them with 'o down'. With services: external in machine.yaml, nothing is started and the declared ports are only checked.",
+		Long:  "Start the native Postgres cluster and Mailpit that the selected repositories declare, creating the cluster and missing databases first. Services are left running; stop them with 'o down'. With services: external in machine.yaml, nothing is checked or started and the command exits 0.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -128,6 +129,9 @@ func newServicesCmd() *cobra.Command {
 				case r.Status.Running:
 					row.State = "running"
 				}
+				if r.Note != nil {
+					row.Note = r.Note.Error()
+				}
 				result.Services = append(result.Services, row)
 			}
 
@@ -151,6 +155,9 @@ func newServicesCmd() *cobra.Command {
 				for _, row := range result.Services {
 					if row.Error != "" {
 						p.Line(render.StatusFail, row.Name+": "+row.Error)
+					}
+					if row.Note != "" {
+						p.Line(render.StatusWarn, row.Name+": "+row.Note)
 					}
 				}
 				return nil

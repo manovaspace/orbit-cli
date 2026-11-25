@@ -111,7 +111,7 @@ func TestRunningServerNeedsOnlyMissingDatabases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"Create database app_api"}; !slices.Equal(summaries(plan), want) {
+	if want := []string{"Reset password for app_api"}; !slices.Equal(summaries(plan), want) {
 		t.Fatalf("actions = %q, want %q", summaries(plan), want)
 	}
 }
@@ -127,5 +127,32 @@ func TestPsqlErrorIsReported(t *testing.T) {
 	}
 	if left, _ := filepath.Glob(filepath.Join(r.dataDir, "orbit-setup-*.sql")); len(left) != 0 {
 		t.Fatalf("SQL temp file left behind: %q", left)
+	}
+}
+
+func TestPsqlRunsAsOSUser(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	r.mkCluster()
+	sim := newSim(t, r.dataDir)
+	sim.running = true
+	pg := r.postgres(sim)
+
+	if _, err := pg.EnsureDatabase(ctx, spec.DatabaseSpec{Name: "app_api", Role: "app_api"}); err != nil {
+		t.Fatal(err)
+	}
+	psqls := 0
+	for _, c := range sim.calls {
+		if filepath.Base(c.name) != "psql" {
+			continue
+		}
+		psqls++
+		i := slices.Index(c.args, "-U")
+		if i < 0 || i+1 >= len(c.args) || c.args[i+1] != "tester" {
+			t.Fatalf("psql args %q lack -U tester", c.args)
+		}
+	}
+	if psqls == 0 {
+		t.Fatal("psql never ran")
 	}
 }

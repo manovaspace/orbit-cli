@@ -130,6 +130,40 @@ func TestNativeRefusesForeignListener(t *testing.T) {
 	}
 }
 
+func TestNativeRefusesForeignListenerWithoutBinaries(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	r.addRepo("app/api", apiOrbit)
+	r.present = nil
+	r.listening["127.0.0.1:10000"] = true
+	fake := &runnertest.Fake{}
+	st := r.state("linux", "native", fake, "app/api")
+
+	pr := (&engine.Engine{Parts: []engine.Part{r.part()}}).Check(ctx, st).Parts[0]
+	want := "port 10000 is used by another Postgres; set services: external in ~/.config/orbit/machine.yaml"
+	if pr.Status != engine.StatusFailed || !findingContains(pr.Findings, want) {
+		t.Fatalf("status %q findings %+v, want the foreign listener refusal", pr.Status, pr.Findings)
+	}
+	if findingContains(pr.Findings, "binaries not found") {
+		t.Fatalf("binaries error reported ahead of the foreign listener: %+v", pr.Findings)
+	}
+
+	rows, err := servicesWith(ctx, st, r.deps())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := rows[0]
+	if row.Name != "postgres" || !row.Status.Running || row.Status.Owner != "other" || row.Err != nil {
+		t.Fatalf("postgres row = %+v, want running/other", row)
+	}
+	if row.Note == nil || !strings.Contains(row.Note.Error(), "postgres 18 binaries not found") {
+		t.Fatalf("postgres note = %v, want the binaries error", row.Note)
+	}
+	if calls := fake.Calls(); len(calls) != 0 {
+		t.Fatalf("missing binaries ran commands: %+v", calls)
+	}
+}
+
 func TestExternalModeCreatesNothing(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t)

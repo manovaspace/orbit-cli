@@ -136,10 +136,11 @@ func (p *postgres) initCluster(ctx context.Context) error {
 	return nil
 }
 
-// psqlArgs connects over the cluster's unix socket as the OS user, which is a superuser.
+// psqlArgs connects over the cluster's unix socket as the OS user, which is a superuser. -U pins
+// the role so a PGUSER in the environment cannot change it.
 func (p *postgres) psqlArgs() []string {
 	return []string{
-		"-h", p.dataDir, "-p", strconv.Itoa(postgresPort), "-d", "postgres",
+		"-h", p.dataDir, "-p", strconv.Itoa(postgresPort), "-U", p.user, "-d", "postgres",
 		"-v", "ON_ERROR_STOP=1", "-X", "-q",
 	}
 }

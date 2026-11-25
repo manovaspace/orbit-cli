@@ -7,7 +7,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -100,10 +99,10 @@ func netDial(addr string, timeout time.Duration) error {
 	return conn.Close()
 }
 
-// processAlive reports whether pid exists. EPERM means it exists under another user.
+// processAlive reports whether signal 0 reaches pid. EPERM is not alive: the process belongs to
+// another user, so orbit cannot own it and must not signal it.
 func processAlive(pid int) bool {
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
+	return syscall.Kill(pid, 0) == nil
 }
 
 // postgres builds the cluster handle for s; bin is the resolved binary directory or "".
@@ -260,10 +259,9 @@ func (p part) planNative(ctx context.Context, s *engine.State, n needs) (engine.
 // running cannot be checked, so one "Ensure databases" action covers every declared database. A
 // running server gets one action per database that is missing or lacks its password.
 func (p part) planPostgres(ctx context.Context, s *engine.State, dbs []spec.DatabaseSpec, plan *engine.Plan) error {
-	bin, err := PostgresBinDir(ctx, s.Run, s.Platform, s.FS)
-	if err != nil {
-		return err
-	}
+	// The port is probed even without binaries: a listener there is foreign, and reporting it is
+	// more useful than the missing binaries.
+	bin, binErr := PostgresBinDir(ctx, s.Run, s.Platform, s.FS)
 	pg, err := p.deps.postgres(s, bin)
 	if err != nil {
 		return err
@@ -280,6 +278,9 @@ func (p part) planPostgres(ctx context.Context, s *engine.State, dbs []spec.Data
 			Severity: engine.SeverityError,
 		})
 		return nil
+	}
+	if binErr != nil {
+		return binErr
 	}
 
 	if !st.Running {
@@ -326,10 +327,14 @@ func (p part) planPostgres(ctx context.Context, s *engine.State, dbs []spec.Data
 		if roleOK && dbOK && passwordOK {
 			continue
 		}
+		summary := "Create database " + db.Name
+		if roleOK && dbOK {
+			summary = "Reset password for " + db.Role
+		}
 		plan.Actions = append(plan.Actions, engine.Action{
 			Part:    partName,
 			Subject: db.Name,
-			Summary: "Create database " + db.Name,
+			Summary: summary,
 			Do: func(ctx context.Context) error {
 				return ensureDatabase(ctx, s, pg, db)
 			},
@@ -391,11 +396,13 @@ func (p part) planMailpit(ctx context.Context, s *engine.State, plan *engine.Pla
 	return nil
 }
 
-// Row is one service line for `o services`. Err is set when the service cannot be queried.
+// Row is one service line for `o services`. Err is set when the service cannot be queried. Note
+// carries a problem that does not change the status, such as missing Postgres binaries.
 type Row struct {
 	Name   string
 	Status Status
 	Err    error
+	Note   error
 }
 
 // Services reports the status of postgres and mailpit as this machine is configured.
@@ -404,6 +411,7 @@ func Services(ctx context.Context, s *engine.State) ([]Row, error) {
 }
 
 func servicesWith(ctx context.Context, s *engine.State, d deps) ([]Row, error) {
+	// Without binaries bin stays empty, so Status only probes the port. The binaries error is a note.
 	var bin string
 	var binErr error
 	if s.Machine.Services == "native" {
@@ -419,13 +427,9 @@ func servicesWith(ctx context.Context, s *engine.State, d deps) ([]Row, error) {
 	}
 
 	var rows []Row
-	if binErr != nil {
-		rows = append(rows, Row{Name: pg.Name(), Err: binErr})
-	} else {
-		st, err := pg.Status(ctx)
-		rows = append(rows, Row{Name: pg.Name(), Status: st, Err: err})
-	}
-	st, err := mp.Status(ctx)
+	st, err := pg.Status(ctx)
+	rows = append(rows, Row{Name: pg.Name(), Status: st, Err: err, Note: binErr})
+	st, err = mp.Status(ctx)
 	rows = append(rows, Row{Name: mp.Name(), Status: st, Err: err})
 	return rows, nil
 }
