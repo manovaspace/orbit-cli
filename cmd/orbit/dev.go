@@ -69,7 +69,6 @@ func newDevCmd() *cobra.Command {
 	cmd.AddCommand(newDevCaddyCmd())
 	cmd.AddCommand(newDevPortalCmd())
 	cmd.AddCommand(newDevLogsCmd())
-	cmd.AddCommand(newDevTunnelCmd())
 	cmd.AddCommand(newDevRoutesCmd())
 
 	return cmd

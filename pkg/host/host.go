@@ -2,7 +2,6 @@ package host
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -57,28 +56,7 @@ func Evaluate(in Input) Report {
 	if in.Virt == "wsl1" {
 		fs = append(fs, Failure{Code: "virt", Message: "WSL1 is not supported (WSL2 required)"})
 	}
-	shell := filepath.Base(strings.TrimSpace(in.LoginShell))
-	if shell != "zsh" {
-		fs = append(fs, Failure{Code: "shell", Message: "login shell must be zsh"})
-	}
-	want := filepath.Clean(filepath.Join(in.Home, ".local", "bin"))
-	if !pathHasDir(in.Path, want) {
-		fs = append(fs, Failure{Code: "path", Message: "~/.local/bin is not on PATH (add export PATH=\"$HOME/.local/bin:$PATH\" to ~/.zshrc)"})
-	}
 	return Report{OK: len(fs) == 0, Platform: in.GOOS, Failures: fs}
-}
-
-func pathHasDir(pathEnv, dir string) bool {
-	dir = filepath.Clean(dir)
-	for _, p := range strings.Split(pathEnv, ":") {
-		if p == "" {
-			continue
-		}
-		if filepath.Clean(p) == dir {
-			return true
-		}
-	}
-	return false
 }
 
 func Format(r Report) string {
@@ -86,7 +64,7 @@ func Format(r Report) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("Orbit supports Ubuntu 24.04 or 26.04 LTS (amd64) and macOS (arm64 or amd64), with a zsh login shell and ~/.local/bin on PATH.\n")
+	b.WriteString("Orbit supports Ubuntu 24.04 or 26.04 LTS (amd64) and macOS (arm64 or amd64), .\n")
 	for _, f := range r.Failures {
 		fmt.Fprintf(&b, "  - %s: %s\n", f.Code, f.Message)
 	}

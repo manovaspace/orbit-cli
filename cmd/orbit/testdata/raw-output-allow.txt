@@ -12,6 +12,6 @@ assets.go 2  # Exempt: interactive prompts and diagnostics, not command results
 doc.go 2  # Exempt: interactive prompts and diagnostics, not command results
 hostgate.go 1  # Exempt: interactive prompts and diagnostics, not command results
 init.go 1  # Exempt: one stderr notice that o init is now o setup (hidden alias)
-main.go 6  # Exempt: interactive prompts and diagnostics, not command results
+main.go 5  # Exempt: interactive prompts and diagnostics, not command results
 setup.go 6  # Exempt: interactive prompts (project choice, apply confirmation) and the prompt list
 ui.go 4  # Exempt: interactive prompts and diagnostics, not command results

@@ -95,3 +95,53 @@ func TestDevRoutesWriteWithListIsUsageError(t *testing.T) {
 		t.Fatalf("exit = %d, want usage; stderr: %s", code, errOut)
 	}
 }
+
+// isolateDevConfig points ORBIT_CONFIG at a temp file holding content.
+func isolateDevConfig(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if content != "" {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("ORBIT_CONFIG", path)
+}
+
+// devTestRegistry is a workspace registry with two shared services, one shared
+// exception, and one mac service that the route output must not list as shared.
+const devTestRegistry = `version: 1
+base: 10000
+block_size: 50
+fixed_slots: 10
+projects:
+  - { id: 0, name: orbit-platform }
+services:
+  - { port: 10000, project: orbit-platform, name: postgres, proto: tcp, runs: shared, repos: [orbit/orbit-infra] }
+  - { port: 10006, project: orbit-platform, name: nats, proto: tcp, runs: shared, bind: 10.0.0.1, repos: [orbit/orbit-infra] }
+  - { port: 10001, project: orbit-platform, name: orbit-api-gateway, proto: http, runs: mac, repos: [orbit/orbit-api-gateway], localhost: gateway }
+exceptions:
+  - { port: 10334, name: redis, runs: shared, repos: [orbit/orbit-infra], reason: "test", until: "test" }
+`
+
+// writeDevTestRoot writes a workspace root holding handbook/agents/workspace/ports.yaml.
+func writeDevTestRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	dir := filepath.Join(root, "handbook", "agents", "workspace")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ports.yaml"), []byte(devTestRegistry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// runDev runs the CLI entry point with args and returns the exit code, stdout and stderr.
+func runDev(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := run(args, &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}

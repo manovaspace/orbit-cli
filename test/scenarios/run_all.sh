@@ -22,7 +22,6 @@ SUITES=(
     "01_admin.sh"
     "02_staff.sh"
     "03_invite.sh"
-    "04_onboard.sh"
     "05_doctor.sh"
     "06_assets.sh"
     "07_ports.sh"

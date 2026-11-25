@@ -21,7 +21,6 @@ import (
 // than a command result; none of them can be run safely or deterministically in
 // a unit test.
 var contractSkip = map[string]string{
-	"orbit onboard":             "interactive onboarding wizard",
 	"orbit admin init":          "interactive owner prompt and vault mutation",
 	"orbit admin verify":        "interactive verification prompt and vault mutation",
 	"orbit admin rotate-secret": "confirmation prompt and master-secret rotation",

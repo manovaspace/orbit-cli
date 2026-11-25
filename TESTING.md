@@ -155,10 +155,10 @@ Agents must run the narrowest sufficient recipe matching the modified subsystem 
 
 ## 4. Scenario Testbed & End-to-End Testing
 
-Orbit CLI provides a complete multi-scenario testbed in `test/scenarios/` covering 10 end-to-end integration suites:
+Orbit CLI provides a complete multi-scenario testbed in `test/scenarios/` covering 9 end-to-end integration suites:
 
 ```bash
-# Fast local execution of all 10 scenario suites
+# Fast local execution of all 9 scenario suites
 ./scripts/test-orbit-scenarios.sh --local
 
 # Go integration test harness running scenario suites
@@ -175,8 +175,7 @@ go test -v ./cmd/orbit -run TestScenariosIntegration
 | `01_admin.sh` | Platform Ownership & Vault | `owner.json` sealed at `0600`, OTP challenge verification, 3-strike lockout |
 | `02_staff.sh` | Staff IAM Directory Client | HMAC-SHA256 request headers, reserved account protection, lifecycle actions |
 | `03_invite.sh` | Developer Invitations | Cryptographic invite tokens, JSON listing contracts, revocation |
-| `04_onboard.sh` | Workstation Onboarding Wizard | Token validation, checkpoint persistence and reset |
-| `05_doctor.sh` | Diagnostics & Auto-Healing | Toolchain checks, disk space checks, automated remediation |
+| `05_doctor.sh` | Setup Check | `o doctor` checks without changes, `--fix` refused with a usage error |
 | `06_assets.sh` | Gitignored Assets (R2) | Manifest integrity, streaming uploads, credential failure handling |
 | `07_ports.sh` | 50-Port Allocation (ADR-006) | Deterministic and dynamic block allocations, exhaustion handling |
 | `08_env.sh` | Environment Contracts | `.env.schema.yaml` validation, secure `0600` `.env` generation |

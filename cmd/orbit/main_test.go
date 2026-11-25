@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,63 +153,4 @@ ui:
 			t.Errorf("server.url entry not found in list output")
 		}
 	})
-}
-
-func TestPostRunOnboardingNoticeSuppressedWhenAdminVerified(t *testing.T) {
-	tmpDir := t.TempDir()
-	sessionPath := filepath.Join(tmpDir, "session.json")
-	ownerPath := filepath.Join(tmpDir, "owner.json")
-
-	// Set env to redirect session and owner store to temp files
-	t.Setenv("ORBIT_SESSION_FILE", sessionPath)
-	t.Setenv("ORBIT_OWNER_STORE", ownerPath)
-
-	// Create an uncompleted session at stage init
-	sessData := `{"id":"test-sess","current_stage":"init"}`
-	if err := os.WriteFile(sessionPath, []byte(sessData), 0600); err != nil {
-		t.Fatalf("failed to write session file: %v", err)
-	}
-
-	// Case 1: Owner vault does not exist or unverified -> notice is shown on stderr
-	cmd := newRootCmdForTest(t)
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	cmd.SetOut(stdout)
-	cmd.SetErr(stderr)
-	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
-	cmd.SetArgs([]string{"fixture"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("fixture command failed: %v", err)
-	}
-
-	if !strings.Contains(stderr.String(), "Ongoing onboarding session detected") {
-		t.Errorf("expected onboarding notice on stderr when owner is unverified, got: %s", stderr.String())
-	}
-	if strings.Contains(stdout.String(), "Ongoing onboarding session detected") {
-		t.Errorf("onboarding notice must not be written to stdout, got: %s", stdout.String())
-	}
-
-	// Case 2: Owner vault exists and is verified -> notice is suppressed
-	ownerData := `{"email":"admin@example.com","root_signing_secret":"0123456789abcdef0123456789abcdef","verified_at":"2026-09-01T00:00:00Z"}` // gitleaks:allow
-	if err := os.WriteFile(ownerPath, []byte(ownerData), 0600); err != nil {
-		t.Fatalf("failed to write owner file: %v", err)
-	}
-
-	stdout.Reset()
-	stderr.Reset()
-	cmd = newRootCmdForTest(t)
-	cmd.SetOut(stdout)
-	cmd.SetErr(stderr)
-	cmd.AddCommand(&cobra.Command{Use: "fixture", Run: func(cmd *cobra.Command, args []string) {}})
-	cmd.SetArgs([]string{"fixture"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("fixture command failed: %v", err)
-	}
-
-	if strings.Contains(stdout.String(), "Ongoing onboarding session detected") {
-		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", stdout.String())
-	}
-	if strings.Contains(stderr.String(), "Ongoing onboarding session detected") {
-		t.Errorf("expected onboarding notice to be suppressed when admin is verified, got: %s", stderr.String())
-	}
 }

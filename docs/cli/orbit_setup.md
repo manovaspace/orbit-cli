@@ -1,0 +1,39 @@
+## orbit setup
+
+Set up this machine for the projects you choose
+
+### Synopsis
+
+Records the machine choices (projects, services, git protocol, workspace) in machine.yaml,
+then clones the chosen repositories and prepares their toolchains, services and env files.
+Without --projects an interactive run asks which projects to use; a non-interactive run
+(CI=true or stdin not a terminal) must be given --projects.
+Run 'o doctor' to check the setup without changing anything.
+
+```
+orbit setup [flags]
+```
+
+### Options
+
+```
+      --git-protocol string   Git protocol for clones: https or ssh (saved)
+  -h, --help                  help for setup
+      --json                  Print the result as a JSON envelope
+      --plan                  Show what would change; change nothing and save nothing
+      --projects strings      Projects to set up, comma-separated; replaces the saved list
+      --services string       Local services: native, container or external (saved)
+      --workspace string      Workspace directory, absolute or ~/ (saved)
+      --yes                   Apply without asking to confirm
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   Custom path to Orbit CLI configuration file
+```
+
+### SEE ALSO
+
+* [orbit](orbit.md)	 - Orbit developer platform and workspace orchestrator
+

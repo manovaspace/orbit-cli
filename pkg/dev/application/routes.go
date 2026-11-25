@@ -17,6 +17,12 @@ func RoutesFor(reg *portsdomain.Registry) ([]domain.Route, error) {
 	return domain.Routes(reg), nil
 }
 
+// TextFiles reads and writes the files the route commands use.
+type TextFiles interface {
+	ReadFile(path string) ([]byte, error)
+	WriteFile(path string, data []byte) error
+}
+
 // RouteService writes the generated Caddyfile.
 type RouteService struct {
 	Files TextFiles

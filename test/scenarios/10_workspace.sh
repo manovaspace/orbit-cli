@@ -66,10 +66,12 @@ groups:
         required: true
 EOF
 
-log_step "Initializing workspace with orbit init..."
-init_out=$(cd "${WORKSPACE_DIR}" && run_orbit init all)
-assert_contains "${init_out}" "Cloning 2 repositories" "Init starts multi-repo clone"
-assert_contains "${init_out}" "(cloned)" "Cloned confirmation displayed"
+# orbit init is now o setup, which needs the handbook and GitHub, so the clone is done directly.
+log_step "Cloning the manifest repositories from the mock remotes..."
+mkdir -p "${WORKSPACE_DIR}/services"
+for repo in "repo-a" "repo-b"; do
+    git clone -q "${REMOTES_DIR}/${repo}.git" "${WORKSPACE_DIR}/services/${repo}"
+done
 
 assert_file_exists "${WORKSPACE_DIR}/services/repo-a/.git" "repo-a cloned with .git"
 assert_file_exists "${WORKSPACE_DIR}/services/repo-b/.git" "repo-b cloned with .git"

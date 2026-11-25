@@ -19,7 +19,6 @@ var serverOnlyPaths = []string{
 	"dev caddy",
 	"dev logs",
 	"dev portal",
-	"onboard",
 	"staff",
 	"invite",
 	"admin",

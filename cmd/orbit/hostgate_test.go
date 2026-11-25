@@ -115,20 +115,33 @@ func TestEnforceHost_LinuxAllowsServerCommands(t *testing.T) {
 	}
 }
 
-func TestEnforceHost_DarwinBashStillFailsHostGate(t *testing.T) {
+// TestHostGateAllowsSetupOnDarwinAndBash: a macOS host with a bash login shell and no ~/.local/bin
+// on PATH passes the host check, and the setup, add, remove, projects, up, down, services and doctor
+// commands are not refused by the gate.
+func TestHostGateAllowsSetupOnDarwinAndBash(t *testing.T) {
 	t.Setenv("ORBIT_SKIP_HOSTGATE", "")
 	t.Setenv("ORBIT_TESTBED", "")
-	cmds := hostTree()
-	errBuf := &bytes.Buffer{}
-	cmds["port list"].SetErr(errBuf)
-	bad := func() host.Report {
-		return host.Report{OK: false, Platform: "darwin", Failures: []host.Failure{{Code: "shell", Message: "login shell must be zsh"}}}
+	report := host.Evaluate(host.Input{
+		GOOS:       "darwin",
+		GOARCH:     "arm64",
+		OSRelease:  map[string]string{},
+		Virt:       "native",
+		LoginShell: "/bin/bash",
+		Home:       "/Users/dev",
+		Path:       "/usr/bin",
+	})
+	if !report.OK {
+		t.Fatalf("darwin with bash must pass the host check: %#v", report.Failures)
 	}
-	if err := enforceHost(cmds["port list"], bad); err == nil {
-		t.Fatal("darwin with bash must fail the host gate")
-	}
-	if !strings.Contains(errBuf.String(), "Orbit supports") || !strings.Contains(errBuf.String(), "shell: login shell must be zsh") {
-		t.Fatalf("stderr: %s", errBuf.String())
+	root := newRootCmd()
+	for _, name := range []string{"setup", "add", "remove", "projects", "up", "down", "services", "doctor"} {
+		c, _, err := root.Find([]string{name})
+		if err != nil || c == nil || c.Name() != name {
+			t.Fatalf("command %s not found: %v", name, err)
+		}
+		if err := enforceHost(c, func() host.Report { return report }); err != nil {
+			t.Fatalf("%s must be allowed on darwin: %v", name, err)
+		}
 	}
 }
 

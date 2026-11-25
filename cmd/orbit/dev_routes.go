@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// devTextFiles reads and writes the tunnel key and the generated Caddyfile.
+// devTextFiles reads and writes the generated Caddyfile.
 var devTextFiles application.TextFiles = devosfs.New()
 
 func newDevRoutesCmd() *cobra.Command {

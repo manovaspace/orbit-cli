@@ -38,7 +38,6 @@ func TestEvaluate_Failures(t *testing.T) {
 		mut  func(*Input)
 		code string
 	}{
-		{"darwin_bash_shell", func(i *Input) { i.GOOS = "darwin"; i.LoginShell = "/bin/bash" }, "shell"},
 		{"darwin_386", func(i *Input) { i.GOOS = "darwin"; i.GOARCH = "386" }, "arch"},
 		{"linux_arm64_still_fails", func(i *Input) { i.GOARCH = "arm64" }, "arch"},
 		{"windows", func(i *Input) { i.GOOS = "windows" }, "os"},
@@ -47,8 +46,6 @@ func TestEvaluate_Failures(t *testing.T) {
 		{"empty_osrelease", func(i *Input) { i.OSRelease = map[string]string{} }, "os"},
 		{"arm64", func(i *Input) { i.GOARCH = "arm64" }, "arch"},
 		{"wsl1", func(i *Input) { i.Virt = "wsl1" }, "virt"},
-		{"bash", func(i *Input) { i.LoginShell = "/bin/bash" }, "shell"},
-		{"nopath", func(i *Input) { i.Path = "/usr/bin" }, "path"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,12 +91,13 @@ func TestEvaluate_DarwinOK(t *testing.T) {
 	}
 }
 
-func TestEvaluate_DarwinBashFailsShell(t *testing.T) {
+// TestEvaluate_DarwinBashAndNoLocalBinPass: the login shell and ~/.local/bin PATH are no longer host failures.
+func TestEvaluate_DarwinBashAndNoLocalBinPass(t *testing.T) {
 	in := darwinInput()
 	in.LoginShell = "/bin/bash"
-	r := Evaluate(in)
-	if r.OK || len(r.Failures) != 1 || r.Failures[0].Code != "shell" {
-		t.Fatalf("expected only shell failure, got %#v", r.Failures)
+	in.Path = "/usr/bin"
+	if r := Evaluate(in); !r.OK || len(r.Failures) != 0 {
+		t.Fatalf("expected OK on darwin with bash and no ~/.local/bin, got %#v", r.Failures)
 	}
 }
 
@@ -124,9 +122,12 @@ func TestEvaluate_PlatformSet(t *testing.T) {
 func TestFormat_ListsOnlyFailures(t *testing.T) {
 	in := okInput()
 	in.GOOS = "darwin"
-	in.Path = "/usr/bin"
+	in.GOARCH = "386"
 	msg := Format(Evaluate(in))
 	if msg == "" || !strings.Contains(msg, "Orbit supports Ubuntu 24.04 or 26.04 LTS (amd64) and macOS (arm64 or amd64)") || !strings.Contains(msg, "orbit doctor") {
 		t.Fatalf("unexpected message: %q", msg)
+	}
+	if strings.Contains(msg, "shell") || strings.Contains(msg, "~/.local/bin") || !strings.Contains(msg, "  - arch:") {
+		t.Fatalf("message lists retired checks or misses the arch failure: %q", msg)
 	}
 }

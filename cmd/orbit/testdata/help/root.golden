@@ -20,7 +20,6 @@ Available Commands:
   help        Help about any command
   invite      Manage developer onboarding invite tokens
   migrate     Run and inspect workspace state migrations
-  onboard     Interactive onboarding wizard with resume, claims, and stack provisioning
   port        Inspect, allocate and check dev ports against the port registry
   pr          Manage pull requests and automated delivery
   projects    List the workspace projects, whether you chose them and whether their repos are cloned

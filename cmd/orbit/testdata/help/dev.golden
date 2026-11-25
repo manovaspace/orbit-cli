@@ -10,7 +10,6 @@ Available Commands:
   portal      Open or print the local developer portal URL
   routes      Generate the Caddyfile that serves native dev processes at <name>.localhost
   tier2       Start Tier 2 Orbit services (orbit-auth, orbit-notifications, orbit-api-gateway)
-  tunnel      Forward the shared dev services over SSH to 127.0.0.1
   up          Start local development stack containers
 
 Flags:

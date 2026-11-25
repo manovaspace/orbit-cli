@@ -1,6 +1,7 @@
 package application
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -32,4 +33,30 @@ func TestRouteServiceWritesCaddyfileToPath(t *testing.T) {
 	if got != svc.Caddyfile(routes) || !strings.Contains(got, "http://gateway.localhost {\n\treverse_proxy 127.0.0.1:10001\n}\n") {
 		t.Errorf("written = %q", got)
 	}
+}
+
+// fakeTextFiles is an in-memory TextFiles for route tests.
+type fakeTextFiles struct {
+	read    map[string][]byte
+	readErr error
+	written map[string][]byte
+}
+
+func (f *fakeTextFiles) ReadFile(path string) ([]byte, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	data, ok := f.read[path]
+	if !ok {
+		return nil, errors.New("no such file")
+	}
+	return data, nil
+}
+
+func (f *fakeTextFiles) WriteFile(path string, data []byte) error {
+	if f.written == nil {
+		f.written = map[string][]byte{}
+	}
+	f.written[path] = data
+	return nil
 }
