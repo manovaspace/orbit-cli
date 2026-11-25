@@ -1,0 +1,141 @@
+name: Setup E2E
+
+on:
+  pull_request:
+    paths:
+      - "install.sh"
+      - "pkg/setup/**"
+      - "cmd/orbit/setup.go"
+      - "cmd/orbit/services.go"
+      - "pkg/onboard/infrastructure/server/install.sh"
+      - "pkg/onboard/infrastructure/server/server.go"
+      - ".github/workflows/setup-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify SETUP_E2E_TOKEN secret
+        env:
+          SETUP_E2E_TOKEN: ${{ secrets.SETUP_E2E_TOKEN }}
+        run: |
+          if [ -z "${SETUP_E2E_TOKEN:-}" ]; then
+            echo "::error::SETUP_E2E_TOKEN secret is required: fine-grained PAT with read-only Contents on manovaspace/handbook and manovaspace/falak" >&2
+            exit 1
+          fi
+
+      - name: Build local release artifacts
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          rm -rf /tmp/orbit-rel
+          mkdir -p /tmp/orbit-rel
+          os="$(uname -s)"
+          arch="$(uname -m)"
+          case "${os}" in
+            Linux)
+              asset="orbit-linux-amd64"
+              ;;
+            Darwin)
+              case "${arch}" in
+                arm64) asset="orbit-darwin-arm64" ;;
+                x86_64|amd64) asset="orbit-darwin-amd64" ;;
+                *)
+                  echo "Unsupported macOS architecture: ${arch}" >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "Unsupported OS: ${os}" >&2
+              exit 1
+              ;;
+          esac
+          go build -trimpath -o "/tmp/orbit-rel/${asset}" ./cmd/orbit
+          cd /tmp/orbit-rel
+          if [ "${os}" = "Linux" ]; then
+            sha256sum "${asset}" > checksums.txt
+          else
+            shasum -a 256 "${asset}" > checksums.txt
+          fi
+
+      - name: Uninstall Homebrew on macOS
+        if: matrix.os == 'macos-latest'
+        continue-on-error: true
+        run: |
+          if NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"; then
+            echo "Homebrew uninstall (${{ matrix.os }}): succeeded" >> "$GITHUB_STEP_SUMMARY"
+          else
+            rc=$?
+            echo "Homebrew uninstall (${{ matrix.os }}): failed with exit code ${rc} (continuing)" >> "$GITHUB_STEP_SUMMARY"
+            exit "${rc}"
+          fi
+
+      - name: Run install.sh and o setup
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_E2E_TOKEN }}
+        run: |
+          ORBIT_RELEASE_BASE_URL="file:///tmp/orbit-rel" bash install.sh -y -- setup --yes --projects falak --workspace "$HOME/Dev/Manova"
+
+      - name: Verify setup
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/go/bin:$PATH"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            if [ -x /opt/homebrew/bin/brew ]; then
+              eval "$(/opt/homebrew/bin/brew shellenv)"
+            elif [ -x /usr/local/bin/brew ]; then
+              eval "$(/usr/local/bin/brew shellenv)"
+            fi
+            if [ -n "${HOMEBREW_PREFIX:-}" ] && [ -d "${HOMEBREW_PREFIX}/opt/postgresql@18/bin" ]; then
+              export PATH="${HOMEBREW_PREFIX}/opt/postgresql@18/bin:$PATH"
+            fi
+          fi
+
+          o doctor
+          o up
+
+          local_env="${XDG_CONFIG_HOME:-$HOME/.config}/orbit/local.env"
+          PG_FALAK_PASSWORD="$(awk -F= '$1 == "PG_FALAK_PASSWORD" { print $2; exit }' "$local_env")"
+          if [ -z "${PG_FALAK_PASSWORD:-}" ]; then
+            echo "PG_FALAK_PASSWORD not found in ${local_env}" >&2
+            exit 1
+          fi
+          PGPASSWORD="$PG_FALAK_PASSWORD" psql -h 127.0.0.1 -p 10000 -U falak -d falak_dev -c 'select 1'
+
+          o setup --plan --json | jq -e '((.data.parts // []) | map(.actions // []) | add | length) == 0'
+
+      - name: Stop services
+        if: always()
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/go/bin:$PATH"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            if [ -x /opt/homebrew/bin/brew ]; then
+              eval "$(/opt/homebrew/bin/brew shellenv)"
+            elif [ -x /usr/local/bin/brew ]; then
+              eval "$(/usr/local/bin/brew shellenv)"
+            fi
+            if [ -n "${HOMEBREW_PREFIX:-}" ] && [ -d "${HOMEBREW_PREFIX}/opt/postgresql@18/bin" ]; then
+              export PATH="${HOMEBREW_PREFIX}/opt/postgresql@18/bin:$PATH"
+            fi
+          fi
+          if command -v o >/dev/null 2>&1 && [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/orbit/machine.yaml" ]; then
+            o down
+          fi
