@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="manovaspace/orbit-cli"
-DEFAULT_FALLBACK_VERSION="v0.19.4"
+DEFAULT_FALLBACK_VERSION="v0.23.0"
 INSTALL_DIR="${ORBIT_INSTALL_DIR:-${HOME}/.local/bin}"
 TMP_DIR=""
 STAGE_FILE=""
