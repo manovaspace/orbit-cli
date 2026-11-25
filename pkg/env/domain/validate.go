@@ -16,11 +16,14 @@ func ValidateValues(values map[string]string, schema *EnvSchema) []ValidationErr
 	var errors []ValidationError
 
 	for _, v := range schema.Variables {
+		if !appliesToDev(v.For) {
+			continue
+		}
 		val, exists := values[v.Name]
 		valTrimmed := strings.TrimSpace(val)
 
 		if !exists || valTrimmed == "" {
-			if v.Required {
+			if v.Required && !strings.HasPrefix(v.From, "secret:") {
 				errors = append(errors, ValidationError{
 					Variable: v.Name,
 					Message:  fmt.Sprintf("required variable %q is missing or empty", v.Name),
@@ -92,7 +95,10 @@ func MissingEnvFileErrors(envPath string, readErr error, schema *EnvSchema) []Va
 		return errs
 	}
 	for _, v := range schema.Variables {
-		if v.Required {
+		if !appliesToDev(v.For) {
+			continue
+		}
+		if v.Required && !strings.HasPrefix(v.From, "secret:") {
 			errs = append(errs, ValidationError{
 				Variable: v.Name,
 				Message:  fmt.Sprintf("required variable %q is missing", v.Name),
@@ -101,4 +107,16 @@ func MissingEnvFileErrors(envPath string, readErr error, schema *EnvSchema) []Va
 		}
 	}
 	return errs
+}
+
+func appliesToDev(forList []string) bool {
+	if len(forList) == 0 {
+		return true
+	}
+	for _, env := range forList {
+		if env == "dev" {
+			return true
+		}
+	}
+	return false
 }

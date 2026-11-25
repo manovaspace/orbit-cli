@@ -421,6 +421,12 @@
       color: var(--quiet);
     }
 
+    .hint code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--paper);
+    }
+
     .alt-cmd-box {
       margin-top: var(--space-2);
       padding: 10px 14px;
@@ -618,7 +624,7 @@
       <section class="hero">
         <div id="status-badge" class="status-badge" style="display: none;" role="status"></div>
         <h1 id="hero-title">Install Orbit</h1>
-        <p class="lede" id="hero-lede">Workstation CLI for onboarding, multi-repo sync, and the local dev stack. One binary, then a prompt before anything writes PATH.</p>
+        <p class="lede" id="hero-lede">Workstation CLI for onboarding, multi-repo sync, and the local dev stack. Installs the <code>orbit</code> binary and launches guided workstation setup.</p>
       </section>
 
       <!-- Conditional 2FA / TOTP Section -->
@@ -662,20 +668,20 @@
         <div class="term">
           <div class="term-bar">
             <span class="term-title" id="install-label">Paste in a terminal</span>
-            <button type="button" class="copy-btn" id="install-copy-btn" data-copy="curl -fsSL orbit.manova.space | bash" aria-label="Copy install command">Copy</button>
+            <button type="button" class="copy-btn" id="install-copy-btn" data-copy="curl -fsSL https://orbit.manova.space | bash -s -- setup" aria-label="Copy install command">Copy</button>
           </div>
           <div class="term-body">
             <span class="prompt" aria-hidden="true">$</span>
-            <code class="cmd-text" id="cmd-text"><span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span></code>
+            <code class="cmd-text" id="cmd-text"><span class="cmd-kw">curl</span> -fsSL https://orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span> -s -- setup</code>
           </div>
         </div>
-        <p class="hint" id="install-hint">Confirms before writing PATH.</p>
+        <p class="hint" id="install-hint">Or with wget: <code>wget -qO- https://orbit.manova.space | bash -s -- setup</code></p>
         <div class="alt-cmd-box" id="alt-cmd-box" style="display: none;">
           <div class="alt-cmd-box-content">
             <span>Already have Orbit installed? Run</span>
-            <code id="alt-cmd-text">orbit onboard --token ...</code>
+            <code id="alt-cmd-text">o setup</code>
           </div>
-          <button type="button" class="copy-btn copy-btn-sm" id="alt-copy-btn" data-copy="" aria-label="Copy orbit onboard command">Copy</button>
+          <button type="button" class="copy-btn copy-btn-sm" id="alt-copy-btn" data-copy="" aria-label="Copy o setup command">Copy</button>
         </div>
         <p class="live" id="copy-status" aria-live="polite"></p>
       </section>
@@ -683,16 +689,16 @@
       <p class="section-label">Capabilities</p>
       <div class="caps">
         <article class="cap">
-          <h2>Interactive safety prompts</h2>
-          <p>Confirms before installing binaries or changing your shell PATH.</p>
+          <h2>Guided workstation setup</h2>
+          <p>Run <code>o setup</code> to configure git, SSH, toolchains, and workspace access interactively.</p>
         </article>
         <article class="cap">
           <h2><code>o</code> shortcut alias</h2>
-          <p>Optional short command that points at the same <code>orbit</code> binary.</p>
+          <p>Short command symlinked directly to the <code>orbit</code> binary.</p>
         </article>
         <article class="cap">
-          <h2>zsh autocompletion</h2>
-          <p>Tab completion for zsh via <code>~/.local/share/zsh/site-functions</code> after install.</p>
+          <h2>Local dev stack</h2>
+          <p>Start and verify workspace services with <code>o up</code> and <code>o doctor</code>.</p>
         </article>
         <article class="cap">
           <h2>Multi-repo sync</h2>
@@ -704,12 +710,16 @@
         <p class="section-label" id="after-label">After install</p>
         <div class="next">
           <div class="next-row">
-            <code>orbit doctor</code>
+            <code>o setup</code>
+            <span>Configure your workstation, credentials, and workspace.</span>
+          </div>
+          <div class="next-row">
+            <code>o doctor</code>
             <span>Check the workstation and repair what it can.</span>
           </div>
           <div class="next-row">
-            <code>orbit init</code>
-            <span>Clone the workspace from the manifest.</span>
+            <code>o up</code>
+            <span>Start the local dev stack.</span>
           </div>
         </div>
       </section>
@@ -1165,7 +1175,7 @@
       if (typeof globalThis !== 'undefined') globalThis.renderQRCodeSVG = renderQRCodeSVG;
     })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
 
-    const DEFAULT_INSTALL_CMD = "curl -fsSL orbit.manova.space | bash";
+    const DEFAULT_INSTALL_CMD = "curl -fsSL https://orbit.manova.space | bash -s -- setup";
     const statusEl = document.getElementById("copy-status");
 
     function escapeHtml(str) {
@@ -1311,19 +1321,19 @@
 
       if (token) {
         const payload = decodeTokenPayload(token);
-        const onboardCmd = `curl -fsSL orbit.manova.space | bash -s -- onboard --token ${token}`;
-        const cliShortcutCmd = `orbit onboard --token ${token}`;
+        const onboardCmd = "curl -fsSL https://orbit.manova.space | bash -s -- setup";
+        const cliShortcutCmd = "o setup";
 
         // Terminal box customization
         const cmdEl = document.getElementById("cmd-text");
         if (cmdEl) {
-          cmdEl.innerHTML = `<span class="cmd-kw">curl</span> -fsSL orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span> -s -- onboard --token <span class="cmd-val">${escapeHtml(token)}</span>`;
+          cmdEl.innerHTML = `<span class="cmd-kw">curl</span> -fsSL https://orbit.manova.space <span class="cmd-pipe">|</span> <span class="cmd-kw">bash</span> -s -- setup`;
         }
 
         const installBtn = document.getElementById("install-copy-btn");
         if (installBtn) {
           installBtn.setAttribute("data-copy", onboardCmd);
-          installBtn.setAttribute("aria-label", "Copy onboarding setup command");
+          installBtn.setAttribute("aria-label", "Copy setup command");
         }
 
         const installLabel = document.getElementById("install-label");
@@ -1333,7 +1343,7 @@
 
         const installHint = document.getElementById("install-hint");
         if (installHint) {
-          installHint.textContent = "Downloads the latest Orbit binary and launches the interactive onboarding wizard.";
+          installHint.innerHTML = "Downloads Orbit and launches guided setup. Or with wget: <code>wget -qO- https://orbit.manova.space | bash -s -- setup</code>";
         }
 
         // Show CLI shortcut box for users who already have Orbit
