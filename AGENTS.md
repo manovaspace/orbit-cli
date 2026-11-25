@@ -25,14 +25,14 @@ Orbit CLI follows a dual-binary architecture:
 
 ### Core Capabilities
 
-- **Workspace Management**: `orbit init`, `orbit sync`, `orbit status`, `orbit repair`, `orbit update` — parses `workspace.yaml` manifest and orchestrates git repositories and dependencies. `orbit status` distinguishes **not cloned** vs **gitless** (files, no `.git`). `orbit repair` copies `.git` onto gitless trees; it never `checkout -f`.
+- **Workspace Management**: `orbit setup`, `orbit add`, `orbit remove`, `orbit projects`, `orbit sync`, `orbit status`, `orbit repair`, `orbit update` — records machine choices in `machine.yaml`, parses `workspace.yaml`, and orchestrates git repositories, toolchains, and dependencies (`orbit init` remains as a hidden alias of `orbit setup`). `orbit status` distinguishes **not cloned** vs **gitless** (files, no `.git`). `orbit repair` copies `.git` onto gitless trees; it never `checkout -f`.
 - **Gitignored assets (R2)**: `orbit assets pull|push|add|status` — private Cloudflare R2 for PDFs/PNGs listed in `orbit-assets.yaml` ([ADR-022](../../handbook/docs/orbit/decisions/022-gitignored-assets-on-r2.md)). Rebuildable `bin/` and `dist/` stay gitignored and are not stored on R2.
 - **Diagnostics & Auto-Healing**: `orbit doctor` (`--fix`) — comprehensive checks for Docker, Go toolchain, Node/Bun, disk space, dev ports, git remotes, and workspace integrity with automated fixes.
 - **Environment Validation**: `orbit env check` — validates local `.env` files against `.env.example` across all workspace modules.
 - **50-Port Allocation**: `orbit port list`, `orbit port allocate` — 50-port blocks per ADR-058.
 - **Workspace Migrations**: `orbit migrate` (applies pending) and `orbit migrate status`.
-- **Local Dev Orchestration**: `orbit dev up|down|tier2|caddy|portal|logs`.
-- **Client & Dev Onboarding**: `orbit invite`, `orbit onboard` — workstation invite tokens (does **not** create lldap users). `--resume` continues a checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it. Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.internal.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
+- **Local Services & Dev Orchestration**: `orbit up`, `orbit down`, `orbit services` manage native local Postgres and Mailpit for selected projects; `orbit dev up|down|tier2|caddy|portal|logs` manages the container dev stack.
+- **Client & Dev Onboarding**: `orbit invite`, `orbit setup` — workstation invite tokens (does **not** create lldap users) and interactive/non-interactive machine setup (`--plan` previews without mutating). Staff directory: `orbit staff` HMAC client → orbit-staff ([staff lifecycle](https://handbook.internal.manova.space/docs/guides/staff-lifecycle)). CLI is implemented; the staff HTTP service is not live yet.
 - **Pull Request & Delivery Lifecycle**: `orbit pr create`, `orbit pr merge`, `orbit pr status`, `orbit pr deliver` — automated branch pushing, Forgejo PR creation, PR status listing (one repository or every manifest repository matching a name pattern with `*`), merging, and full end-to-end branch delivery with fast-forward trunk re-sync per ADR-026. Non-release pull requests merge with no checks, skipped checks or only the secret scan, but need a passing secret scan when the head has `.github/workflows/secret-scan.yml`; failed or pending checks refuse. Release and Renovate pull requests (`release-please--`, `changeset-release/`, `renovate/` heads) need a passing CI check. `--override "reason"` records an override comment, `--allow-no-checks` lets a release or Renovate pull request with no reported checks merge, and deliver (plus `create --merge`) waits for pending checks up to `--wait-timeout`.
 - **Release & Demo Promotion**: `orbit release status|check|demo|prod` — reads the bot release PR and its release-tier check, promotes `main` to `demo` through a PR after the `main` commit's checks pass, and merges the release PR. Library repos (`.changeset/config.json`) dispatch `publish.yml`; the owner still approves the `npm-publish` environment. `release check --local` runs the release tier against the existing dev Postgres, Redis and NATS with a throwaway database and starts no containers ([ADR-044](../../handbook/docs/orbit/decisions/065-delivery.md)).
 - **System Administration**: `orbit admin init` — root system ownership initialization, out-of-band email OTP challenges, and sealed vault management (`~/.config/orbit/owner.json`).
@@ -49,9 +49,9 @@ Orbit CLI follows a dual-binary architecture:
 ## Engineering gotchas
 
 - **Dual-binary architecture:** `orbit` (workstation CLI) and `orbit-server` (edge daemon) are separate binaries with separate concerns. Workstation commands must never hold lldap/Stalwart admin credentials.
-- **`orbit repair` is non-destructive:** It copies `.git` onto gitless trees; it never runs `checkout -f`. Do not confuse with `orbit init`.
+- **`orbit repair` is non-destructive:** It copies `.git` onto gitless trees; it never runs `checkout -f`. Do not confuse with `orbit setup`.
 - **`orbit status` distinguishes states:** "not cloned" (absent dir) vs "gitless" (dir exists, no `.git`) vs "dirty" (uncommitted changes). These require different remediation.
-- **`--resume` vs `--reset` in `orbit onboard`:** `--resume` continues from checkpoint; `--ignore-and-remove-checkpoint` (alias `--reset`) discards it entirely.
+- **`orbit setup` plans before mutating:** `--plan` checks parts without modifying files or `machine.yaml`; `orbit add` / `orbit remove` update selected projects incrementally without deleting clones on disk, and `orbit up` / `orbit down` / `orbit services` manage local services.
 - **Mail templates are owned by `orbit-notifications`:** `pkg/mailtemplates` is the canonical source. Never duplicate or inline mail templates in orbit-cli.
 - **Exit codes and output:** commands exit `0` ok, `1` failed, `2` could not check, `3` usage, `4` auth, `5` network, `6` external tool. New commands return `pkg/clierr` errors and write machine-readable results through `pkg/output`; external commands go through `pkg/runner` (tests use `pkg/runner/runnertest.Fake`). `cmd/orbit/main.go` maps every error to its exit code, and plain errors still exit `1`. Runtime errors print one line plus hint on stderr and never the usage block; `--json` failures are exactly one envelope on stdout (ADR-047 D5/D7).
 - **Results go through `pkg/render`:** new commands print their text result through `render.Emit`, never `fmt.Fprint*`. ADR-047 phase 3 batch 1 has migrated `status`, `sync`, `migrate status` (and `migrate`), `port list`/`port allocate`, `assets status`, `env check` and `doctor` onto the shared title/table/section/summary shape; the remaining commands still use the `cmd/orbit/ui.go` style aliases until their batch lands.
@@ -85,7 +85,7 @@ go run ./cmd/orbit-server --dev --addr :8080 --smtp-host mail.manova.space --smt
 
 ## Structure & Packages
 
-`cmd/orbit/` (Cobra tree), `cmd/orbit-server/` (edge daemon, mail gateway), `pkg/<name>/` one package per command area (`doctor`, `manifest`, `migrate`, `ports`, `pr`, `onboard`, `invite`, `owner`, `updater`, `client`, `staffhmac`, `config`, `env`, `provisioner`, `orchestrator`, `assets`, `render`, `tui`). `ls pkg/` and each package doc comment give the role.
+`cmd/orbit/` (Cobra tree), `cmd/orbit-server/` (edge daemon, mail gateway), `pkg/<name>/` one package per command area (`doctor`, `manifest`, `migrate`, `ports`, `pr`, `setup`, `invite`, `owner`, `updater`, `client`, `staffhmac`, `config`, `env`, `provisioner`, `orchestrator`, `assets`, `render`, `tui`). `ls pkg/` and each package doc comment give the role.
 
 ## Documentation
 

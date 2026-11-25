@@ -38,9 +38,9 @@ func newRepairCmd() *cobra.Command {
 tree. Working files are never checkout -f or reset --hard.
 
 Use this when orbit status reports "gitless". Repositories that already have
-.git are skipped. Missing paths are cloned as with orbit init.
+.git are skipped. Missing paths are cloned as with orbit setup.
 
-Scopes match orbit init / orbit status (default: all).`,
+Scopes match orbit status (default: all).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()

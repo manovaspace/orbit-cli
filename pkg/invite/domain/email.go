@@ -45,10 +45,10 @@ func FormatRemaining(d time.Duration) string {
 // RenderInviteEmail renders both text and HTML versions of the invitation email.
 func RenderInviteEmail(data EmailData) (subject, textBody, htmlBody string, err error) {
 	if data.CLICommand == "" {
-		data.CLICommand = fmt.Sprintf("orbit onboard --token %s", data.Token)
+		data.CLICommand = "orbit setup"
 	}
 	if data.CurlCommand == "" {
-		data.CurlCommand = fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", data.Token)
+		data.CurlCommand = "curl -fsSL https://orbit.manova.space | bash -s -- setup"
 	}
 	if data.ExpiresInHuman == "" && !data.ExpiresAt.IsZero() {
 		data.ExpiresInHuman = FormatRemaining(time.Until(data.ExpiresAt))

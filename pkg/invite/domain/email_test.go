@@ -15,8 +15,8 @@ func TestRenderInviteEmail(t *testing.T) {
 		Scope:          "core",
 		ExpiresAt:      time.Now().Add(7 * 24 * time.Hour).UTC(),
 		ExpiresInHuman: "7 days",
-		CLICommand:     "orbit onboard --token 9x7k2m4p",
-		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- onboard --token 9x7k2m4p",
+		CLICommand:     "orbit setup",
+		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- setup",
 	}
 
 	subject, textBody, htmlBody, err := RenderInviteEmail(data)
@@ -40,15 +40,18 @@ func TestRenderInviteEmail(t *testing.T) {
 	if !strings.Contains(textBody, data.CLICommand) {
 		t.Errorf("textBody missing CLI command: %s", textBody)
 	}
+	if !strings.Contains(textBody, data.CurlCommand) {
+		t.Errorf("textBody missing curl command: %s", textBody)
+	}
 
 	if !strings.Contains(htmlBody, "Alex Smith") {
 		t.Errorf("htmlBody missing recipient name: %s", htmlBody)
 	}
-	if !strings.Contains(htmlBody, "9x7k2m4p") {
-		t.Errorf("htmlBody missing token: %s", htmlBody)
-	}
 	if !strings.Contains(htmlBody, data.CLICommand) {
 		t.Errorf("htmlBody missing CLI command: %s", htmlBody)
+	}
+	if !strings.Contains(htmlBody, data.CurlCommand) {
+		t.Errorf("htmlBody missing curl command: %s", htmlBody)
 	}
 	if !strings.Contains(htmlBody, "#fafafa") || !strings.Contains(htmlBody, "#2563eb") {
 		t.Errorf("htmlBody missing expected styling: %s", htmlBody)
@@ -78,11 +81,11 @@ func TestRenderInviteEmail_GeneratedTokenNeverLeaksSubject(t *testing.T) {
 		Token:          tokenStr,
 		ExpiresAt:      time.Now().Add(req.TTL).UTC(),
 		ExpiresInHuman: "24 hours",
-		CLICommand:     "orbit onboard --token " + tokenStr,
-		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- onboard --token " + tokenStr,
+		CLICommand:     "orbit setup",
+		CurlCommand:    "curl -fsSL https://orbit.manova.space | bash -s -- setup",
 	}
 
-	subject, _, htmlBody, err := RenderInviteEmail(data)
+	subject, textBody, htmlBody, err := RenderInviteEmail(data)
 	if err != nil {
 		t.Fatalf("RenderInviteEmail failed: %v", err)
 	}
@@ -93,19 +96,22 @@ func TestRenderInviteEmail_GeneratedTokenNeverLeaksSubject(t *testing.T) {
 	if strings.Contains(subject, tokenStr) {
 		t.Fatal("subject leaked generated HMAC token")
 	}
-
-	idx := strings.Index(htmlBody, tokenStr)
-	if idx < 0 {
-		t.Fatal("html missing token")
+	if !strings.Contains(textBody, tokenStr) {
+		t.Fatal("textBody missing generated HMAC token")
 	}
-	window := htmlBody[max(0, idx-200):min(len(htmlBody), idx+len(tokenStr)+80)]
-	if strings.Contains(window, "font-size:28px") || strings.Contains(window, "font-size: 28px") {
-		if strings.Contains(window, "letter-spacing") {
-			t.Fatalf("HMAC token in 28px letter-spaced hero: %s", window)
+	if !strings.Contains(htmlBody, data.CLICommand) || !strings.Contains(htmlBody, data.CurlCommand) {
+		t.Fatal("htmlBody missing setup commands")
+	}
+	if idx := strings.Index(htmlBody, tokenStr); idx >= 0 {
+		window := htmlBody[max(0, idx-200):min(len(htmlBody), idx+len(tokenStr)+80)]
+		if strings.Contains(window, "font-size:28px") || strings.Contains(window, "font-size: 28px") {
+			if strings.Contains(window, "letter-spacing") {
+				t.Fatalf("HMAC token in 28px letter-spaced hero: %s", window)
+			}
 		}
-	}
-	if strings.Contains(window, "font-size:32px") || strings.Contains(window, "font-size:32") {
-		t.Fatalf("HMAC token in 32px hero: %s", window)
+		if strings.Contains(window, "font-size:32px") || strings.Contains(window, "font-size:32") {
+			t.Fatalf("HMAC token in 32px hero: %s", window)
+		}
 	}
 }
 
@@ -127,6 +133,13 @@ func TestRenderInviteEmail_FallbackName(t *testing.T) {
 	}
 	if !strings.Contains(htmlBody, "Developer") {
 		t.Errorf("expected fallback greeting in htmlBody: %s", htmlBody)
+	}
+	if !strings.Contains(textBody, "orbit setup") || !strings.Contains(htmlBody, "orbit setup") {
+		t.Errorf("expected default CLICommand %q in rendered email", "orbit setup")
+	}
+	if !strings.Contains(textBody, "curl -fsSL https://orbit.manova.space | bash -s -- setup") ||
+		!strings.Contains(htmlBody, "curl -fsSL https://orbit.manova.space | bash -s -- setup") {
+		t.Errorf("expected default CurlCommand in rendered email")
 	}
 }
 

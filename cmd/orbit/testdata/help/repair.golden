@@ -2,9 +2,9 @@ Clones each target to a temporary directory and copies .git into the existing
 tree. Working files are never checkout -f or reset --hard.
 
 Use this when orbit status reports "gitless". Repositories that already have
-.git are skipped. Missing paths are cloned as with orbit init.
+.git are skipped. Missing paths are cloned as with orbit setup.
 
-Scopes match orbit init / orbit status (default: all).
+Scopes match orbit status (default: all).
 
 Usage:
   orbit repair [scope] [flags]

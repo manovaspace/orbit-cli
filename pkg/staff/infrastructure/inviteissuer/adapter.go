@@ -3,7 +3,6 @@ package inviteissuer
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	inviteapp "github.com/manovaspace/orbit-cli/pkg/invite/application"
@@ -58,7 +57,5 @@ func (m *Mailer) SendInvite(ctx context.Context, to string, data staffapp.MailDa
 		Scope:          data.Scope,
 		ExpiresAt:      data.ExpiresAt,
 		ExpiresInHuman: invitedomain.FormatRemaining(ttl),
-		CLICommand:     fmt.Sprintf("orbit onboard --token %s", data.Token),
-		CurlCommand:    fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", data.Token),
 	})
 }

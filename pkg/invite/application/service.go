@@ -270,8 +270,6 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, err
 			Scope:          claims.Scope,
 			ExpiresAt:      claims.ExpiresAt,
 			ExpiresInHuman: domain.FormatRemaining(time.Until(claims.ExpiresAt)),
-			CLICommand:     fmt.Sprintf("orbit onboard --token %s", issued.Record.Token),
-			CurlCommand:    fmt.Sprintf("curl -fsSL https://orbit.manova.space | bash -s -- onboard --token %s", issued.Record.Token),
 		}
 		if err := in.Mailer.SendInvite(ctx, claims.Email, data); err != nil {
 			result.MailError = err.Error()
