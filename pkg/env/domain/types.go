@@ -21,12 +21,14 @@ const (
 
 // VariableDef defines an environment variable specification within .env.schema.yaml.
 type VariableDef struct {
-	Name        string  `yaml:"name" json:"name"`
-	Type        VarType `yaml:"type" json:"type"`
-	Default     string  `yaml:"default,omitempty" json:"default,omitempty"`
-	Description string  `yaml:"description,omitempty" json:"description,omitempty"`
-	Required    bool    `yaml:"required,omitempty" json:"required,omitempty"`
-	Generator   string  `yaml:"generator,omitempty" json:"generator,omitempty"`
+	Name        string   `yaml:"name" json:"name"`
+	Type        VarType  `yaml:"type" json:"type"`
+	Default     string   `yaml:"default,omitempty" json:"default,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Required    bool     `yaml:"required,omitempty" json:"required,omitempty"`
+	Generator   string   `yaml:"generator,omitempty" json:"generator,omitempty"`
+	From        string   `yaml:"from,omitempty" json:"from,omitempty"`
+	For         []string `yaml:"for,omitempty" json:"for,omitempty"`
 }
 
 // UnmarshalYAML implements custom unmarshaling for VariableDef to handle default values
@@ -39,6 +41,8 @@ func (v *VariableDef) UnmarshalYAML(node *yaml.Node) error {
 		Description string      `yaml:"description"`
 		Required    bool        `yaml:"required"`
 		Generator   string      `yaml:"generator"`
+		From        string      `yaml:"from"`
+		For         []string    `yaml:"for"`
 	}
 
 	var raw rawVar
@@ -51,6 +55,8 @@ func (v *VariableDef) UnmarshalYAML(node *yaml.Node) error {
 	v.Description = raw.Description
 	v.Required = raw.Required
 	v.Generator = raw.Generator
+	v.From = raw.From
+	v.For = raw.For
 
 	if raw.Default != nil {
 		switch val := raw.Default.(type) {
