@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.23.0](https://github.com/manovaspace/orbit-cli/compare/v0.22.1...v0.23.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* o onboard, o init, o dev tunnel and the orbit remove uninstall alias are gone. Use o setup, o doctor and orbit uninstall or orbit purge instead. orbit remove now stops selecting a project.
+
+### Features
+
+* remove o onboard and the dev tunnel; host gate allows setup on darwin ([88a9ed9](https://github.com/manovaspace/orbit-cli/commit/88a9ed90f1572a644811e138746163cb0f83ad71))
+* **runner:** add env and interactive command seams ([76ce44f](https://github.com/manovaspace/orbit-cli/commit/76ce44f3e86557f44337feda71730145ab3eda13))
+* **setup:** add identity and handbook parts ([9b6256a](https://github.com/manovaspace/orbit-cli/commit/9b6256a21bc494f4e9571fa8b3dc9fe5908e66d9))
+* **setup:** add native services and o up/down/services ([6a46dee](https://github.com/manovaspace/orbit-cli/commit/6a46dee82fdca04c05775613eef4b1df8388d4bc))
+* **setup:** add o setup, add, remove, projects, doctor check and init alias ([fa971f4](https://github.com/manovaspace/orbit-cli/commit/fa971f47a78a6195e7ab6200a33c20dddd12eb7e))
+* **setup:** add package managers and the system part ([2d84057](https://github.com/manovaspace/orbit-cli/commit/2d8405717167bd92a3bc9d0b51d92c3f2ce7dcc7))
+* **setup:** add project, machine, repo, root and package declarations ([a64ab56](https://github.com/manovaspace/orbit-cli/commit/a64ab56ad5df6b619402fff306cc8470abc7ce1b))
+* **setup:** add the env part; schema from and for ([9879e74](https://github.com/manovaspace/orbit-cli/commit/9879e74e03352632ed65d35289bed5d51c45dadf))
+* **setup:** add the prepare part ([12f074b](https://github.com/manovaspace/orbit-cli/commit/12f074bc007cff252d62de7b30a5609dfd6604ae))
+* **setup:** add the repos part ([2acc4c0](https://github.com/manovaspace/orbit-cli/commit/2acc4c0e8ed9cedb19575b733b84a45277aa491d))
+* **setup:** add the root part; audit reads root.yaml ([19af86c](https://github.com/manovaspace/orbit-cli/commit/19af86c1a07b85896e034ec9777ccf31c49fa4ac))
+* **setup:** add the setup engine ([ae4cc83](https://github.com/manovaspace/orbit-cli/commit/ae4cc83633bec5165562335c1d7cfc7f73e5fdfa))
+* **setup:** add the toolchains part and shell block ([b97f538](https://github.com/manovaspace/orbit-cli/commit/b97f538704202a432f9d7912661e00654f4d8aba))
+
+
+### Bug Fixes
+
+* **invite,docs:** update stale orbit onboard/init references and goldens ([1a7beb5](https://github.com/manovaspace/orbit-cli/commit/1a7beb54efdac1633c57aa99bfd0df690d898ec4))
+* **setup:** --yes never prompts; rc names per shell; save flags before phase one ([bdf6db5](https://github.com/manovaspace/orbit-cli/commit/bdf6db5c39528ade1740349fbe75ad8577a0af0a))
+* **setup:** bump apt lock timeout to 300s for initial unattended-upgrades ([cfbc248](https://github.com/manovaspace/orbit-cli/commit/cfbc2481f6335321c7eeeae3252842c81b1d3d51))
+* **setup:** grant BYPASSRLS to local dev postgres owner roles and fix lint errors ([76a6748](https://github.com/manovaspace/orbit-cli/commit/76a6748f4b929371211556b9450b8156a0508f1d))
+* **setup:** harden apt, GOPRIVATE, GOTOOLCHAIN, root guard, config repair and seed retry ([274e1db](https://github.com/manovaspace/orbit-cli/commit/274e1db39c14fed99865788fb2d2824d6a230936))
+* **setup:** install unzip for bun; warn on odd package.json ([9ba009a](https://github.com/manovaspace/orbit-cli/commit/9ba009a3880d404530800ff7acec47484c56098a))
+* **setup:** make the brew installer, PATH and apt bootstrap work ([647e084](https://github.com/manovaspace/orbit-cli/commit/647e08479867d8dabdb888a610372495aa6d7646))
+* **setup:** never block setup on git identity; harden handbook clone ([d8e12fb](https://github.com/manovaspace/orbit-cli/commit/d8e12fb168cacf155c7227619d451ad9e195cbcc))
+* **setup:** never overwrite declared files; cover root edge paths ([b123557](https://github.com/manovaspace/orbit-cli/commit/b12355753b8d82f45feed8d05545b9511fde0ae0))
+* **setup:** remove orphaned onboard packages; drop retired hint; keep projects out of machine file until manifest exists ([ced0451](https://github.com/manovaspace/orbit-cli/commit/ced0451294019977e1f0b6143e421ed299299404))
+* **setup:** report foreign Postgres before binaries; verify mailpit ownership ([417c4bd](https://github.com/manovaspace/orbit-cli/commit/417c4bd10014442fa30149910c9b9ee094fced1c))
+* **setup:** wait for apt/dpkg lock with DPkg::Lock::Timeout=120 ([eab950d](https://github.com/manovaspace/orbit-cli/commit/eab950d2f13e31080c8c51fb5ba1b89998b4a42b))
+
 ## [0.22.1](https://github.com/manovaspace/orbit-cli/compare/v0.22.0...v0.22.1) (2026-11-23)
 
 
