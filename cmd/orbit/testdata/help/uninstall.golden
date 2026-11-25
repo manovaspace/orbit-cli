@@ -4,7 +4,7 @@ Usage:
   orbit uninstall [flags]
 
 Aliases:
-  uninstall, remove, purge
+  uninstall, purge
 
 Flags:
       --force             Alias for --yes

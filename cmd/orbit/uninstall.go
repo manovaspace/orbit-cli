@@ -41,7 +41,7 @@ func newUninstallCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "uninstall",
-		Aliases: []string{"remove", "purge"},
+		Aliases: []string{"purge"},
 		Short:   "Uninstall Orbit CLI binaries and cleanup shell configuration",
 		Long:    "Removes Orbit CLI binaries from system and user paths, cleans shell completions, and optionally purges cache, session, and the owner vault.",
 		RunE: func(cmd *cobra.Command, args []string) error {

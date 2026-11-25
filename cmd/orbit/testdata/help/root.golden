@@ -5,6 +5,7 @@ Usage:
   orbit [command]
 
 Available Commands:
+  add         Select projects and set up their repositories
   admin       Manage platform ownership verification and root cryptographic secrets
   assets      Sync gitignored media with private Cloudflare R2
   audit       Audit workspace versions, dependencies, agents and delivery
@@ -13,20 +14,22 @@ Available Commands:
   config      Manage Orbit CLI configuration
   dev         Control and orchestrate local development stacks and containers
   doc         Generate documentation and man pages for Orbit CLI
-  doctor      Run pre-flight system diagnostics and environment health checks
+  doctor      Check this machine against the setup, without changing it
   down        Stop the local services orbit started
   env         Manage and validate workspace environment variables and .env files
   help        Help about any command
-  init        Clone and initialize workspace repositories
   invite      Manage developer onboarding invite tokens
   migrate     Run and inspect workspace state migrations
   onboard     Interactive onboarding wizard with resume, claims, and stack provisioning
   port        Inspect, allocate and check dev ports against the port registry
   pr          Manage pull requests and automated delivery
+  projects    List the workspace projects, whether you chose them and whether their repos are cloned
   release     Inspect and promote release pull requests and demo branches
+  remove      Stop selecting projects; their repositories stay on disk
   repair      Attach .git to gitless workspace trees without overwriting files
   self-update Update the Orbit CLI binary to the latest release
   services    Show the state of the local services
+  setup       Set up this machine for the projects you choose
   staff       Manage Orbit staff via the staff control plane
   status      Show git status and working tree cleanliness across workspace repositories
   sync        Fetch and fast-forward clean default branches across workspace repositories

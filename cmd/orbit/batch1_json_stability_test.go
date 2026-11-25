@@ -171,13 +171,8 @@ func TestBatch1JSONStability(t *testing.T) {
 	})
 
 	t.Run("doctor_success", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
-		previousService, previousPaths := doctorNewService, doctorWorkspacePaths
-		t.Cleanup(func() {
-			doctorNewService, doctorWorkspacePaths = previousService, previousPaths
-		})
-		doctorNewService = healthyDoctorService(stubProbe{}, nil)
-		doctorWorkspacePaths = func() (string, string) { return "", "" }
+		fx := newSetupFixture(t)
+		fx.saveMachine(t, "a")
 		out, err := runRootForTest(t, "doctor", "--json")
 		if err != nil {
 			t.Fatalf("doctor --json: %v\n%s", err, out)
@@ -186,13 +181,8 @@ func TestBatch1JSONStability(t *testing.T) {
 	})
 
 	t.Run("doctor_failure", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
-		previousService, previousPaths := doctorNewService, doctorWorkspacePaths
-		t.Cleanup(func() {
-			doctorNewService, doctorWorkspacePaths = previousService, previousPaths
-		})
-		doctorNewService = healthyDoctorService(stubProbe{gitMissing: true}, nil)
-		doctorWorkspacePaths = func() (string, string) { return "", "" }
+		fx := newSetupFixture(t, "system")
+		fx.saveMachine(t, "a")
 		out, err := runRootForTest(t, "doctor", "--json")
 		if err == nil {
 			t.Fatal("expected doctor findings to fail")

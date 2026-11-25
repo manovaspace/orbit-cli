@@ -53,37 +53,3 @@ func TestPortAssignmentIsNotReservation(t *testing.T) {
 		t.Errorf("assignment implies reservation: %s", out)
 	}
 }
-
-func TestInitSetupConflictFailsReadiness(t *testing.T) {
-	root, outside := t.TempDir(), t.TempDir()
-	t.Chdir(root)
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ORBIT_WORKSPACE", root)
-	path := filepath.Join(root, "workspace.yaml")
-	if err := os.WriteFile(path, []byte("version: '1'\nworkspace: fixture\ngroups:\n orbit:\n  path: orbit\n  repositories:\n   - name: fixture\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, "orbit", "fixture", ".git"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(root, ".cursor"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(root, ".cursor", "mcp.env"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(outside, "canary"), []byte("preserve"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	cmd := newInitCmd()
-	out := new(bytes.Buffer)
-	cmd.SetOut(out)
-	cmd.SetErr(out)
-	cmd.SetArgs([]string{"all", "--manifest", path})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("init reports success after environment setup conflict")
-	}
-	if !strings.Contains(out.String(), "setup incomplete") {
-		t.Fatalf("missing partial setup result: %s", out)
-	}
-}

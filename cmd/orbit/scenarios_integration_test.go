@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha256"
@@ -23,6 +24,7 @@ import (
 	onboarddomain "github.com/manovaspace/orbit-cli/pkg/onboard/domain"
 	ownerdomain "github.com/manovaspace/orbit-cli/pkg/owner/domain"
 	"github.com/manovaspace/orbit-cli/pkg/staffhmac"
+	workspaceapp "github.com/manovaspace/orbit-cli/pkg/workspace/application"
 )
 
 const (
@@ -935,15 +937,17 @@ func TestScenariosIntegration(t *testing.T) {
 	t.Run("DOC_DoctorDiagnostics", func(t *testing.T) {
 		_, cleanup := setupIntegrationSandbox(t, srv.URL)
 		defer cleanup()
+		fx := newSetupFixture(t)
+		fx.saveMachine(t, "a")
 
 		docOut, _ := executeOrbit("doctor")
-		if !strings.Contains(docOut, "Orbit System Doctor") && !strings.Contains(docOut, "Git") {
-			t.Errorf("DOC-01 doctor output missing expected header: %s", docOut)
+		if strings.Contains(docOut, "Error:") {
+			t.Errorf("DOC-01 doctor output reports an error: %s", docOut)
 		}
 
 		jsonOut, _ := executeOrbit("doctor", "--json")
-		if !strings.Contains(jsonOut, "results") {
-			t.Errorf("DOC-01 doctor json output missing results key: %s", jsonOut)
+		if !strings.Contains(jsonOut, `"parts"`) {
+			t.Errorf("DOC-01 doctor json output missing parts key: %s", jsonOut)
 		}
 
 		fixOut, _ := executeOrbit("doctor", "--local", "--fix", "--non-interactive")
@@ -1196,10 +1200,16 @@ groups:
 `, remotesDir)
 		_ = os.WriteFile(filepath.Join(wsDir, "workspace.yaml"), []byte(wsYAML), 0644)
 
-		// WKS-01: Init
-		initOut, err := executeOrbit("init", "--manifest", filepath.Join(wsDir, "workspace.yaml"))
-		if err != nil || (!strings.Contains(initOut, "cloned") && !strings.Contains(initOut, "Cloned")) {
-			t.Fatalf("WKS-01 workspace init failed: %v\nOutput: %s", err, initOut)
+		// WKS-01: Clone the manifest repositories. `o init` is now `o setup`, which needs the
+		// handbook and GitHub, so the scenario drives the workspace clone service directly.
+		initRes, err := newWorkspaceService(io.Discard).Init(context.Background(), workspaceapp.InitInput{
+			WorkspaceRoot: wsDir,
+			ManifestPath:  filepath.Join(wsDir, "workspace.yaml"),
+			Scope:         "all",
+			Concurrency:   4,
+		})
+		if err != nil || initRes.Failed > 0 {
+			t.Fatalf("WKS-01 workspace clone failed: %v (failed %d)", err, initRes.Failed)
 		}
 
 		repoAPath := filepath.Join(wsDir, "services", "repo-a")

@@ -1,0 +1,14 @@
+Changes the chosen projects in machine.yaml and applies the setup.
+Removing a project never deletes a directory: repositories that are cloned but no longer
+selected are listed, and you remove them yourself.
+
+Usage:
+  orbit add <project>... [flags]
+
+Flags:
+  -h, --help   help for add
+      --json   Print the result as a JSON envelope
+      --yes    Apply without asking to confirm
+
+Global Flags:
+      --config string   Custom path to Orbit CLI configuration file

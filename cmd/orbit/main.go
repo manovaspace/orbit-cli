@@ -133,6 +133,10 @@ func newRootCmd() *cobra.Command {
 
 	// Register all subcommands
 	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newSetupCmd())
+	cmd.AddCommand(newAddCmd())
+	cmd.AddCommand(newRemoveCmd())
+	cmd.AddCommand(newProjectsCmd())
 	cmd.AddCommand(newDoctorCmd())
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newRepairCmd())

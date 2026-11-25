@@ -8,24 +8,15 @@ import (
 	migrateapp "github.com/manovaspace/orbit-cli/pkg/migrate/application"
 	migratedomain "github.com/manovaspace/orbit-cli/pkg/migrate/domain"
 	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/statefile"
-	"github.com/manovaspace/orbit-cli/pkg/migrate/infrastructure/workspace"
 	"github.com/manovaspace/orbit-cli/pkg/output"
 	"github.com/manovaspace/orbit-cli/pkg/render"
-	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/table"
 	"github.com/spf13/cobra"
 )
 
 // The migrate commands reach git and the state file through these seams so
 // tests can swap the adapters.
-var (
-	migrateRunner runner.Runner         = runner.Exec{}
-	migrateStore  migrateapp.StateStore = statefile.New()
-)
-
-func migrateBootstrap() *workspace.Bootstrapper {
-	return workspace.New(migrateRunner)
-}
+var migrateStore migrateapp.StateStore = statefile.New()
 
 func newMigrateEngine(workspaceRoot string) *migrateapp.Engine {
 	return migrateapp.NewEngine(workspaceRoot, "", migrateStore)
@@ -36,16 +27,6 @@ func newMigrateEngine(workspaceRoot string) *migrateapp.Engine {
 func runWorkspaceMigrations(workspaceRoot string) ([]migratedomain.MigrationResult, error) {
 	res, err := newMigrateEngine(workspaceRoot).RunPending()
 	return res.Results, err
-}
-
-// workspaceMigrations exposes the built-in migration list to init.
-func workspaceMigrations() []migratedomain.Migration {
-	return migratedomain.GetBuiltinMigrations()
-}
-
-// setupWorkspace runs the workspace bootstrap used by init.
-func setupWorkspace(workspaceRoot string, repoPaths ...string) error {
-	return migrateBootstrap().SetupWorkspace(workspaceRoot, repoPaths...)
 }
 
 func newMigrateCmd() *cobra.Command {
