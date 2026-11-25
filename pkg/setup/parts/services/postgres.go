@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -109,6 +111,86 @@ func (p *postgres) initialized() bool {
 	return err == nil
 }
 
+// hasOrbitConfig reports whether postgresql.conf contains orbit's port, loopback listen address
+// and unix socket directory settings.
+func (p *postgres) hasOrbitConfig() bool {
+	data, err := p.fs.ReadFile(filepath.Join(p.dataDir, "postgresql.conf"))
+	if err != nil {
+		return false
+	}
+	return len(p.missingConfig(data)) == 0
+}
+
+// ensureConfig appends any missing orbit settings (port, listen_addresses, unix_socket_directories)
+// to postgresql.conf.
+func (p *postgres) ensureConfig(_ context.Context) error {
+	conf := filepath.Join(p.dataDir, "postgresql.conf")
+	data, err := p.fs.ReadFile(conf)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return clierr.Wrap(err, clierr.Failed("cannot read "+conf))
+	}
+	missing := p.missingConfig(data)
+	if len(missing) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.Write(data)
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		b.WriteByte('\n')
+	}
+	for _, line := range missing {
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	if err := p.fs.WriteFile(conf, []byte(b.String()), 0o600); err != nil {
+		return clierr.Wrap(err, clierr.Failed("cannot write "+conf))
+	}
+	return nil
+}
+
+func (p *postgres) missingConfig(data []byte) []string {
+	wantPort := fmt.Sprintf("port = %d", postgresPort)
+	wantListen := "listen_addresses = '127.0.0.1'"
+	wantSocket := fmt.Sprintf("unix_socket_directories = '%s'", p.dataDir)
+
+	var hasPort, hasListen, hasSocket bool
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if code, _, ok := strings.Cut(trimmed, "#"); ok {
+			trimmed = strings.TrimSpace(code)
+		}
+		key, val, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			continue
+		}
+		k := strings.TrimSpace(key)
+		v := strings.TrimSpace(val)
+		switch k {
+		case "port":
+			hasPort = v == strconv.Itoa(postgresPort)
+		case "listen_addresses":
+			hasListen = v == "'127.0.0.1'"
+		case "unix_socket_directories":
+			hasSocket = v == fmt.Sprintf("'%s'", p.dataDir)
+		}
+	}
+
+	var missing []string
+	if !hasPort {
+		missing = append(missing, wantPort)
+	}
+	if !hasListen {
+		missing = append(missing, wantListen)
+	}
+	if !hasSocket {
+		missing = append(missing, wantSocket)
+	}
+	return missing
+}
+
 // initCluster creates the cluster with local peer auth and scram over TCP, then appends the
 // loopback listener, port and socket directory to its configuration.
 func (p *postgres) initCluster(ctx context.Context) error {
@@ -123,17 +205,7 @@ func (p *postgres) initCluster(ctx context.Context) error {
 	if _, err := p.run.Run(ctx, "", p.binary("initdb"), args...); err != nil {
 		return clierr.Wrap(err, clierr.Tool("initdb failed"))
 	}
-	conf := filepath.Join(p.dataDir, "postgresql.conf")
-	data, err := p.fs.ReadFile(conf)
-	if err != nil {
-		return clierr.Wrap(err, clierr.Failed("cannot read "+conf))
-	}
-	extra := fmt.Sprintf("\nport = %d\nlisten_addresses = '127.0.0.1'\nunix_socket_directories = '%s'\n",
-		postgresPort, p.dataDir)
-	if err := p.fs.WriteFile(conf, append(data, extra...), 0o600); err != nil {
-		return clierr.Wrap(err, clierr.Failed("cannot write "+conf))
-	}
-	return nil
+	return p.ensureConfig(ctx)
 }
 
 // psqlArgs connects over the cluster's unix socket as the OS user, which is a superuser. -U pins

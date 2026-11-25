@@ -491,3 +491,37 @@ func TestProjectsWithoutManifestIsUnverified(t *testing.T) {
 		t.Fatalf("message = %v", err)
 	}
 }
+
+func TestSetupRefusesRoot(t *testing.T) {
+	prev := currentEUID
+	currentEUID = func() int { return 0 }
+	t.Cleanup(func() { currentEUID = prev })
+
+	cases := []struct {
+		name string
+		cmd  func() *cobra.Command
+		args []string
+	}{
+		{name: "setup", cmd: newSetupCmd, args: []string{"--projects", "a", "--yes"}},
+		{name: "setup plan", cmd: newSetupCmd, args: []string{"--plan"}},
+		{name: "add", cmd: newAddCmd, args: []string{"--yes", "b"}},
+		{name: "remove", cmd: newRemoveCmd, args: []string{"--yes", "a"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := newSetupFixture(t, "system")
+			fx.saveMachine(t, "a")
+
+			_, _, err := runCmd(t, tc.cmd(), "", tc.args...)
+			if clierr.Code(err) != clierr.CodeUsage {
+				t.Fatalf("err = %v, want usage error", err)
+			}
+			if err.Error() != setupRootUsage {
+				t.Fatalf("message = %q, want %q", err.Error(), setupRootUsage)
+			}
+			if len(fx.ran) != 0 {
+				t.Fatalf("parts ran as root: %v", fx.ran)
+			}
+		})
+	}
+}

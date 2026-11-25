@@ -50,6 +50,7 @@ type part struct {
 type entry struct {
 	LockHash     string `json:"lock_hash"`
 	MigratedHead string `json:"migrated_head"`
+	PendingSeed  bool   `json:"pending_seed,omitempty"`
 }
 
 // stateFile maps a workspace repository path to its entry.
@@ -123,6 +124,7 @@ func planRepo(ctx context.Context, s *engine.State, target manifest.RepoTarget, 
 	}
 	cur := st[repo]
 
+	var repoActions []engine.Action
 	if len(rs.Prepare) > 0 {
 		lock, err := lockHash(s.FS, dir)
 		if err != nil {
@@ -132,12 +134,13 @@ func planRepo(ctx context.Context, s *engine.State, target manifest.RepoTarget, 
 			done := func(context.Context) error {
 				return record(s.FS, statePath, repo, func(e *entry) { e.LockHash = lock })
 			}
-			plan.Actions = append(plan.Actions, commandActions(s, repo, dir, writes, rs.Prepare, done)...)
+			repoActions = append(repoActions, commandActions(s, repo, dir, writes, rs.Prepare, done)...)
 		}
 	}
 
 	shared := s.Machine.Services == externalMode && rs.Services.Postgres != nil
 	if shared {
+		plan.Actions = append(plan.Actions, repoActions...)
 		if len(rs.Migrate) > 0 || len(rs.Seed) > 0 {
 			plan.Findings = append(plan.Findings, engine.Finding{
 				Part:     partName,
@@ -160,12 +163,25 @@ func planRepo(ctx context.Context, s *engine.State, target manifest.RepoTarget, 
 			done := func(context.Context) error {
 				return record(s.FS, statePath, repo, func(e *entry) { e.MigratedHead = head })
 			}
-			plan.Actions = append(plan.Actions, commandActions(s, repo, dir, writes, rs.Migrate, done)...)
+			repoActions = append(repoActions, commandActions(s, repo, dir, writes, rs.Migrate, done)...)
 		}
 	}
-	if newDB && len(rs.Seed) > 0 {
-		plan.Actions = append(plan.Actions, commandActions(s, repo, dir, writes, rs.Seed, nil)...)
+	if (newDB || cur.PendingSeed) && len(rs.Seed) > 0 {
+		done := func(context.Context) error {
+			return record(s.FS, statePath, repo, func(e *entry) { e.PendingSeed = false })
+		}
+		repoActions = append(repoActions, commandActions(s, repo, dir, writes, rs.Seed, done)...)
 	}
+	if newDB && len(rs.Seed) > 0 && !cur.PendingSeed && len(repoActions) > 0 {
+		firstDo := repoActions[0].Do
+		repoActions[0].Do = func(ctx context.Context) error {
+			if err := record(s.FS, statePath, repo, func(e *entry) { e.PendingSeed = true }); err != nil {
+				return err
+			}
+			return firstDo(ctx)
+		}
+	}
+	plan.Actions = append(plan.Actions, repoActions...)
 	return nil
 }
 
@@ -201,6 +217,9 @@ func runCommand(ctx context.Context, s *engine.State, repo, dir string, writes [
 	if err != nil {
 		return err
 	}
+	if os.Getenv("GOTOOLCHAIN") == "" && !hasEnvKey(env, "GOTOOLCHAIN") {
+		env = append([]string{"GOTOOLCHAIN=auto"}, env...)
+	}
 	res, err := s.Env.RunEnv(ctx, dir, env, "sh", "-c", command)
 	if err != nil {
 		msg := fmt.Sprintf("%s: %s failed", repo, command)
@@ -214,6 +233,17 @@ func runCommand(ctx context.Context, s *engine.State, repo, dir string, writes [
 		return clierr.WrapClean(err, clierr.Tool(msg))
 	}
 	return nil
+}
+
+// hasEnvKey reports whether env already defines key=value.
+func hasEnvKey(env []string, key string) bool {
+	prefix := key + "="
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // tailLines returns the last n lines of text, trailing newlines removed.

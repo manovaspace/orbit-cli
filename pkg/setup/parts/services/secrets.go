@@ -40,6 +40,12 @@ func generatePassword() (string, error) {
 	return string(out), nil
 }
 
+// LocalSecretsPath returns the default local secrets file path, $XDG_CONFIG_HOME/orbit/local.env
+// or ~/.config/orbit/local.env.
+func LocalSecretsPath() (string, error) {
+	return orbitPath("XDG_CONFIG_HOME", ".config", "local.env")
+}
+
 // LocalSecrets reads the KEY=value lines of the local secrets file at path. Blank lines and lines
 // starting with # are skipped. A missing file yields an empty map. A line without "=" is a usage
 // error that names the line number, never its content.

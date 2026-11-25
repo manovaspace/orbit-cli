@@ -44,3 +44,28 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 		t.Fatalf("%s mode = %o, want %o", path, got, want)
 	}
 }
+
+func TestLocalSecretsPath(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	got, err := LocalSecretsPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(xdg, "orbit", "local.env")
+	if got != want {
+		t.Fatalf("LocalSecretsPath = %q, want %q", got, want)
+	}
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", home)
+	got, err = LocalSecretsPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = filepath.Join(home, ".config", "orbit", "local.env")
+	if got != want {
+		t.Fatalf("LocalSecretsPath fallback = %q, want %q", got, want)
+	}
+}

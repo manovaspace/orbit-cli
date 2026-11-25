@@ -29,9 +29,20 @@ var defaultParts = setup.Default
 // stdinIsTerminal reports whether stdin is a terminal; command tests replace it.
 var stdinIsTerminal = istty.IsInteractiveSession
 
+// currentEUID returns the effective user ID; command tests replace it.
+var currentEUID = os.Geteuid
+
 const (
 	setupProjectsUsage = "choose projects: o setup --projects falak"
+	setupRootUsage     = "do not run o setup as root; create a non-root user with sudo and run as that user"
 )
+
+func refuseRoot() error {
+	if currentEUID() == 0 {
+		return clierr.Usage(setupRootUsage)
+	}
+	return nil
+}
 
 // setupDoneMessage names the rc file of the login shell that the toolchains part writes.
 func setupDoneMessage(shell string) string {
@@ -155,6 +166,9 @@ func bindSetupFlags(cmd *cobra.Command, f *setupFlags) {
 }
 
 func runSetup(cmd *cobra.Command, f *setupFlags) error {
+	if err := refuseRoot(); err != nil {
+		return err
+	}
 	s := newSetupSession(cmd, f)
 	m, err := setupMachine(cmd, f)
 	if err != nil {
@@ -225,7 +239,8 @@ func runSetup(cmd *cobra.Command, f *setupFlags) error {
 	}
 	st.Machine = m
 	res, err := s.apply(st, defaultParts())
-	return s.emit(res, err, nil, setupDoneMessage(os.Getenv("SHELL")))
+	shell := toolchains.LoginShell(cmd.Context(), st.Run, st.Platform, os.Getenv("SHELL"))
+	return s.emit(res, err, nil, setupDoneMessage(shell))
 }
 
 // setupFlagsChanged reports whether a flag that overwrites the machine file was given.
@@ -425,6 +440,9 @@ selected are listed, and you remove them yourself.`,
 }
 
 func changeProjects(cmd *cobra.Command, f *setupFlags, names []string, add bool) error {
+	if err := refuseRoot(); err != nil {
+		return err
+	}
 	s := newSetupSession(cmd, f)
 	m, _, err := spec.LoadMachine(machinePath())
 	if err != nil {
@@ -485,7 +503,7 @@ func changeProjects(cmd *cobra.Command, f *setupFlags, names []string, add bool)
 			p.Line(render.StatusInfo, "no longer selected: "+strings.Join(notSelected, ", "))
 		}
 	}
-	return s.emit(res, err, extra, setupDoneMessage(os.Getenv("SHELL")))
+	return s.emit(res, err, extra, setupDoneMessage(toolchains.LoginShell(cmd.Context(), st.Run, st.Platform, os.Getenv("SHELL"))))
 }
 
 func repoListed(targets []manifest.RepoTarget, path string) bool {

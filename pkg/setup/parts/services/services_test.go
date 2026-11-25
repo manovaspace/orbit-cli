@@ -260,3 +260,44 @@ func findingContains(findings []engine.Finding, text string) bool {
 	}
 	return false
 }
+
+func TestNativeRefusesRoot(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	r.addRepo("app/api", apiOrbit)
+	d := r.deps()
+	d.euid = func() int { return 0 }
+	p := part{deps: d}
+
+	fake := &runnertest.Fake{}
+	st := r.state("linux", "native", fake, "app/api")
+	pr := (&engine.Engine{Parts: []engine.Part{p}}).Check(ctx, st).Parts[0]
+	if pr.Status != engine.StatusFailed {
+		t.Fatalf("native as root: status = %q, want failed", pr.Status)
+	}
+	if len(pr.Actions) != 0 {
+		t.Fatalf("native as root planned actions: %v", pr.Actions)
+	}
+	if len(pr.Findings) != 1 {
+		t.Fatalf("findings = %+v, want 1", pr.Findings)
+	}
+	f := pr.Findings[0]
+	if f.Subject != "postgres" || f.Severity != engine.SeverityError ||
+		f.Message != "native Postgres cannot run as root; run o setup as a non-root user or set services: external" ||
+		f.Fix != "create a non-root user with sudo and run o setup as that user, or set services: external in machine.yaml" {
+		t.Fatalf("unexpected finding: %+v", f)
+	}
+	if calls := fake.Calls(); len(calls) != 0 {
+		t.Fatalf("native as root ran commands: %+v", calls)
+	}
+
+	r.listening["127.0.0.1:10000"] = true
+	ext := r.state("linux", "external", fake, "app/api")
+	extPlan, err := p.Plan(ctx, ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(extPlan.Actions) != 0 || len(extPlan.Findings) != 0 {
+		t.Fatalf("external as root: plan = %+v, want clean", extPlan)
+	}
+}

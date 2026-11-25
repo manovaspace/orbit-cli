@@ -59,6 +59,22 @@ func TestLoadMachineDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadMachineEmptyWorkspaceFallsBackToDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(t.TempDir(), "machine.yaml")
+	if err := os.WriteFile(path, []byte("workspace:\nprojects: [falak]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, existed, err := LoadMachine(path)
+	if err != nil || !existed {
+		t.Fatalf("LoadMachine: existed=%v err=%v", existed, err)
+	}
+	if want := filepath.Join(home, "Dev", "Manova"); m.Workspace != want {
+		t.Fatalf("empty workspace: got %q want %q", m.Workspace, want)
+	}
+}
+
 func TestDefaultMachinePath(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/xdg")
 	if got := DefaultMachinePath(); got != filepath.Join("/xdg", "orbit", "machine.yaml") {

@@ -51,6 +51,7 @@ type deps struct {
 	secretsPath func() (string, error)
 	stateDir    func() (string, error)
 	user        func() (string, error)
+	euid        func() int
 	dial        dialer
 	alive       func(pid int) bool
 	kill        func(pid int, sig syscall.Signal) error
@@ -59,7 +60,7 @@ type deps struct {
 func production() deps {
 	return deps{
 		dataDir:     func() (string, error) { return orbitPath("XDG_DATA_HOME", ".local/share", "postgres") },
-		secretsPath: func() (string, error) { return orbitPath("XDG_CONFIG_HOME", ".config", "local.env") },
+		secretsPath: LocalSecretsPath,
 		stateDir:    func() (string, error) { return orbitPath("XDG_STATE_HOME", ".local/state", "") },
 		user: func() (string, error) {
 			u, err := user.Current()
@@ -68,6 +69,7 @@ func production() deps {
 			}
 			return u.Username, nil
 		},
+		euid:  os.Geteuid,
 		dial:  netDial,
 		alive: processAlive,
 		kill:  syscall.Kill,
@@ -243,6 +245,16 @@ func (p part) requireListener(plan *engine.Plan, port int, name string) {
 func (p part) planNative(ctx context.Context, s *engine.State, n needs) (engine.Plan, error) {
 	var plan engine.Plan
 	if n.postgres {
+		if p.deps.euid != nil && p.deps.euid() == 0 {
+			plan.Findings = append(plan.Findings, engine.Finding{
+				Part:     partName,
+				Subject:  "postgres",
+				Message:  "native Postgres cannot run as root; run o setup as a non-root user or set services: external",
+				Fix:      "create a non-root user with sudo and run o setup as that user, or set services: external in machine.yaml",
+				Severity: engine.SeverityError,
+			})
+			return plan, nil
+		}
 		if err := p.planPostgres(ctx, s, n.databases, &plan); err != nil {
 			return engine.Plan{}, err
 		}
@@ -290,6 +302,13 @@ func (p part) planPostgres(ctx context.Context, s *engine.State, dbs []spec.Data
 				Subject: "postgres",
 				Summary: "Create Postgres cluster",
 				Do:      pg.initCluster,
+			})
+		} else if !pg.hasOrbitConfig() {
+			plan.Actions = append(plan.Actions, engine.Action{
+				Part:    partName,
+				Subject: "postgres",
+				Summary: "Configure Postgres",
+				Do:      pg.ensureConfig,
 			})
 		}
 		plan.Actions = append(plan.Actions, engine.Action{

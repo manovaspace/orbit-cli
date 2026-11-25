@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -33,7 +32,6 @@ const (
 	fromPostgres  = "postgres:"
 	fromMail      = "mail"
 	fromSecret    = "secret:"
-	secretsFile   = "local.env"
 )
 
 // part writes the env files. secretsPath locates the local secrets file; production reads
@@ -45,23 +43,11 @@ type part struct {
 // New returns the env part. It needs services, which create the Postgres roles whose passwords
 // the postgres: sources read.
 func New() engine.Part {
-	return part{secretsPath: productionSecretsPath}
+	return part{secretsPath: services.LocalSecretsPath}
 }
 
 func (part) Name() string    { return partName }
 func (part) Needs() []string { return []string{"services", "repos"} }
-
-// productionSecretsPath is the same local.env the services part writes.
-func productionSecretsPath() (string, error) {
-	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
-		return filepath.Join(base, "orbit", secretsFile), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", clierr.Wrap(err, clierr.Failed("cannot find the home directory"))
-	}
-	return filepath.Join(home, ".config", "orbit", secretsFile), nil
-}
 
 // secretCache reads the local secrets file at most once per Plan.
 type secretCache struct {

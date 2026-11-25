@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
+	"github.com/manovaspace/orbit-cli/pkg/host"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 )
 
@@ -105,10 +109,60 @@ func indexOf(lines []string, marker string, from int) int {
 	return -1
 }
 
+// LoginShell detects the current user's login shell via getent (Linux) or dscl (macOS),
+// falling back to fallback (typically $SHELL) when it cannot be determined.
+func LoginShell(ctx context.Context, run runner.Runner, platform, fallback string) string {
+	if s := defaultLoginShell(ctx, run, platform); s != "" {
+		return s
+	}
+	return fallback
+}
+
+// defaultLoginShell detects the current user's login shell via getent (Linux) or dscl (macOS).
+// It returns "" when the user or shell cannot be determined so the caller can fall back to $SHELL.
+func defaultLoginShell(ctx context.Context, run runner.Runner, platform string) string {
+	return loginShellForUser(ctx, run, platform, currentUsername())
+}
+
+func loginShellForUser(ctx context.Context, run runner.Runner, platform, username string) string {
+	if run == nil || username == "" {
+		return ""
+	}
+	switch platform {
+	case "linux":
+		res, err := run.Run(ctx, "", "getent", "passwd", username)
+		if err != nil {
+			return ""
+		}
+		return host.LoginShellFromPasswd(res.Stdout, username)
+	case "darwin":
+		res, err := run.Run(ctx, "", "dscl", ".", "-read", "/Users/"+username, "UserShell")
+		if err != nil {
+			return ""
+		}
+		return host.ParseDsclUserShell(res.Stdout)
+	default:
+		return ""
+	}
+}
+
+func currentUsername() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	return os.Getenv("USER")
+}
+
 // planShellRC plans the block into the rc files of the login shell. An unknown shell gets a warning
 // that carries the block to paste by hand.
-func (p part) planShellRC(s *engine.State, home string, plan *engine.Plan) error {
-	name := p.getenv("SHELL")
+func (p part) planShellRC(ctx context.Context, s *engine.State, home string, plan *engine.Plan) error {
+	var name string
+	if p.loginShell != nil {
+		name = p.loginShell(ctx, s.Run, s.Platform)
+	}
+	if name == "" {
+		name = p.getenv("SHELL")
+	}
 	rcs, ok := shellRCs[filepath.Base(name)]
 	if name == "" || !ok {
 		plan.Findings = append(plan.Findings, engine.Finding{

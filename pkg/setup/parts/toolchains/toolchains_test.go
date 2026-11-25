@@ -48,13 +48,14 @@ func allLookPath(string) (string, error) { return "/usr/bin/x", nil }
 // harness is one machine: a workspace root and a home directory on disk, the environment as a map
 // and the command seams.
 type harness struct {
-	t        *testing.T
-	root     string
-	home     string
-	env      map[string]string
-	rec      *envRecorder
-	lookPath func(string) (string, error)
-	fsys     engine.FS
+	t          *testing.T
+	root       string
+	home       string
+	env        map[string]string
+	rec        *envRecorder
+	lookPath   func(string) (string, error)
+	fsys       engine.FS
+	loginShell func(context.Context, runner.Runner, string) string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -72,10 +73,11 @@ func newHarness(t *testing.T) *harness {
 
 func (h *harness) part() part {
 	return part{
-		lookPath: h.lookPath,
-		setenv:   h.rec.setenv,
-		getenv:   func(key string) string { return h.env[key] },
-		home:     func() (string, error) { return h.home, nil },
+		lookPath:   h.lookPath,
+		setenv:     h.rec.setenv,
+		getenv:     func(key string) string { return h.env[key] },
+		home:       func() (string, error) { return h.home, nil },
+		loginShell: h.loginShell,
 	}
 }
 
@@ -154,6 +156,7 @@ func TestToolchainsCollectsFromRepoSpecs(t *testing.T) {
 	want := []string{
 		"brew install go node@24 postgresql@18 mailpit",
 		"install bun from https://bun.sh/install",
+		"go env -w GOPRIVATE=github.com/manovaspace/*",
 		"Update ~/.zshrc",
 	}
 	if got := summaries(plan); !slices.Equal(got, want) {
@@ -178,6 +181,7 @@ func TestToolchainsSkipsMailpitInExternalMode(t *testing.T) {
 	want := []string{
 		"brew install go node@24",
 		"install bun from https://bun.sh/install",
+		"go env -w GOPRIVATE=github.com/manovaspace/*",
 		"Update ~/.zshrc",
 	}
 	if got := summaries(plan); !slices.Equal(got, want) {
@@ -288,26 +292,33 @@ func TestToolchainsBashWritesBashrcAndProfile(t *testing.T) {
 
 func TestToolchainsPrependsPathForLaterParts(t *testing.T) {
 	cases := []struct {
-		name     string
-		platform string
-		path     func(h *harness) string
-		brew     bool
-		want     func(h *harness) string
+		name        string
+		platform    string
+		path        func(h *harness) string
+		goToolchain string
+		brew        bool
+		want        func(h *harness) [][2]string
 	}{
 		{
-			name:     "linux adds the user tool dirs first",
+			name:     "linux adds the user tool dirs first and sets GOTOOLCHAIN",
 			platform: "linux",
 			path:     func(*harness) string { return "/usr/bin:/bin" },
-			want: func(h *harness) string {
-				return h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:/usr/bin:/bin"
+			want: func(h *harness) [][2]string {
+				return [][2]string{
+					{"PATH", h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:/usr/bin:/bin"},
+					{"GOTOOLCHAIN", "auto"},
+				}
 			},
 		},
 		{
 			name:     "dir already on PATH is not repeated",
 			platform: "linux",
 			path:     func(h *harness) string { return "/usr/bin:" + h.home + "/go/bin:/bin" },
-			want: func(h *harness) string {
-				return h.home + "/.local/bin:" + h.home + "/.bun/bin:/usr/bin:" + h.home + "/go/bin:/bin"
+			want: func(h *harness) [][2]string {
+				return [][2]string{
+					{"PATH", h.home + "/.local/bin:" + h.home + "/.bun/bin:/usr/bin:" + h.home + "/go/bin:/bin"},
+					{"GOTOOLCHAIN", "auto"},
+				}
 			},
 		},
 		{
@@ -315,9 +326,33 @@ func TestToolchainsPrependsPathForLaterParts(t *testing.T) {
 			platform: "darwin",
 			path:     func(*harness) string { return "/usr/bin:/bin" },
 			brew:     true,
-			want: func(h *harness) string {
-				return h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:" +
-					"/opt/homebrew/opt/node@24/bin:/opt/homebrew/opt/postgresql@18/bin:/usr/bin:/bin"
+			want: func(h *harness) [][2]string {
+				return [][2]string{
+					{"PATH", h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:" +
+						"/opt/homebrew/opt/node@24/bin:/opt/homebrew/opt/postgresql@18/bin:/usr/bin:/bin"},
+					{"GOTOOLCHAIN", "auto"},
+				}
+			},
+		},
+		{
+			name:        "existing GOTOOLCHAIN is preserved",
+			platform:    "linux",
+			path:        func(*harness) string { return "/usr/bin:/bin" },
+			goToolchain: "local",
+			want: func(h *harness) [][2]string {
+				return [][2]string{
+					{"PATH", h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:/usr/bin:/bin"},
+				}
+			},
+		},
+		{
+			name:     "all dirs on PATH still sets GOTOOLCHAIN=auto",
+			platform: "linux",
+			path: func(h *harness) string {
+				return h.home + "/.local/bin:" + h.home + "/.bun/bin:" + h.home + "/go/bin:/usr/bin"
+			},
+			want: func(*harness) [][2]string {
+				return [][2]string{{"GOTOOLCHAIN", "auto"}}
 			},
 		},
 	}
@@ -325,6 +360,9 @@ func TestToolchainsPrependsPathForLaterParts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.env["PATH"] = tc.path(h)
+			if tc.goToolchain != "" {
+				h.env["GOTOOLCHAIN"] = tc.goToolchain
+			}
 			if tc.brew {
 				h.fsys = brewFS{prefix: "/opt/homebrew"}
 			}
@@ -333,9 +371,9 @@ func TestToolchainsPrependsPathForLaterParts(t *testing.T) {
 			if _, err := h.part().Plan(context.Background(), s); err != nil {
 				t.Fatalf("Plan: %v", err)
 			}
-			want := [2]string{"PATH", tc.want(h)}
-			if len(h.rec.calls) != 1 || h.rec.calls[0] != want {
-				t.Fatalf("PATH updates = %v, want [%v]", h.rec.calls, want)
+			want := tc.want(h)
+			if !slices.Equal(h.rec.calls, want) {
+				t.Fatalf("env updates = %v, want %v", h.rec.calls, want)
 			}
 		})
 	}
@@ -370,6 +408,7 @@ func TestToolchainsSecondRunNoActions(t *testing.T) {
 	second := &runnertest.Fake{}
 	second.On("brew list --versions", runner.Result{Stdout: "installed 1.0\n"}, nil)
 	second.On("go env GOVERSION", runner.Result{Stdout: "go1.27.4\n"}, nil)
+	second.On("go env GOPRIVATE", runner.Result{Stdout: "github.com/manovaspace/*\n"}, nil)
 	second.On("node --version", runner.Result{Stdout: "v24.1.0\n"}, nil)
 	second.On("bun --version", runner.Result{Stdout: "1.3.4\n"}, nil)
 	h.lookPath = allLookPath
@@ -388,6 +427,7 @@ func TestToolchainsWarnsOldGoAndNode(t *testing.T) {
 	run := &runnertest.Fake{}
 	run.On("brew list --versions", runner.Result{Stdout: "installed 1.0\n"}, nil)
 	run.On("go env GOVERSION", runner.Result{Stdout: "go1.20.5\n"}, nil)
+	run.On("go env GOPRIVATE", runner.Result{Stdout: "github.com/manovaspace/*\n"}, nil)
 	run.On("node --version", runner.Result{Stdout: "v22.11.0\n"}, nil)
 	h.lookPath = allLookPath
 
@@ -493,4 +533,110 @@ func TestToolchainsBadPackageJSONIsWarning(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestToolchainsGOPRIVATE(t *testing.T) {
+	t.Run("go present", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			goPrivate string
+			want      string // summary of the GOPRIVATE action, "" for none
+		}{
+			{name: "unset", want: "go env -w GOPRIVATE=github.com/manovaspace/*"},
+			{name: "appends", goPrivate: "example.com/*", want: "go env -w GOPRIVATE=example.com/*,github.com/manovaspace/*"},
+			{name: "already present", goPrivate: "example.com/*,github.com/manovaspace/*"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.addRepo("clients/alpha", "version: 1\ntoolchains: [go]\n", "")
+				run := &runnertest.Fake{}
+				run.On("brew list --versions", runner.Result{Stdout: "installed 1.0\n"}, nil)
+				run.On("go env GOVERSION", runner.Result{Stdout: "go1.27.4\n"}, nil)
+				run.On("go env GOPRIVATE", runner.Result{Stdout: tc.goPrivate + "\n"}, nil)
+				run.On("go env -w", runner.Result{}, nil)
+
+				plan, err := h.part().Plan(context.Background(), h.state("darwin", "native", run, &runnertest.Fake{}, "clients/alpha"))
+				if err != nil {
+					t.Fatalf("Plan: %v", err)
+				}
+				var goActions []engine.Action
+				for _, a := range plan.Actions {
+					if a.Subject == "GOPRIVATE" {
+						goActions = append(goActions, a)
+					}
+				}
+				if tc.want == "" {
+					if len(goActions) != 0 {
+						t.Fatalf("GOPRIVATE actions = %+v, want none", goActions)
+					}
+					return
+				}
+				if len(goActions) != 1 || goActions[0].Summary != tc.want {
+					t.Fatalf("GOPRIVATE actions = %+v, want [%q]", goActions, tc.want)
+				}
+				if err := goActions[0].Do(context.Background()); err != nil {
+					t.Fatalf("Do: %v", err)
+				}
+				calls := run.Calls()
+				last := calls[len(calls)-1]
+				if got := strings.Join(append([]string{last.Name}, last.Args...), " "); got != tc.want {
+					t.Fatalf("last command = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("go missing planned after pkgmgr and rechecks in Do", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			goPrivate string
+			wantWrite string // expected go env -w command, "" for none
+		}{
+			{name: "unset at Do time", wantWrite: "go env -w GOPRIVATE=github.com/manovaspace/*"},
+			{name: "existing entry preserved at Do time", goPrivate: "example.com/*", wantWrite: "go env -w GOPRIVATE=example.com/*,github.com/manovaspace/*"},
+			{name: "already present at Do time", goPrivate: "github.com/manovaspace/*"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.addRepo("clients/alpha", "version: 1\ntoolchains: [go]\n", "")
+				run := &runnertest.Fake{}
+				run.On("brew list --versions", runner.Result{}, nil)
+				run.On("go env GOPRIVATE", runner.Result{Stdout: tc.goPrivate + "\n"}, nil)
+				run.On("go env -w", runner.Result{}, nil)
+
+				plan, err := h.part().Plan(context.Background(), h.state("darwin", "native", run, &runnertest.Fake{}, "clients/alpha"))
+				if err != nil {
+					t.Fatalf("Plan: %v", err)
+				}
+				wantOrder := []string{
+					"brew install go",
+					"go env -w GOPRIVATE=github.com/manovaspace/*",
+					"Update ~/.zshrc",
+				}
+				if got := summaries(plan); !slices.Equal(got, wantOrder) {
+					t.Fatalf("actions = %q, want %q", got, wantOrder)
+				}
+				if err := plan.Actions[1].Do(context.Background()); err != nil {
+					t.Fatalf("Do: %v", err)
+				}
+				var writes []string
+				for _, c := range run.Calls() {
+					if c.Name == "go" && len(c.Args) >= 2 && c.Args[0] == "env" && c.Args[1] == "-w" {
+						writes = append(writes, strings.Join(append([]string{c.Name}, c.Args...), " "))
+					}
+				}
+				if tc.wantWrite == "" {
+					if len(writes) != 0 {
+						t.Fatalf("writes = %q, want none", writes)
+					}
+					return
+				}
+				if !slices.Equal(writes, []string{tc.wantWrite}) {
+					t.Fatalf("writes = %q, want [%q]", writes, tc.wantWrite)
+				}
+			})
+		}
+	})
 }

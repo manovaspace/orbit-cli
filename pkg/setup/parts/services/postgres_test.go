@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -154,5 +155,64 @@ func TestPsqlRunsAsOSUser(t *testing.T) {
 	}
 	if psqls == 0 {
 		t.Fatal("psql never ran")
+	}
+}
+
+func TestHalfInitializedClusterConfiguresBeforeStart(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t)
+	r.addRepo("app/api", apiOrbit)
+	r.mkCluster()
+	confPath := filepath.Join(r.dataDir, "postgresql.conf")
+	initial := "# default config\n#port = 5432\n#unix_socket_directories = '/tmp'\nport = 10000\n"
+	if err := os.WriteFile(confPath, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sim := newSim(t, r.dataDir)
+	st := r.state("linux", "native", sim, "app/api")
+	p := r.part()
+
+	plan, err := p.Plan(ctx, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Configure Postgres", "Start Postgres", "Ensure databases"}
+	if got := summaries(plan); !slices.Equal(got, want) {
+		t.Fatalf("actions = %q, want %q", got, want)
+	}
+
+	for _, a := range plan.Actions {
+		if err := a.Do(ctx); err != nil {
+			t.Fatalf("action %q: %v", a.Summary, err)
+		}
+	}
+
+	data, err := os.ReadFile(confPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if got := strings.Count(content, "\nport = 10000"); got != 1 {
+		t.Fatalf("port = 10000 appeared %d times, want 1:\n%s", got, content)
+	}
+	for _, wantLine := range []string{
+		"listen_addresses = '127.0.0.1'",
+		"unix_socket_directories = '" + r.dataDir + "'",
+	} {
+		if !strings.Contains(content, "\n"+wantLine+"\n") {
+			t.Errorf("postgresql.conf lacks %q:\n%s", wantLine, content)
+		}
+	}
+
+	// Once stopped with config in place, Configure Postgres is no longer planned.
+	sim.running = false
+	plan2, err := p.Plan(ctx, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want2 := []string{"Start Postgres", "Ensure databases"}
+	if got := summaries(plan2); !slices.Equal(got, want2) {
+		t.Fatalf("second plan actions = %q, want %q", got, want2)
 	}
 }

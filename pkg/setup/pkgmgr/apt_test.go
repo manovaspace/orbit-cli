@@ -85,7 +85,7 @@ func TestAptPostgresDisablesMainCluster(t *testing.T) {
 	if err := actions[2].Do(context.Background()); err != nil {
 		t.Fatalf("install Do: %v", err)
 	}
-	wantInstall := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-18"
+	wantInstall := `apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" postgresql-18`
 	calls = tty.Calls()
 	if got := calls[len(calls)-1].Args[2]; got != wantInstall {
 		t.Fatalf("install script = %q, want %q", got, wantInstall)
@@ -202,7 +202,7 @@ func TestAptBootstrapsCurlBeforeRepos(t *testing.T) {
 		}
 	}
 	calls := tty.Calls()
-	want := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl"
+	want := `apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" ca-certificates curl`
 	if calls[0].Name != "sudo" || calls[0].Args[2] != want {
 		t.Fatalf("prerequisites call = %+v, want script %q", calls[0], want)
 	}
@@ -245,5 +245,45 @@ func TestQueryNonZeroExitMeansMissing(t *testing.T) {
 	got, err := mgr.Missing(context.Background(), []string{"gh"})
 	if err != nil || len(got) != 1 || got[0] != "gh" {
 		t.Fatalf("Missing = %v, %v; want [gh], nil", got, err)
+	}
+}
+
+func TestAptNonInteractiveOptions(t *testing.T) {
+	run := &runnertest.Fake{}
+	run.On("dpkg-query -W -f=${Status} ca-certificates", runner.Result{ExitCode: 1}, errors.New("exit status 1"))
+	run.On("dpkg-query -W -f=${Status} curl", runner.Result{Stdout: "install ok installed"}, nil)
+	tty := &runnertest.Fake{}
+	tty.On("sudo", runner.Result{}, nil)
+	s := &engine.State{Platform: "linux", Run: run, Tty: tty, FS: mapFS{}}
+	mgr, err := ForLookPath(s, noLookPath)
+	if err != nil {
+		t.Fatalf("ForLookPath: %v", err)
+	}
+	actions := mgr.Install([]string{"gh"})
+	if len(actions) != 3 {
+		t.Fatalf("actions = %d, want 3 (bootstrap, repo, install)", len(actions))
+	}
+	for _, idx := range []int{0, 2} {
+		if err := actions[idx].Do(context.Background()); err != nil {
+			t.Fatalf("Do[%d]: %v", idx, err)
+		}
+	}
+	calls := tty.Calls()
+	if len(calls) != 2 {
+		t.Fatalf("calls = %d, want 2", len(calls))
+	}
+	required := []string{
+		"DEBIAN_FRONTEND=noninteractive",
+		"NEEDRESTART_MODE=a",
+		`-o Dpkg::Options::="--force-confdef"`,
+		`-o Dpkg::Options::="--force-confold"`,
+	}
+	for i, c := range calls {
+		script := c.Args[2]
+		for _, opt := range required {
+			if !strings.Contains(script, opt) {
+				t.Errorf("call[%d] script %q missing %q", i, script, opt)
+			}
+		}
 	}
 }

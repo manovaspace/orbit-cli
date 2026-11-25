@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/runner/runnertest"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 )
@@ -99,4 +101,51 @@ func TestApplyBlockUnterminatedIsError(t *testing.T) {
 	if err != nil || string(data) != existing {
 		t.Fatalf("zshrc changed by Plan: %q, %v", data, err)
 	}
+}
+
+func TestLoginShellLookupAndFallback(t *testing.T) {
+	t.Run("linux getent passwd", func(t *testing.T) {
+		run := &runnertest.Fake{}
+		run.On("getent passwd alice", runner.Result{Stdout: "alice:x:1000:1000:Alice:/home/alice:/bin/zsh\n"}, nil)
+		if got := loginShellForUser(context.Background(), run, "linux", "alice"); got != "/bin/zsh" {
+			t.Fatalf("loginShellForUser(linux) = %q, want /bin/zsh", got)
+		}
+	})
+
+	t.Run("darwin dscl UserShell", func(t *testing.T) {
+		run := &runnertest.Fake{}
+		run.On("dscl . -read /Users/alice UserShell", runner.Result{Stdout: "UserShell: /bin/zsh\n"}, nil)
+		if got := loginShellForUser(context.Background(), run, "darwin", "alice"); got != "/bin/zsh" {
+			t.Fatalf("loginShellForUser(darwin) = %q, want /bin/zsh", got)
+		}
+	})
+
+	t.Run("lookup failure returns empty for fallback", func(t *testing.T) {
+		run := &runnertest.Fake{}
+		if got := loginShellForUser(context.Background(), run, "linux", "alice"); got != "" {
+			t.Fatalf("loginShellForUser on error = %q, want empty", got)
+		}
+	})
+
+	t.Run("planShellRC uses loginShell over SHELL env and falls back when empty", func(t *testing.T) {
+		h := newHarness(t)
+		h.env["SHELL"] = "/bin/bash"
+		h.loginShell = func(context.Context, runner.Runner, string) string { return "/bin/zsh" }
+		plan, err := h.part().Plan(context.Background(), h.state("linux", "native", &runnertest.Fake{}, &runnertest.Fake{}))
+		if err != nil {
+			t.Fatalf("Plan: %v", err)
+		}
+		if got := summaries(plan); !slices.Equal(got, []string{"Update ~/.zshrc"}) {
+			t.Fatalf("loginShell override actions = %q, want [Update ~/.zshrc]", got)
+		}
+
+		h.loginShell = func(context.Context, runner.Runner, string) string { return "" }
+		plan, err = h.part().Plan(context.Background(), h.state("linux", "native", &runnertest.Fake{}, &runnertest.Fake{}))
+		if err != nil {
+			t.Fatalf("Plan fallback: %v", err)
+		}
+		if got := summaries(plan); !slices.Equal(got, []string{"Update ~/.bashrc", "Update ~/.profile"}) {
+			t.Fatalf("fallback actions = %q, want bashrc and profile", got)
+		}
+	})
 }

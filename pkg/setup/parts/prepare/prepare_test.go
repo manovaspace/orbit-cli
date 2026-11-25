@@ -380,3 +380,161 @@ func TestRepoWithoutOrbitYAMLContributesNothing(t *testing.T) {
 		t.Fatalf("plan = %+v, want nothing", got)
 	}
 }
+
+func TestSeedRetriedAfterFailure(t *testing.T) {
+	f := newFixture(t, "native", orbitFull)
+	f.head("head1")
+	f.ok("bun install")
+	f.ok("bun run db:migrate")
+	f.fake.On("sh -c bun run db:seed", runner.Result{Stderr: "seed boom\n", ExitCode: 1}, clierr.Tool("seed exited 1"))
+	f.s.NewDatabases = map[string]bool{"app_api": true}
+
+	first := f.plan(t)
+	var seedErr error
+	for _, a := range first.Actions {
+		if err := a.Do(context.Background()); err != nil {
+			seedErr = err
+			break
+		}
+	}
+	if seedErr == nil {
+		t.Fatal("expected seed action to fail")
+	}
+
+	st, _, err := loadState(engine.OSFS{}, f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st["clients/alpha"].PendingSeed {
+		t.Fatalf("PendingSeed = false after seed failure, want true (state=%+v)", st)
+	}
+
+	// Second run: NewDatabases is empty, but PendingSeed causes seed to retry (without re-running prepare/migrate).
+	f.s.NewDatabases = nil
+	retryFake := &runnertest.Fake{}
+	retryFake.On("sh -c bun run db:seed", runner.Result{}, nil)
+	f.git.Fake = retryFake
+	f.s.Env = retryFake
+
+	second := f.plan(t)
+	want := []string{"clients/alpha: bun run db:seed"}
+	if got := summaries(second); len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("second plan summaries = %v, want %v", got, want)
+	}
+	apply(t, second)
+
+	st, _, err = loadState(engine.OSFS{}, f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st["clients/alpha"].PendingSeed {
+		t.Fatalf("PendingSeed = true after seed succeeded, want false (state=%+v)", st)
+	}
+
+	// Third run: nothing planned.
+	if third := f.plan(t); len(third.Actions) != 0 {
+		t.Fatalf("third plan summaries = %v, want none", summaries(third))
+	}
+}
+
+func TestSeedRetriedWhenMigrateFails(t *testing.T) {
+	f := newFixture(t, "native", orbitFull)
+	f.head("head1")
+	f.ok("bun install")
+	f.fake.On("sh -c bun run db:migrate", runner.Result{Stderr: "migrate boom\n", ExitCode: 1}, clierr.Tool("migrate exited 1"))
+	f.s.NewDatabases = map[string]bool{"app_api": true}
+
+	first := f.plan(t)
+	var migrateErr error
+	for _, a := range first.Actions {
+		if err := a.Do(context.Background()); err != nil {
+			migrateErr = err
+			break
+		}
+	}
+	if migrateErr == nil {
+		t.Fatal("expected migrate action to fail")
+	}
+
+	st, _, err := loadState(engine.OSFS{}, f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st["clients/alpha"].PendingSeed {
+		t.Fatalf("PendingSeed = false after migrate failure, want true (state=%+v)", st)
+	}
+
+	// Second run: NewDatabases is empty, but PendingSeed triggers migrate and seed.
+	f.s.NewDatabases = nil
+	retryFake := &runnertest.Fake{}
+	retryFake.On("git -C", runner.Result{Stdout: "head1\n"}, nil)
+	retryFake.On("sh -c bun run db:migrate", runner.Result{}, nil)
+	retryFake.On("sh -c bun run db:seed", runner.Result{}, nil)
+	f.git.Fake = retryFake
+	f.s.Env = retryFake
+
+	second := f.plan(t)
+	want := []string{"clients/alpha: bun run db:migrate", "clients/alpha: bun run db:seed"}
+	if got := summaries(second); len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("second plan summaries = %v, want %v", got, want)
+	}
+	apply(t, second)
+
+	st, _, err = loadState(engine.OSFS{}, f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st["clients/alpha"].PendingSeed {
+		t.Fatalf("PendingSeed = true after retry succeeded, want false (state=%+v)", st)
+	}
+}
+
+func TestRunCommandSetsGoToolchainAuto(t *testing.T) {
+	t.Run("prepends GOTOOLCHAIN=auto when unset", func(t *testing.T) {
+		t.Setenv("GOTOOLCHAIN", "")
+		f := newFixture(t, "native", "version: 1\nprepare:\n  - go test ./...\n")
+		write(t, filepath.Join(f.repo, ".env"), "FOO=bar\n")
+		f.ok("go test ./...")
+
+		apply(t, f.plan(t))
+		calls := shCalls(f.fake)
+		if len(calls) != 1 {
+			t.Fatalf("sh calls = %d, want 1", len(calls))
+		}
+		got := calls[0].Env
+		if len(got) == 0 || got[0] != "GOTOOLCHAIN=auto" {
+			t.Fatalf("env = %v, want GOTOOLCHAIN=auto prepended", got)
+		}
+	})
+
+	t.Run("does not override host GOTOOLCHAIN", func(t *testing.T) {
+		t.Setenv("GOTOOLCHAIN", "local")
+		f := newFixture(t, "native", "version: 1\nprepare:\n  - go test ./...\n")
+		f.ok("go test ./...")
+
+		apply(t, f.plan(t))
+		calls := shCalls(f.fake)
+		if len(calls) != 1 {
+			t.Fatalf("sh calls = %d, want 1", len(calls))
+		}
+		if hasEnvKey(calls[0].Env, "GOTOOLCHAIN") {
+			t.Fatalf("env = %v, did not expect GOTOOLCHAIN when host sets it", calls[0].Env)
+		}
+	})
+
+	t.Run("does not override env file GOTOOLCHAIN", func(t *testing.T) {
+		t.Setenv("GOTOOLCHAIN", "")
+		f := newFixture(t, "native", "version: 1\nprepare:\n  - go test ./...\nenv:\n  - schema: .env.schema.yaml\n    write: .env\n")
+		write(t, filepath.Join(f.repo, ".env"), "GOTOOLCHAIN=go1.25.0\n")
+		f.ok("go test ./...")
+
+		apply(t, f.plan(t))
+		calls := shCalls(f.fake)
+		if len(calls) != 1 {
+			t.Fatalf("sh calls = %d, want 1", len(calls))
+		}
+		if len(calls[0].Env) != 1 || calls[0].Env[0] != "GOTOOLCHAIN=go1.25.0" {
+			t.Fatalf("env = %v, want [GOTOOLCHAIN=go1.25.0]", calls[0].Env)
+		}
+	})
+}

@@ -21,12 +21,16 @@ import (
 
 	"github.com/manovaspace/orbit-cli/pkg/clierr"
 	"github.com/manovaspace/orbit-cli/pkg/manifest"
+	"github.com/manovaspace/orbit-cli/pkg/runner"
 	"github.com/manovaspace/orbit-cli/pkg/setup/engine"
 	"github.com/manovaspace/orbit-cli/pkg/setup/pkgmgr"
 	"github.com/manovaspace/orbit-cli/pkg/setup/spec"
 )
 
-const partName = "toolchains"
+const (
+	partName         = "toolchains"
+	goPrivatePattern = "github.com/manovaspace/*"
+)
 
 // minGo is the oldest Go this part accepts. Exact releases come from GOTOOLCHAIN=auto in the block.
 var minGo = []int{1, 21}
@@ -35,16 +39,23 @@ var minGo = []int{1, 21}
 var nodeMajorRe = regexp.MustCompile(`\d+`)
 
 type part struct {
-	lookPath pkgmgr.LookPath
-	setenv   func(key, value string) error
-	getenv   func(key string) string
-	home     func() (string, error)
+	lookPath   pkgmgr.LookPath
+	setenv     func(key, value string) error
+	getenv     func(key string) string
+	home       func() (string, error)
+	loginShell func(context.Context, runner.Runner, string) string
 }
 
 // New returns the toolchains part, looking commands up on PATH, setting PATH in this process and
 // reading the home directory and environment from the process.
 func New() engine.Part {
-	return part{lookPath: exec.LookPath, setenv: os.Setenv, getenv: os.Getenv, home: os.UserHomeDir}
+	return part{
+		lookPath:   exec.LookPath,
+		setenv:     os.Setenv,
+		getenv:     os.Getenv,
+		home:       os.UserHomeDir,
+		loginShell: defaultLoginShell,
+	}
 }
 
 func (part) Name() string    { return partName }
@@ -249,7 +260,7 @@ func (p part) Plan(ctx context.Context, s *engine.State) (engine.Plan, error) {
 	if err := p.planTools(ctx, s, n, &plan); err != nil {
 		return engine.Plan{}, err
 	}
-	if err := p.planShellRC(s, home, &plan); err != nil {
+	if err := p.planShellRC(ctx, s, home, &plan); err != nil {
 		return engine.Plan{}, err
 	}
 	return plan, nil
@@ -285,13 +296,95 @@ func (p part) planTools(ctx context.Context, s *engine.State, n needs, plan *eng
 			plan.Actions = append(plan.Actions, *action)
 		}
 	}
-	if n.tools["go"] && !slices.Contains(missing, "go") {
-		checkGo(ctx, s, plan)
+	if n.tools["go"] {
+		goMissing := slices.Contains(missing, "go")
+		if !goMissing {
+			checkGo(ctx, s, plan)
+		}
+		if err := planGoPrivate(ctx, s, goMissing, plan); err != nil {
+			return err
+		}
 	}
 	if n.tools["node"] && n.nodeMajor > 0 && !slices.Contains(missing, "node") {
 		checkNode(ctx, s, n.nodeMajor, plan)
 	}
 	return nil
+}
+
+// planGoPrivate ensures github.com/manovaspace/* is in GOPRIVATE so private modules bypass the
+// public Go proxy. When go is already installed, GOPRIVATE is checked now; when go is being
+// installed in this run, Do re-checks GOPRIVATE after installation so existing entries are kept.
+func planGoPrivate(ctx context.Context, s *engine.State, goMissing bool, plan *engine.Plan) error {
+	run := s.Run
+	if goMissing {
+		plan.Actions = append(plan.Actions, engine.Action{
+			Part:    partName,
+			Subject: "GOPRIVATE",
+			Summary: "go env -w GOPRIVATE=" + goPrivatePattern,
+			Do: func(ctx context.Context) error {
+				current, err := commandOutput(ctx, run, "go", "env", "GOPRIVATE")
+				if err != nil {
+					return err
+				}
+				if hasGoPrivate(current) {
+					return nil
+				}
+				_, err = run.Run(ctx, "", "go", "env", "-w", "GOPRIVATE="+appendGoPrivate(current))
+				return err
+			},
+		})
+		return nil
+	}
+	current, err := commandOutput(ctx, run, "go", "env", "GOPRIVATE")
+	if err != nil {
+		return err
+	}
+	if hasGoPrivate(current) {
+		return nil
+	}
+	value := appendGoPrivate(current)
+	plan.Actions = append(plan.Actions, engine.Action{
+		Part:    partName,
+		Subject: "GOPRIVATE",
+		Summary: "go env -w GOPRIVATE=" + value,
+		Do: func(ctx context.Context) error {
+			_, err := run.Run(ctx, "", "go", "env", "-w", "GOPRIVATE="+value)
+			return err
+		},
+	})
+	return nil
+}
+
+func hasGoPrivate(current string) bool {
+	for _, pattern := range strings.Split(current, ",") {
+		if strings.TrimSpace(pattern) == goPrivatePattern {
+			return true
+		}
+	}
+	return false
+}
+
+func appendGoPrivate(current string) string {
+	if current == "" {
+		return goPrivatePattern
+	}
+	return current + "," + goPrivatePattern
+}
+
+// commandOutput returns the trimmed stdout of a command. A non-zero exit reads as empty output,
+// because go env exits non-zero for unset keys; a command that could not start is an error.
+func commandOutput(ctx context.Context, run runner.Runner, name string, args ...string) (string, error) {
+	res, err := run.Run(ctx, "", name, args...)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", ctxErr
+	}
+	if err != nil {
+		if res.ExitCode != 0 {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(res.Stdout), nil
 }
 
 // planBunPin returns the action that installs the pinned Bun when it is missing or its major or minor
@@ -420,14 +513,18 @@ func (p part) prependPath(home, prefix string, hasBrew bool) error {
 			add = append(add, dir)
 		}
 	}
-	if len(add) == 0 {
-		return nil
+	if len(add) > 0 {
+		if current != "" {
+			add = append(add, current)
+		}
+		if err := p.setenv("PATH", strings.Join(add, string(os.PathListSeparator))); err != nil {
+			return clierr.Wrap(err, clierr.Failed("cannot set PATH"))
+		}
 	}
-	if current != "" {
-		add = append(add, current)
-	}
-	if err := p.setenv("PATH", strings.Join(add, string(os.PathListSeparator))); err != nil {
-		return clierr.Wrap(err, clierr.Failed("cannot set PATH"))
+	if p.getenv("GOTOOLCHAIN") == "" {
+		if err := p.setenv("GOTOOLCHAIN", "auto"); err != nil {
+			return clierr.Wrap(err, clierr.Failed("cannot set GOTOOLCHAIN"))
+		}
 	}
 	return nil
 }

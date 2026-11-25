@@ -109,9 +109,11 @@ func (a *apt) bootstrapNeeded() bool {
 	return false
 }
 
+const aptInstallPrefix = `apt-get update && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" `
+
 // bootstrapAction installs the tools the repository recipes depend on.
 func (a *apt) bootstrapAction() engine.Action {
-	script := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl"
+	script := aptInstallPrefix + "ca-certificates curl"
 	return engine.Action{
 		Subject: "apt-prerequisites",
 		Summary: "Install apt prerequisites",
@@ -171,7 +173,7 @@ func (a *apt) clusterAction() engine.Action {
 // installAction refreshes the package index and installs pkgs.
 func (a *apt) installAction(pkgs []string) engine.Action {
 	list := strings.Join(pkgs, " ")
-	script := "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y " + list
+	script := aptInstallPrefix + list
 	return engine.Action{
 		Subject: "apt",
 		Summary: "apt-get update, then install " + list,

@@ -34,7 +34,8 @@ func DefaultMachinePath() string {
 // LoadMachine reads the machine file at path. The bool reports whether the file existed.
 // A missing file yields the defaults; a malformed file is a usage error naming the path.
 func LoadMachine(path string) (Machine, bool, error) {
-	m := machineDefaults()
+	defaults := machineDefaults()
+	m := defaults
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return m, false, nil
@@ -44,6 +45,9 @@ func LoadMachine(path string) (Machine, bool, error) {
 	}
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		return Machine{}, true, clierr.Wrap(err, clierr.Usage(fmt.Sprintf("machine file %s is malformed", path)))
+	}
+	if m.Workspace == "" {
+		m.Workspace = defaults.Workspace
 	}
 	ws, err := expandHome(m.Workspace)
 	if err != nil {
