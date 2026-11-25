@@ -49,7 +49,7 @@ func New() engine.Part {
 }
 
 func (part) Name() string    { return partName }
-func (part) Needs() []string { return []string{"services"} }
+func (part) Needs() []string { return []string{"services", "repos"} }
 
 // productionSecretsPath is the same local.env the services part writes.
 func productionSecretsPath() (string, error) {

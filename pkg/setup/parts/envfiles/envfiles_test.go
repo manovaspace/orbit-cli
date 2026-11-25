@@ -411,3 +411,20 @@ func TestEnvUnknownFromIsError(t *testing.T) {
 		t.Fatalf("errors = %+v, want one error naming WEIRD", errs)
 	}
 }
+
+func TestNeedsIncludesRepos(t *testing.T) {
+	// Task 10 ruling 4: env files are written from orbit.yaml of the selected repositories, so the
+	// repos part must run first.
+	got := New().Needs()
+	want := map[string]bool{"services": false, "repos": false}
+	for _, name := range got {
+		if _, ok := want[name]; ok {
+			want[name] = true
+		}
+	}
+	for name, found := range want {
+		if !found {
+			t.Fatalf("Needs() = %v, missing %q", got, name)
+		}
+	}
+}
