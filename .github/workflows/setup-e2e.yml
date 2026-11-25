@@ -96,6 +96,8 @@ jobs:
           ORBIT_RELEASE_BASE_URL="file:///tmp/orbit-rel" bash install.sh -y -- setup --yes --projects falak --workspace "$HOME/Dev/Manova"
 
       - name: Verify setup
+        env:
+          GH_TOKEN: ${{ secrets.SETUP_E2E_TOKEN }}
         run: |
           export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/go/bin:$PATH"
           if [ "$(uname -s)" = "Darwin" ]; then
