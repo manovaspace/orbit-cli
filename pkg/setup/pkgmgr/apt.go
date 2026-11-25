@@ -109,7 +109,7 @@ func (a *apt) bootstrapNeeded() bool {
 	return false
 }
 
-const aptInstallPrefix = `apt-get update -o DPkg::Lock::Timeout=120 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" `
+const aptInstallPrefix = `apt-get update -o DPkg::Lock::Timeout=300 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" `
 
 // bootstrapAction installs the tools the repository recipes depend on.
 func (a *apt) bootstrapAction() engine.Action {

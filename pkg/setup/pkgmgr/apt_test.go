@@ -85,7 +85,7 @@ func TestAptPostgresDisablesMainCluster(t *testing.T) {
 	if err := actions[2].Do(context.Background()); err != nil {
 		t.Fatalf("install Do: %v", err)
 	}
-	wantInstall := `apt-get update -o DPkg::Lock::Timeout=120 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" postgresql-18`
+	wantInstall := `apt-get update -o DPkg::Lock::Timeout=300 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" postgresql-18`
 	calls = tty.Calls()
 	if got := calls[len(calls)-1].Args[2]; got != wantInstall {
 		t.Fatalf("install script = %q, want %q", got, wantInstall)
@@ -202,7 +202,7 @@ func TestAptBootstrapsCurlBeforeRepos(t *testing.T) {
 		}
 	}
 	calls := tty.Calls()
-	want := `apt-get update -o DPkg::Lock::Timeout=120 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" ca-certificates curl`
+	want := `apt-get update -o DPkg::Lock::Timeout=300 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" ca-certificates curl`
 	if calls[0].Name != "sudo" || calls[0].Args[2] != want {
 		t.Fatalf("prerequisites call = %+v, want script %q", calls[0], want)
 	}
@@ -275,7 +275,7 @@ func TestAptNonInteractiveOptions(t *testing.T) {
 	required := []string{
 		"DEBIAN_FRONTEND=noninteractive",
 		"NEEDRESTART_MODE=a",
-		"-o DPkg::Lock::Timeout=120",
+		"-o DPkg::Lock::Timeout=300",
 		`-o Dpkg::Options::="--force-confdef"`,
 		`-o Dpkg::Options::="--force-confold"`,
 	}

@@ -198,7 +198,7 @@ func TestSystemLinuxBatchesAptRepoThenInstall(t *testing.T) {
 	if !calls[0].Interactive || calls[0].Name != "sudo" || strings.Join(calls[0].Args[:2], " ") != "sh -c" || calls[0].Args[2] != githubCLIScript {
 		t.Fatalf("repo call = %+v", calls[0])
 	}
-	want := `apt-get update -o DPkg::Lock::Timeout=120 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" gh`
+	want := `apt-get update -o DPkg::Lock::Timeout=300 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" gh`
 	if calls[1].Name != "sudo" || calls[1].Args[2] != want {
 		t.Fatalf("install call = %+v, want script %q", calls[1], want)
 	}
@@ -255,7 +255,7 @@ func TestSystemLinuxInstallsUnzip(t *testing.T) {
 	if len(calls) != 1 || calls[0].Name != "sudo" {
 		t.Fatalf("calls = %+v, want one sudo call", calls)
 	}
-	if want := `apt-get update -o DPkg::Lock::Timeout=120 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=120 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" unzip`; calls[0].Args[2] != want {
+	if want := `apt-get update -o DPkg::Lock::Timeout=300 && DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" unzip`; calls[0].Args[2] != want {
 		t.Fatalf("install script = %q, want %q", calls[0].Args[2], want)
 	}
 }
