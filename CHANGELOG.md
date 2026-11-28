@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.1](https://github.com/manovaspace/orbit-cli/compare/v0.23.0...v0.23.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **install:** bump fallback version to v0.23.0 ([06723c1](https://github.com/manovaspace/orbit-cli/commit/06723c1417bf33d0ac8c664aa368fbf3895ea93f))
+* **install:** bump fallback version to v0.23.0 ([713a0df](https://github.com/manovaspace/orbit-cli/commit/713a0df87277c75c61232ed2e07ea38bee7065d8))
+
 ## [0.23.0](https://github.com/manovaspace/orbit-cli/compare/v0.22.1...v0.23.0) (2026-11-25)
 
 
